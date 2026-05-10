@@ -4,7 +4,7 @@ Convert speech to text for free by using free APIS(Voxtral, Groq)
 
 ## Requirements
 
-- Python 3.10+
+- Python 3.13+
 - [uv](https://docs.astral.sh/uv/getting-started/installation/)
 - [Groq API key](https://console.groq.com/keys) OR [Voxtral API key](https://mistral.ai)
 - Linux with `xclip`/`xsel` (X11) for clipboard functionality
