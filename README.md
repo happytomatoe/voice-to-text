@@ -25,7 +25,7 @@ export VOXTRAL_API_KEY=""
 
 ## Configuration
 
-Edit [`config.yaml`](./config.yaml) to customize:
+Edit [`config.yaml`](./config.yaml) to customize
 ## Usage
 
 ```bash
@@ -46,12 +46,13 @@ voice-to-text setup
 Press **Enter**, **Escape**, or **q** to stop recording when using default duration
 
 ## Gnome Hotkey Setup
-Install[just](https://github.com/casey/just) if you don't have it
+1. Install [just](https://github.com/casey/just) if you don't have it
+2. Run 
 ```bash
 just setup-global-hotkey
 ```
 
-This configures **Super+v** to launch voice-to-text in Allacrity terminal. Modify the justfile for other terminals.
+This configures **Super+v** to launch voice-to-text in Allacrity terminal. Modify the Justfile for other terminals.
 
 ## Output Methods
 
