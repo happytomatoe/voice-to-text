@@ -3,7 +3,6 @@
 Convert speech to text for free by using free APIs(Voxtral, Groq) on Linux
 
 
-![Demo](./demo.gif)
 
 ## Requirements
 
