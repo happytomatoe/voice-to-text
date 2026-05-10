@@ -1,6 +1,6 @@
 # voice-to-text
 
-Convert speech to text for free by using free APIS(Voxtral, Groq)
+Convert speech to text for free by using free APIs(Voxtral, Groq)
 
 ## Requirements
 
