@@ -43,15 +43,15 @@ voice-to-text --provider voxtral
 voice-to-text setup
 ```
 
-Press **Enter**, **Escape**, or **q** to stop recording when using default duration (0).
+Press **Enter**, **Escape**, or **q** to stop recording when using default duration
 
 ## Gnome Hotkey Setup
 
 ```bash
-just install-ghostty
+just setup-global-hotkey
 ```
 
-This configures **Super+v** to launch voice-to-text in Ghostty terminal. Modify the justfile for other terminals.
+This configures **Super+v** to launch voice-to-text in Allacrity terminal. Modify the justfile for other terminals.
 
 ## Output Methods
 
