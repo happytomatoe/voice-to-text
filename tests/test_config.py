@@ -3,10 +3,10 @@ import pytest
 import sys
 sys.path.insert(0, 'src')
 
-from groq_voice.config import ConfigManager
+from voice_to_text.config import ConfigManager
 
 def test_config_management():
-    config_mgr = ConfigManager('/home/l/git/groq_voice/config.yaml')
+    config_mgr = ConfigManager('/home/l/git/voice_to_text/config.yaml')
     provider = config_mgr.get_selected_provider()
     assert provider in ['groq', 'voxtral']
     
@@ -14,13 +14,13 @@ def test_config_management():
     assert 'api_key_env' in provider_config
 
 def test_provider_instantiation():
-    config_mgr = ConfigManager('/home/l/git/groq_voice/config.yaml')
+    config_mgr = ConfigManager('/home/l/git/voice_to_text/config.yaml')
     provider_name = config_mgr.get_selected_provider()
     provider_config = config_mgr.get_provider_config(provider_name)
     
     # Test that we can instantiate the configured provider
     # (won't work without API keys, but should not crash on import/config)
-    from groq_voice.providers import get_provider
+    from voice_to_text.providers import get_provider
     try:
         provider = get_provider(provider_name, provider_config)
         assert provider.name == provider_name

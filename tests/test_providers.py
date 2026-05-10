@@ -3,8 +3,8 @@ import pytest
 import sys
 sys.path.insert(0, 'src')
 
-from groq_voice.providers import get_provider, TranscriptionProvider
-from groq_voice.providers.groq import GroqProvider
+from voice_to_text.providers import get_provider, TranscriptionProvider
+from voice_to_text.providers.groq import GroqProvider
 
 class TestProviderFactory:
     def test_get_groq_provider(self):

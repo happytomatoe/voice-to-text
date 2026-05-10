@@ -5,14 +5,14 @@ sys.path.insert(0, 'src')
 
 def test_config_loading():
     """Test config.yaml loading."""
-    from groq_voice.main import load_config
+    from voice_to_text.main import load_config
     config = load_config()
     assert hasattr(config, 'get_selected_provider')
 
 def test_provider_instantiation():
     """Test provider instantiation through main config."""
-    from groq_voice.main import load_config
-    from groq_voice.providers import get_provider
+    from voice_to_text.main import load_config
+    from voice_to_text.providers import get_provider
     
     config = load_config()
     provider_name = config.get_selected_provider()
@@ -30,7 +30,7 @@ def test_cli_help():
     """Test that CLI help works."""
     import subprocess
     result = subprocess.run([
-        sys.executable, "-m", "groq_voice.main", "record", "--help"
+        sys.executable, "-m", "voice_to_text.main", "record", "--help"
     ], capture_output=True, text=True, cwd="src")
     assert result.returncode == 0
     assert "--provider" in result.stdout

@@ -2,7 +2,7 @@ default:
     @just --list
 
 run:
-    PYTHONPATH=src .venv/bin/python -m groq_voice.main
+    PYTHONPATH=src .venv/bin/python -m voice_to_text.main
 
 install:
     python -m pip install . --user -q --upgrade
@@ -11,7 +11,7 @@ uninstall:
     .venv/bin/python -m pip uninstall groq-voice -y
 
 package:
-    .venv/bin/pyinstaller groq_voice.spec
+    .venv/bin/pyinstaller voice_to_text.spec
 
 install-ghostty:
     #!/usr/bin/env bash

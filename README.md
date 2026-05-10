@@ -16,9 +16,9 @@ python -m venv .venv
 source .venv/bin/activate
 pip install -e .
 
-# Configure API key
-cp .env.example .env
-# Edit .env and add your GROQ_API_KEY or VOXTRAL_API_KEY
+# set GROQ_API_KEY or VOXTRAL_API_KEY
+export GROQ_API_KEY=""
+export VOXTRAL_API_KEY=""
 ```
 
 ## Configuration

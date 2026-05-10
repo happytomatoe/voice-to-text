@@ -3,8 +3,8 @@ import pytest
 import sys
 sys.path.insert(0, 'src')
 
-from groq_voice.providers import get_provider
-from groq_voice.providers.voxtral import VoxtralProvider
+from voice_to_text.providers import get_provider
+from voice_to_text.providers.voxtral import VoxtralProvider
 
 class TestVoxtralProvider:
     def test_get_voxtral_provider(self):

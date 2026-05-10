@@ -3,19 +3,16 @@
 
 # Provider selection
 transcription:
-  provider: "groq"  # "groq" or "voxtral"
-  model: "whisper-large-v3-turbo"
+  provider: "voxtral"  # "groq" or "voxtral"
   language: "en"
- 
+
 # Provider-specific configurations
 groq:
   api_key_env: "GROQ_API_KEY"
 
 voxtral:
   api_key_env: "VOXTRAL_API_KEY"
-  model: "voxtral-mini-transcribe-realtime-2602"
-  api_url: "wss://api.mistral.ai"
-  streaming_delay: 500  # milliseconds
+  model: "voxtral-mini-latest"
 
 audio:
   sample_rate: 16000
@@ -23,9 +20,6 @@ audio:
   block_size: 2048
   smooth_factor: 0.7
 
-output:
-  method: "clipboard"  # only clipboard supported
-
 logging:
-  file: "~/.local/share/groq_voice/groq_voice.log"
+  file: "/tmp/groq_voice.log"
   level: "info"

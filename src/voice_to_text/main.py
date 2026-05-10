@@ -12,12 +12,11 @@ from pathlib import Path
 import yaml
 from dotenv import load_dotenv
 
-from groq_voice.providers import get_provider
-from groq_voice.config import ConfigManager
+from voice_to_text.providers import get_provider
+from voice_to_text.config import ConfigManager
 
-LOG_DIR = Path.home() / ".local" / "share" / "groq_voice"
-LOG_DIR.mkdir(parents=True, exist_ok=True)
-LOG_FILE = LOG_DIR / "groq_voice.log"
+LOG_DIR = Path("/tmp")
+LOG_FILE = LOG_DIR / "voice-to-text.log"
 
 logging.basicConfig(
     level=logging.INFO,
@@ -189,9 +188,6 @@ def main():
     provider_config = config_mgr.get_provider_config(selected_provider)
     transcriber = get_provider(selected_provider, provider_config)
 
-    model = args.model or config_mgr.config.get("transcription", {}).get(
-        "model", "whisper-large-v3-turbo"
-    )
     language = config_mgr.config.get("transcription", {}).get("language", "en")
     audio_config = config_mgr.config.get("audio", {})
     default_duration = audio_config.get("duration", 0)
@@ -212,7 +208,6 @@ def main():
     start_time = time.time()
 
     def audio_callback(indata, frames, time_info, status):
-        # fix 1: normalize int16 → float32 so FFT magnitudes are in [-1, 1]
         float_data = indata[:, 0].astype(np.float32) / 32768.0
         num_samples = min(frames, BLOCK_SIZE)
         audio_buffer[:num_samples] = float_data[:num_samples]
@@ -226,7 +221,7 @@ def main():
         blocksize=BLOCK_SIZE,
         dtype="int16",
         callback=audio_callback,
-        device=args.device,  # fix 3: pass --device to the stream
+        device=args.device,
     )
     stream.start()
 
@@ -269,7 +264,6 @@ def main():
             except Exception:
                 pass
 
-            # fix 2: use elapsed wall-clock time instead of broken stream.time
             if duration > 0 and (time.time() - start_time) > duration:
                 stop = True
                 break
@@ -317,7 +311,7 @@ def main():
         sys.exit(1)
 
     audio_data = np.concatenate(recorded_frames, axis=0)
-    with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as f:
+    with tempfile.NamedTemporaryFile(suffix=".wav", delete=True) as f:
         import wave
 
         with wave.open(f.name, "wb") as wf:
@@ -327,38 +321,38 @@ def main():
             wf.writeframes(audio_data.tobytes())
         audio_path = f.name
 
-    if not audio_path:
-        print("No audio recorded")
-        show_notification("Voice to Text", "No audio recorded")
-        sys.exit(1)
+        if not audio_path:
+            print("No audio recorded")
+            show_notification("Voice to Text", "No audio recorded")
+            sys.exit(1)
 
-    try:
-        print("\nTranscribing...")
-        logger.info("Starting transcription")
-        text = transcriber.transcribe_file(audio_path, language=language)
-        logger.info("Transcription complete: %s", text[:100])
-    except Exception as e:
-        logger.exception("Transcription failed")
-        print(f"Error: {e}")
-        show_notification("Voice to Text", f"Error: {e}")
-        sys.exit(1)
-    finally:
-        os.remove(audio_path)
+        try:
+            print("\nTranscribing...")
+            logger.info("Starting transcription")
+            text = transcriber.transcribe_file(audio_path, language=language)
+            logger.info("Transcription complete: %s", text[:100])
+        except Exception as e:
+            logger.exception("Transcription failed")
+            print(f"Error: {e}")
+            show_notification("Voice to Text", f"Error: {e}")
+            sys.exit(1)
+        finally:
+            os.remove(audio_path)
 
-    if not text.strip():
-        logger.warning("No speech detected")
-        print("No speech detected")
-        show_notification("Voice to Text", "No speech detected")
-        sys.exit(1)
+        if not text.strip():
+            logger.warning("No speech detected")
+            print("No speech detected")
+            show_notification("Voice to Text", "No speech detected")
+            sys.exit(1)
 
-    if copy_to_clipboard(text):
-        logger.info("Copied to clipboard: %s", text[:50])
-        print(f"Copied to clipboard: {text[:50]}...")
-        show_notification("Voice to Text", f"Copied: {text[:50]}...")
-    else:
-        logger.error("Clipboard copy failed")
-        print(f"Transcription: {text}")
-        show_notification("Voice to Text", text[:50])
+        if copy_to_clipboard(text):
+            logger.info("Copied to clipboard: %s", text[:50])
+            print(f"Copied to clipboard: {text[:50]}...")
+            show_notification("Voice to Text", f"Copied: {text[:50]}...")
+        else:
+            logger.error("Clipboard copy failed")
+            print(f"Transcription: {text}")
+            show_notification("Voice to Text", text[:50])
 
 
 if __name__ == "__main__":
