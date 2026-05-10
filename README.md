@@ -1,10 +1,11 @@
 # voice-to-text
 
-Voice to text using Groq Whisper and Voxtral APIs with Gnome hotkey integration.
+Convert speech to text for free by using free APIS(Voxtral, Groq)
 
 ## Requirements
 
 - Python 3.10+
+- [uv](https://docs.astral.sh/uv/getting-started/installation/)
 - [Groq API key](https://console.groq.com/keys) OR [Voxtral API key](https://mistral.ai)
 - Linux with `xclip`/`xsel` (X11) for clipboard functionality
 
@@ -12,9 +13,10 @@ Voice to text using Groq Whisper and Voxtral APIs with Gnome hotkey integration.
 
 ```bash
 # Clone and setup virtual environment
-python -m venv .venv
-source .venv/bin/activate
-pip install -e .
+
+uv venv 
+uv sync
+uv pip install -e .
 
 # set GROQ_API_KEY or VOXTRAL_API_KEY
 export GROQ_API_KEY=""
@@ -23,30 +25,7 @@ export VOXTRAL_API_KEY=""
 
 ## Configuration
 
-Edit `config.yaml` to customize:
-
-```yaml
-audio:
-  sample_rate: 16000
-  channels: 1
-  max_duration: 30
-  duration: 5  # 0 = wait for keypress
-
-transcription:
-  provider: "groq"  # "groq" or "voxtral"
-  model: "whisper-large-v3-turbo"
-  language: "en"
-
-# Provider-specific configurations
-groq:
-  api_key_env: "GROQ_API_KEY"
-
-voxtral:
-  api_key_env: "VOXTRAL_API_KEY"
-  model: "voxtral-mini-transcribe-realtime-2602"
-  api_url: "wss://api.mistral.ai"
-```
-
+Edit [`config.yaml`](./config.yaml) to customize:
 ## Usage
 
 ```bash
