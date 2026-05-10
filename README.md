@@ -46,7 +46,7 @@ voice-to-text setup
 Press **Enter**, **Escape**, or **q** to stop recording when using default duration
 
 ## Gnome Hotkey Setup
-
+Install[just](https://github.com/casey/just) if you don't have it
 ```bash
 just setup-global-hotkey
 ```
