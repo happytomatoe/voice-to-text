@@ -1,16 +1,12 @@
 #!/usr/bin/env python3
-"""Voice to Text using Groq Whisper - Gnome hotkey integration."""
 
 import argparse
 import time
 import tempfile
 import subprocess
 import sys
-import tty
-import termios
 import os
 import logging
-import threading
 import curses
 from pathlib import Path
 import yaml
@@ -37,21 +33,6 @@ logger = logging.getLogger(__name__)
 def load_config():
     """Load configuration using ConfigManager."""
     return ConfigManager()
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 def copy_to_clipboard(text: str):
@@ -93,15 +74,15 @@ def setup_interactive():
     print("1. Groq (default) - Uses Groq API for transcription")
     print("2. Voxtral - Uses Voxtral API for transcription")
     print()
-    
+
     config_mgr = load_config()
     current_provider = config_mgr.get_selected_provider()
     print(f"Current provider: {current_provider}")
     print(f"Config path: {config_mgr.config_path}")
     print()
-    
+
     choice = input("Enter your choice (1-2): ").strip()
-    
+
     if choice == "1":
         provider = "groq"
     elif choice == "2":
@@ -109,10 +90,10 @@ def setup_interactive():
     else:
         print("Invalid choice. Keeping current provider.")
         return
-    
+
     # Update the config
     config_mgr.config.setdefault("transcription", {})["provider"] = provider
-    
+
     # Save the updated config
     try:
         with open(config_mgr.config_path, "w") as f:
@@ -145,7 +126,7 @@ def main():
         "--provider",
         type=str,
         choices=["groq", "voxtral"],
-        help="Transcription provider to use"
+        help="Transcription provider to use",
     )
     record_parser.add_argument(
         "--output",
@@ -191,28 +172,23 @@ def main():
         print("-" * 60)
         print("Use --device INDEX to select a microphone")
         return
-    
+
     if args.command == "setup":
         setup_interactive()
         return
 
-    config = load_config()
     load_dotenv()
 
     config_mgr = load_config()
-    
+
     # Handle provider override from CLI
-    provider_override = args.provider if hasattr(args, 'provider') and args.provider else None
+    provider_override = (
+        args.provider if hasattr(args, "provider") and args.provider else None
+    )
     selected_provider = provider_override or config_mgr.get_selected_provider()
     provider_config = config_mgr.get_provider_config(selected_provider)
     transcriber = get_provider(selected_provider, provider_config)
 
-    def should_use_streaming(transcriber) -> bool:
-        """Determine if we should use streaming based on provider capabilities."""
-        # For now, only use streaming if explicitly requested
-        # Could add --stream flag or auto-detect based on provider
-        return False  # Start with batch mode for compatibility
-    
     model = args.model or config_mgr.config.get("transcription", {}).get(
         "model", "whisper-large-v3-turbo"
     )
@@ -357,35 +333,9 @@ def main():
         sys.exit(1)
 
     try:
-        if should_use_streaming(transcriber) and transcriber.supports_streaming:
-            print("\nStreaming transcription...")
-            logger.info("Starting streaming transcription")
-            
-            # Create audio stream adapter
-            from groq_voice.audio_stream import AudioStreamAdapter
-            stream_adapter = AudioStreamAdapter(audio_recorder)
-            stream_adapter.start()
-            
-            # Run async transcription
-            try:
-                import asyncio
-                text_parts = []
-                async def run_streaming():
-                    async for text_delta in transcriber.transcribe_stream(stream_adapter, language=language):
-                        text_parts.append(text_delta)
-                        # Could show realtime updates here if desired
-                asyncio.run(run_streaming())
-                text = ''.join(text_parts).strip()
-            except Exception as e:
-                logger.exception("Streaming transcription failed")
-                raise
-            finally:
-                stream_adapter.stop()
-        else:
-            # Fall back to batch processing
-            print("\nTranscribing...")
-            logger.info("Starting transcription")
-            text = transcriber.transcribe_file(audio_path, language=language)
+        print("\nTranscribing...")
+        logger.info("Starting transcription")
+        text = transcriber.transcribe_file(audio_path, language=language)
         logger.info("Transcription complete: %s", text[:100])
     except Exception as e:
         logger.exception("Transcription failed")
