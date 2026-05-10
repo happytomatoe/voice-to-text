@@ -332,8 +332,7 @@ def main():
             text = transcriber.transcribe_file(audio_path, language=language)
             logger.info("Transcription complete: %s", text[:100])
         except Exception as e:
-            logger.exception("Transcription failed")
-            print(f"Error: {e}")
+            logger.exception("Transcription failed", e)
             show_notification("Voice to Text", f"Error: {e}")
             sys.exit(1)
         finally:
@@ -341,17 +340,13 @@ def main():
 
         if not text.strip():
             logger.warning("No speech detected")
-            print("No speech detected")
             show_notification("Voice to Text", "No speech detected")
             sys.exit(1)
 
         if copy_to_clipboard(text):
             logger.info("Copied to clipboard: %s", text[:50])
-            print(f"Copied to clipboard: {text[:50]}...")
-            show_notification("Voice to Text", f"Copied: {text[:50]}...")
         else:
             logger.error("Clipboard copy failed")
-            print(f"Transcription: {text}")
             show_notification("Voice to Text", text[:50])
 
 
