@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<component type="inputmethod">
+  <name>com.cloud-voice.CloudSpeech</name>
+  <description>Cloud Speech Input - Voice to text using cloud APIs</description>
+  <exec>/home/l/git/3/voice-to-text/ibus-engine-cloud --ibus</exec>
+  <version>0.1.0</version>
+  <author>Voice-to-Text Contributors</author>
+  <license>MIT</license>
+  <homepage>https://github.com/voice-to-text</homepage>
+  <textdomain>ibus-cloud</textdomain>
+  <engines>
+    <engine>
+      <name>com.cloud-voice.CloudSpeech</name>
+      <language>en</language>
+      <license>MIT</license>
+      <author>Voice-to-Text Contributors</author>
+      <icon>audio-input-microphone</icon>
+      <layout>default</layout>
+      <symbol>☁</symbol>
+      <longname>Cloud Speech</longname>
+      <description>Voice to text input using Groq/Voxtral cloud APIs</description>
+      <rank>0</rank>
+    </engine>
+  </engines>
+</component>

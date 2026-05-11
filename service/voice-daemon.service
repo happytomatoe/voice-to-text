@@ -1,0 +1,12 @@
+[Unit]
+Description=Voice to Text Daemon
+After=graphical-session.target
+
+[Service]
+Type=simple
+ExecStart=%h/.local/bin/voice-daemon
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target

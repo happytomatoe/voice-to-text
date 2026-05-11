@@ -1,0 +1,7 @@
+[Desktop Entry]
+Type=Application
+Name=IBus Cloud Speech Setup
+Comment=Configure Cloud Speech input method
+Exec=ibus-setup-cloud
+Icon=ibus
+Categories=Settings;InputMethods;
