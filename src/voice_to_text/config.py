@@ -76,3 +76,7 @@ class ConfigManager:
         """Get output configuration."""
         return self.config.get("output", {})
 
+    def get_logging_config(self) -> Dict[str, Any]:
+        """Get logging configuration."""
+        return self.config.get("logging", {})
+

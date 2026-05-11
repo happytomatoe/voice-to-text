@@ -15,18 +15,23 @@ from dotenv import load_dotenv
 from voice_to_text.providers import get_provider
 from voice_to_text.config import ConfigManager
 
-LOG_DIR = Path("/tmp")
-LOG_FILE = LOG_DIR / "voice-to-text.log"
+DEFAULT_LOG_FILE = Path("/tmp") / "voice-to-text.log"
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s %(levelname)s %(name)s: %(message)s",
-    handlers=[
-        logging.FileHandler(LOG_FILE),
-        logging.StreamHandler(sys.stderr),
-    ],
-)
 logger = logging.getLogger(__name__)
+
+
+def setup_logging(log_file: Path | None = None):
+    """Configure logging with the specified log file path."""
+    log_path = log_file if log_file else DEFAULT_LOG_FILE
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+        handlers=[
+            logging.FileHandler(log_path),
+            logging.StreamHandler(sys.stderr),
+        ],
+    )
+    logger.info("Logging initialized, log file: %s", log_path)
 
 
 def load_config():
@@ -153,8 +158,19 @@ def main():
         type=int,
         help="Audio input device index (use 'groq-voice devices' to list)",
     )
+    parser.add_argument(
+        "--log-file",
+        type=str,
+        help="Path to log file (default: /tmp/voice-to-text.log or config value)",
+    )
 
     args = parser.parse_args()
+
+    config_mgr = load_config()
+    log_file_config = config_mgr.get_logging_config().get("file")
+    log_file_arg = Path(args.log_file) if args.log_file else None
+    log_file = log_file_arg or (Path(log_file_config) if log_file_config else None)
+    setup_logging(log_file)
 
     if args.command == "devices":
         print("Available audio input devices:")
@@ -178,8 +194,6 @@ def main():
 
     load_dotenv()
 
-    config_mgr = load_config()
-
     # Handle provider override from CLI
     provider_override = (
         args.provider if hasattr(args, "provider") and args.provider else None
@@ -193,7 +207,7 @@ def main():
     default_duration = audio_config.get("duration", 0)
     duration = args.duration if args.duration is not None else default_duration
 
-    print("Recording... (press ESC or q to stop)")
+    print("Recording... (press ESC or Q to cancel, ENTER to continue)")
     print("-" * 60)
 
     SAMPLE_RATE = 16000
@@ -204,6 +218,7 @@ def main():
     audio_buffer = np.zeros(BLOCK_SIZE, dtype=np.float32)
     smoothed = None
     stop = False
+    exit_key = None
     recorded_frames = []
     start_time = time.time()
 
@@ -247,7 +262,7 @@ def main():
         return smoothed
 
     def curses_loop(stdscr):
-        nonlocal stop
+        nonlocal stop, exit_key
         curses.curs_set(0)
         stdscr.nodelay(True)
         curses.start_color()
@@ -258,13 +273,19 @@ def main():
         while not stop:
             try:
                 key = stdscr.getch()
-                if key in (ord("q"), ord("Q"), 27, 10):
+                if key in (ord("q"), ord("Q"), 27):
+                    exit_key = "exit"
+                    stop = True
+                    break
+                elif key == 10:
+                    exit_key = "transcribe"
                     stop = True
                     break
             except Exception:
                 pass
 
             if duration > 0 and (time.time() - start_time) > duration:
+                exit_key = "transcribe"
                 stop = True
                 break
 
@@ -295,7 +316,7 @@ def main():
             stdscr.addstr(
                 height - 1,
                 1,
-                f"Recording... (ESC/q/ENTER to stop) Elapsed: {elapsed:.1f}s",
+                f"Recording... (ESC/Q to cancel, ENTER to continue) Elapsed: {elapsed:.1f}s",
                 curses.A_DIM,
             )
             stdscr.refresh()
@@ -304,6 +325,10 @@ def main():
     curses.wrapper(curses_loop)
     stream.stop()
     stream.close()
+
+    if exit_key == "exit":
+        print("\nExiting without transcription")
+        sys.exit(0)
 
     if not recorded_frames:
         print("No audio recorded")
