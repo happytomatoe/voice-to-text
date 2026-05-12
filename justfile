@@ -5,7 +5,7 @@ run:
     PYTHONPATH=src .venv/bin/python -m voice_to_text.main
 
 install:
-    uv pip install -e .
+    uv tool install .
 
 uninstall:
     .venv/bin/python -m pip uninstall groq-voice -y
