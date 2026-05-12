@@ -14,7 +14,7 @@ setup-global-hotkey:
     #!/usr/bin/env bash
     KEYBINDING_PATH="/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/voice-to-text"
     dconf write "$KEYBINDING_PATH/name" "'voice-to-text'"
-    dconf write "$KEYBINDING_PATH/command" "'alacritty -e bash -c voice-to-text'"
+    dconf write "$KEYBINDING_PATH/command" "'alacritty -e bash -l -c voice-to-text'"
     dconf write "$KEYBINDING_PATH/binding" "'<Super>q'"
     CURRENT=$(dconf read /org/gnome/settings-daemon/plugins/media-keys/custom-keybindings 2>/dev/null)
     if [ -z "$CURRENT" ] || [ "$CURRENT" = "@as []" ]; then

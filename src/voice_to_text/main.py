@@ -200,7 +200,13 @@ def main():
     )
     selected_provider = provider_override or config_mgr.get_selected_provider()
     provider_config = config_mgr.get_provider_config(selected_provider)
-    transcriber = get_provider(selected_provider, provider_config)
+
+    try:
+        transcriber = get_provider(selected_provider, provider_config)
+    except ValueError as e:
+        logger.error("Provider initialization failed: %s", e)
+        show_notification("Voice to Text", f"Error: {e}")
+        sys.exit(1)
 
     language = config_mgr.config.get("transcription", {}).get("language", "en")
     audio_config = config_mgr.config.get("audio", {})
