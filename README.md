@@ -30,10 +30,10 @@ If you are on Linux you can use next approach to store credentials securely
 # For fedora - 
 sudo dnf install libsecret
 # Store
-secret-tool store --label="github token" service github account $USER
+secret-tool store --label="mistral api key" service voxtral_api_key account $USER
 
 # Retrieve
-export GITHUB_TOKEN=$(secret-tool lookup service github account $USER)
+export VOXTRAL_API_KEY=$(secret-tool lookup service voxtral_api_key account $USER)
 ```
 ```
 ```
