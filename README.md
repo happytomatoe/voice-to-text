@@ -14,12 +14,7 @@ Convert speech to text for free by using free APIs(Voxtral, Groq) on Linux
 ## Installation
 
 ```bash
-# Clone and setup virtual environment
-
-uv venv 
-uv sync
-uv pip install -e .
-
+uv tool install git+https://github.com/happytomatoe/voice-to-text
 # set GROQ_API_KEY or VOXTRAL_API_KEY
 export GROQ_API_KEY=""
 export VOXTRAL_API_KEY=""
