@@ -1,0 +1,9 @@
+<schemalist>
+  <schema id="org.gnome.shell.extensions.voice-to-text"
+          path="/org/gnome/shell/extensions/voice-to-text/">
+    <key name="hotkey" type="as">
+      <default><![CDATA[['<Super>w']]]></default>
+      <summary>Recording hotkey</summary>
+    </key>
+  </schema>
+</schemalist>

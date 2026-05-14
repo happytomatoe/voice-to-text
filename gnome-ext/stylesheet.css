@@ -1,0 +1,11 @@
+.vtt-bars {
+    spacing: 2px;
+    padding: 4px 6px;
+}
+.vtt-bar {
+    width: 3px;
+    background-color: #ff4444;
+    border-radius: 2px;
+    height: 4px;
+    transition-duration: 80ms;
+}

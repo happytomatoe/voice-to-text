@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 
 import argparse
+import math
+import signal
 import time
 import tempfile
 import subprocess
@@ -9,6 +11,9 @@ import os
 import logging
 import curses
 from pathlib import Path
+
+import numpy as np
+import sounddevice as sd
 import yaml
 from dotenv import load_dotenv
 
@@ -21,7 +26,6 @@ logger = logging.getLogger(__name__)
 
 
 def setup_logging(log_file: Path | None = None):
-    """Configure logging with the specified log file path."""
     log_path = log_file if log_file else DEFAULT_LOG_FILE
     logging.basicConfig(
         level=logging.INFO,
@@ -35,12 +39,10 @@ def setup_logging(log_file: Path | None = None):
 
 
 def load_config():
-    """Load configuration using ConfigManager."""
     return ConfigManager()
 
 
 def copy_to_clipboard(text: str):
-    """Copy text to system clipboard using xclip."""
     try:
         subprocess.run(
             ["xclip", "-selection", "clipboard"], input=text.encode(), check=True
@@ -58,7 +60,6 @@ def copy_to_clipboard(text: str):
 
 
 def show_notification(title: str, body: str):
-    """Show a desktop notification."""
     try:
         subprocess.run(
             ["notify-send", "-u", "normal", title, body],
@@ -70,7 +71,6 @@ def show_notification(title: str, body: str):
 
 
 def setup_interactive():
-    """Interactive setup to configure the transcription provider."""
     print("groq-voice setup")
     print("=" * 60)
     print("Choose your transcription provider:")
@@ -95,10 +95,8 @@ def setup_interactive():
         print("Invalid choice. Keeping current provider.")
         return
 
-    # Update the config
     config_mgr.config.setdefault("transcription", {})["provider"] = provider
 
-    # Save the updated config
     try:
         with open(config_mgr.config_path, "w") as f:
             yaml.dump(config_mgr.config, f)
@@ -109,10 +107,106 @@ def setup_interactive():
         print(f"Failed to save configuration: {e}")
 
 
-def main():
-    import numpy as np
-    import sounddevice as sd
+def transcribe_audio(recorded_frames, sample_rate, transcriber, language):
+    if not recorded_frames:
+        return None
 
+    audio_data = np.concatenate(recorded_frames, axis=0)
+    with tempfile.NamedTemporaryFile(suffix=".wav", delete=True) as f:
+        import wave
+
+        with wave.open(f.name, "wb") as wf:
+            wf.setnchannels(1)
+            wf.setsampwidth(2)
+            wf.setframerate(sample_rate)
+            wf.writeframes(audio_data.tobytes())
+        audio_path = f.name
+
+        try:
+            logger.info("Starting transcription")
+            text = transcriber.transcribe_file(audio_path, language=language)
+            logger.info("Transcription complete: %s", text[:100])
+            return text.strip()
+        except Exception as e:
+            logger.exception("Transcription failed")
+            raise
+        finally:
+            os.remove(audio_path)
+
+
+def compute_rms(indata):
+    samples = indata[:, 0].astype(np.float64)
+    rms = math.sqrt(np.mean(samples ** 2))
+    return min(rms / 32768.0, 1.0)
+
+
+def run_stdout_mode(args, config_mgr, transcriber, language, duration):
+    SAMPLE_RATE = 16000
+    BLOCK_SIZE = 2048
+    LEVEL_INTERVAL = 0.1
+
+    stop_requested = False
+
+    def handle_sigint(signum, frame):
+        nonlocal stop_requested
+        stop_requested = True
+
+    signal.signal(signal.SIGINT, handle_sigint)
+
+    recorded_frames = []
+    start_time = time.time()
+
+    def audio_callback(indata, frames, time_info, status):
+        recorded_frames.append(indata.copy())
+
+    stream = sd.InputStream(
+        samplerate=SAMPLE_RATE,
+        channels=1,
+        blocksize=BLOCK_SIZE,
+        dtype="int16",
+        callback=audio_callback,
+        device=args.device,
+    )
+    stream.start()
+
+    last_level_time = time.time()
+
+    try:
+        while not stop_requested:
+            if duration > 0 and (time.time() - start_time) > duration:
+                break
+
+            now = time.time()
+            if now - last_level_time >= LEVEL_INTERVAL:
+                if recorded_frames:
+                    latest = recorded_frames[-1]
+                    rms = compute_rms(latest)
+                    print(f"LEVEL:{rms:.4f}", flush=True)
+                last_level_time = now
+
+            time.sleep(0.02)
+    except Exception as e:
+        logger.exception("Recording error: %s", e)
+        print(f"ERROR:{e}", flush=True)
+        sys.exit(1)
+    finally:
+        stream.stop()
+        stream.close()
+
+    try:
+        text = transcribe_audio(recorded_frames, SAMPLE_RATE, transcriber, language)
+        if text:
+            print(f"TEXT:{text}", flush=True)
+        else:
+            print("ERROR:No speech detected", flush=True)
+            sys.exit(1)
+    except Exception as e:
+        logger.exception("Transcription in stdout mode failed: %s", e)
+        print(f"ERROR:{e}", flush=True)
+        sys.exit(1)
+
+
+def main():
     parser = argparse.ArgumentParser(description="Voice to Text with Groq Whisper")
     subparsers = parser.add_subparsers(dest="command", help="Available commands")
 
@@ -135,9 +229,9 @@ def main():
     record_parser.add_argument(
         "--output",
         type=str,
-        choices=["clipboard"],
+        choices=["clipboard", "stdout"],
         default="clipboard",
-        help="Output method: 'clipboard' (default: clipboard)",
+        help="Output method: 'clipboard' or 'stdout' (default: clipboard)",
     )
 
     parser.add_argument(
@@ -149,9 +243,9 @@ def main():
     parser.add_argument(
         "--output",
         type=str,
-        choices=["type", "clipboard"],
-        default="type",
-        help="Output method: 'type' or 'clipboard' (default: type)",
+        choices=["clipboard", "stdout"],
+        default="clipboard",
+        help="Output method: 'clipboard' or 'stdout' (default: clipboard)",
     )
     parser.add_argument(
         "--device",
@@ -194,7 +288,6 @@ def main():
 
     load_dotenv()
 
-    # Handle provider override from CLI
     provider_override = (
         args.provider if hasattr(args, "provider") and args.provider else None
     )
@@ -213,6 +306,12 @@ def main():
     default_duration = audio_config.get("duration", 0)
     duration = args.duration if args.duration is not None else default_duration
 
+    output_mode = args.output if hasattr(args, "output") and args.output else "clipboard"
+
+    if output_mode == "stdout":
+        run_stdout_mode(args, config_mgr, transcriber, language, duration)
+        return
+
     print("Recording... (press ESC or Q to cancel, ENTER to continue)")
     print("-" * 60)
 
@@ -220,7 +319,6 @@ def main():
     BLOCK_SIZE = 2048
     SMOOTH = 0.7
 
-    # fix 1: explicit float32 buffer for correct FFT scaling
     audio_buffer = np.zeros(BLOCK_SIZE, dtype=np.float32)
     smoothed = None
     stop = False
@@ -314,7 +412,7 @@ def main():
                     else:
                         color = curses.color_pair(1)
                     try:
-                        stdscr.addch(row, x + 1, "█", color)
+                        stdscr.addch(row, x + 1, "\u2588", color)
                     except curses.error:
                         pass
 
@@ -341,44 +439,23 @@ def main():
         show_notification("Voice to Text", "No audio recorded")
         sys.exit(1)
 
-    audio_data = np.concatenate(recorded_frames, axis=0)
-    with tempfile.NamedTemporaryFile(suffix=".wav", delete=True) as f:
-        import wave
+    try:
+        text = transcribe_audio(recorded_frames, SAMPLE_RATE, transcriber, language)
+    except Exception as e:
+        logger.exception("Transcription failed: %s", e)
+        show_notification("Voice to Text", f"Error: {e}")
+        sys.exit(1)
 
-        with wave.open(f.name, "wb") as wf:
-            wf.setnchannels(1)
-            wf.setsampwidth(2)
-            wf.setframerate(SAMPLE_RATE)
-            wf.writeframes(audio_data.tobytes())
-        audio_path = f.name
+    if not text:
+        logger.warning("No speech detected")
+        show_notification("Voice to Text", "No speech detected")
+        sys.exit(1)
 
-        if not audio_path:
-            print("No audio recorded")
-            show_notification("Voice to Text", "No audio recorded")
-            sys.exit(1)
-
-        try:
-            print("\nTranscribing...")
-            logger.info("Starting transcription")
-            text = transcriber.transcribe_file(audio_path, language=language)
-            logger.info("Transcription complete: %s", text[:100])
-        except Exception as e:
-            logger.exception("Transcription failed", e)
-            show_notification("Voice to Text", f"Error: {e}")
-            sys.exit(1)
-        finally:
-            os.remove(audio_path)
-
-        if not text.strip():
-            logger.warning("No speech detected")
-            show_notification("Voice to Text", "No speech detected")
-            sys.exit(1)
-
-        if copy_to_clipboard(text):
-            logger.info("Copied to clipboard: %s", text[:50])
-        else:
-            logger.error("Clipboard copy failed")
-            show_notification("Voice to Text", text[:50])
+    if copy_to_clipboard(text):
+        logger.info("Copied to clipboard: %s", text[:50])
+    else:
+        logger.error("Clipboard copy failed")
+        show_notification("Voice to Text", text[:50])
 
 
 if __name__ == "__main__":
