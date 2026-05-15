@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-set -euo pipefail
+set -euxo pipefail
 
 REPO="happytomatoe/voice-to-text"
 EXT_UUID="voice-to-text@happytomatoe.com"
@@ -40,13 +40,12 @@ esac
 # --- Install Python application ---
 echo ""
 echo "--- Installing Python application ---"
+echo "Fetching latest release tag..."
+LATEST_TAG=$(
+  git ls-remote --tags --sort=v:refname https://github.com/happytomatoe/voice-to-text | tail -n 1 | awk -F'/' '{print $NF}'
+)
 
 if command -v uv &>/dev/null; then
-  echo "Fetching latest release tag..."
-  LATEST_TAG=$(curl -s "https://api.github.com/repos/$REPO/releases/latest" |
-    grep '"tag_name"' |
-    cut -d '"' -f 4)
-
   if [ -z "$LATEST_TAG" ] || [ "$LATEST_TAG" = "null" ]; then
     echo "ERROR: No releases found for $REPO."
     echo "Create a release first: https://github.com/$REPO/releases/new"
@@ -72,10 +71,7 @@ echo ""
 echo "--- Installing GNOME extension ---"
 
 echo "Fetching latest release..."
-RELEASE_URL=$(curl -s "https://api.github.com/repos/$REPO/releases/latest" |
-  grep "browser_download_url.*shell-extension.zip" |
-  cut -d '"' -f 4)
-
+RELEASE_URL="https://github.com/happytomatoe/voice-to-text/releases/download/$LATEST_TAG/voice-to-text@happytomatoe.com.shell-extension.zip"
 if [ -z "$RELEASE_URL" ] || [ "$RELEASE_URL" = "null" ]; then
   echo "ERROR: Could not find extension ZIP in latest release."
   echo "Falling back to installing from source..."
@@ -183,7 +179,56 @@ logging:
 EOF
 echo "Provider configured: $PROVIDER"
 
-# --- Done ---
+# Create ydotool daemon
+
+# SOCKET_PATH="/run/user/$(id -u)/.ydotool_socket"
+# export YDOTOOL_SOCKET="$SOCKET_PATH"
+#
+# # 1. Check if the service is already running and the socket exists
+# if systemctl --user is-active --quiet ydotool.service && [ -S "$SOCKET_PATH" ]; then
+#   echo "ℹ️ ydotool service is already running. Testing typing..."
+#   echo ""
+#   echo "=== Installation complete ==="
+#   echo ""
+#   echo "Python app: voice-to-text"
+#   echo "GNOME extension: $EXT_UUID (hotkey: Super+W)"
+#   echo ""
+#   echo "Open a new terminal or run: source $PROFILE"
+#   echo "Then test with: voice-to-text"
+#   echo ""
+#   echo "Restart GNOME Shell (Alt+F2, r, Enter on X11) or log out/in on Wayland. Enable extension extension after relogin or reload"
+#
+#   exit 0
+# fi
+#
+# echo "🔄 ydotool is not running or socket is missing. Initializing configuration..."
+#
+# # 2. Create the user-level drop-in override directory
+# mkdir -p "$HOME/.config/systemd/user/ydotool.service.d"
+#
+# # 3. Inject the custom socket path configuration
+# cat <<EOF >"$HOME/.config/systemd/user/ydotool.service.d/socket-path.conf"
+# [Service]
+# ExecStart=
+# ExecStart=/usr/bin/ydotoold --socket-path=$SOCKET_PATH --socket-perm=666
+# EOF
+#
+# # 4. Reload, enable, and start the service
+# systemctl --user daemon-reload
+# systemctl --user enable ydotool.service
+# systemctl --user restart ydotool.service
+# sleep 1
+#
+# # 5. Final verification check
+# if [ -S "$SOCKET_PATH" ]; then
+#   echo "✅ ydotoold started successfully. Socket at $SOCKET_PATH"
+#   ydotool type -- "voice-to-text fixed"
+# else
+#   echo "❌ Socket not found at $SOCKET_PATH"
+#   systemctl --user status ydotool.service --no-pager
+#   journalctl --user -u ydotool.service --no-pager -n 20
+#   exit 1
+# fi
 echo ""
 echo "=== Installation complete ==="
 echo ""
@@ -193,4 +238,4 @@ echo ""
 echo "Open a new terminal or run: source $PROFILE"
 echo "Then test with: voice-to-text"
 echo ""
-echo "Restart GNOME Shell (Alt+F2, r, Enter on X11) or log out/in on Wayland."
+echo "Restart GNOME Shell (Alt+F2, r, Enter on X11) or log out/in on Wayland. Enable extension extension after relogin or reload"
