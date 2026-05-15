@@ -3,7 +3,7 @@ name: Release
 on:
   push:
     tags:
-      - 'v*'
+      - "v*"
 
 permissions:
   contents: write
@@ -22,7 +22,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.13'
+          python-version: "3.13"
 
       - name: Install dependencies
         run: uv sync --frozen
@@ -47,9 +47,10 @@ jobs:
           mkdir -p "dist/$UUID/schemas"
           cp "$SRC"/*.js "$SRC"/*.json "$SRC"/*.css "dist/$UUID/"
           cp "$SRC"/schemas/*.xml "dist/$UUID/schemas/"
+          cp "$SRC"/metadata.json "dist/$UUID/"
           glib-compile-schemas "dist/$UUID/schemas/"
-          cd dist && zip -r "$UUID.shell-extension.zip" "$UUID"
 
+          cd "dist/$UUID" && zip -r "../$UUID.shell-extension.zip" ./*
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
