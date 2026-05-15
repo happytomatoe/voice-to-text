@@ -28,7 +28,7 @@ dev-extension:
 
 # Reload extension: reinstall files and reset in GNOME Shell
 reload-extension:
-    ./gnome-ext/run-dev.sh 2>/dev/null; gnome-extensions reset voice-to-text@happytomatoe.com && gnome-extensions enable voice-to-text@happytomatoe.com
+    ./gnome-ext/run-dev.sh && gnome-extensions reset voice-to-text@happytomatoe.com && gnome-extensions enable voice-to-text@happytomatoe.com
 
 # Pack extension into a ZIP for distribution
 pack-extension:
