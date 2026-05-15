@@ -30,10 +30,6 @@ secret-tool store --label="mistral api key" service voxtral_api_key account $USE
 # Retrieve
 export VOXTRAL_API_KEY=$(secret-tool lookup service voxtral_api_key account $USER)
 ```
-```
-```
-```
-```
 
 
 ## Configuration
