@@ -3,18 +3,16 @@ import Clutter from 'gi://Clutter';
 import GObject from 'gi://GObject';
 import * as PanelMenu from 'resource:///org/gnome/shell/ui/panelMenu.js';
 
-const NUM_BARS = 16;
-const BAR_WIDTH = 3;
-const BAR_MARGIN = 1;
-const MAX_HEIGHT = 32;
-const MIN_HEIGHT = 2;
+const METER_WIDTH = 50;
+const METER_HEIGHT = 6;
+const SMOOTH = 0.6;
 
 export const VoiceIndicator = GObject.registerClass(
 class VoiceIndicator extends PanelMenu.Button {
     _init() {
         super._init(0.0, 'Voice to Text');
-        this._heights = new Array(NUM_BARS).fill(MIN_HEIGHT);
         this._destroyed = false;
+        this._smoothedLevel = 0;
         this._buildUI();
         this._recording = false;
         this.onStart = null;
@@ -22,35 +20,30 @@ class VoiceIndicator extends PanelMenu.Button {
     }
 
     _buildUI() {
-        this._bars = [];
-        this._barBox = new St.BoxLayout({
-            style_class: 'vtt-bars',
-            vertical: false,
-            x_align: Clutter.ActorAlign.CENTER,
-            y_align: Clutter.ActorAlign.END,
+        this._box = new St.BoxLayout({
+            style_class: 'panel-status-menu-box',
         });
-        for (let i = 0; i < NUM_BARS; i++) {
-            const bar = new St.Widget({
-                style_class: 'vtt-bar',
-                width: BAR_WIDTH,
-                height: MIN_HEIGHT,
-                x_expand: false,
-                y_align: Clutter.ActorAlign.END,
-            });
-            this._barBox.add_child(bar);
-            this._bars.push(bar);
-        }
 
-        this._startBtn = new St.Button({
-            reactive: true,
-            can_focus: true,
-            track_hover: true,
-        });
-        this._startBtn.add_child(new St.Icon({
+        this._icon = new St.Icon({
             icon_name: 'audio-input-microphone-symbolic',
             style_class: 'system-status-icon',
-        }));
-        this._startBtn.connect('clicked', () => this.onStart?.());
+        });
+        this._box.add_child(this._icon);
+
+        const spacer1 = new St.Widget({ x_expand: true });
+        this._box.add_child(spacer1);
+
+        this._meter = new St.DrawingArea({
+            width: METER_WIDTH,
+            height: METER_HEIGHT,
+            x_expand: false,
+            y_align: Clutter.ActorAlign.CENTER,
+        });
+        this._meter.connect('repaint', () => this._drawMeter());
+        this._box.add_child(this._meter);
+
+        const spacer2 = new St.Widget({ x_expand: true });
+        this._box.add_child(spacer2);
 
         this._stopBtn = new St.Button({
             reactive: true,
@@ -63,12 +56,7 @@ class VoiceIndicator extends PanelMenu.Button {
         }));
         this._stopBtn.connect('clicked', () => this.onStop?.());
 
-        const box = new St.BoxLayout();
-        box.add_child(this._startBtn);
-        box.add_child(this._barBox);
-        box.add_child(this._stopBtn);
-        this.add_child(box);
-
+        this.add_child(this._box);
         this._setIdleUI();
     }
 
@@ -82,47 +70,83 @@ class VoiceIndicator extends PanelMenu.Button {
     }
 
     _setIdleUI() {
-        this._startBtn.visible = true;
-        this._heights.fill(MIN_HEIGHT);
-        this._barBox.hide();
+        this._icon.visible = true;
+        this._meter.visible = false;
         this._stopBtn.visible = false;
+        this._smoothedLevel = 0;
+        this._meter.queue_repaint();
     }
 
     _setRecordingUI() {
-        this._startBtn.visible = false;
-        this._barBox.show();
+        this._icon.visible = true;
+        this._meter.visible = true;
         this._stopBtn.visible = true;
+        this._meter.queue_repaint();
     }
 
     updateLevel(level) {
         if (this._destroyed) return;
-        const h = Math.max(MIN_HEIGHT, Math.round(level * 8000));
-        this._heights.fill(h);
-        this._updateBarHeights();
+        this._smoothedLevel = SMOOTH * this._smoothedLevel + (1 - SMOOTH) * level;
+        this._meter.queue_repaint();
     }
 
-    updateBars(heights) {
+    _drawMeter() {
         if (this._destroyed) return;
-        for (let i = 0; i < NUM_BARS; i++) {
-            this._heights[i] = Math.max(MIN_HEIGHT, Math.round(heights[i] ?? MIN_HEIGHT));
-        }
-        this._updateBarHeights();
-    }
+        const cr = this._meter.get_context();
+        const level = Math.min(1, Math.max(0, this._smoothedLevel));
+        const w = this._meter.width;
+        const h = this._meter.height;
+        const fillW = level * w;
 
-    _updateBarHeights() {
-        if (this._destroyed) return;
-        for (let i = 0; i < NUM_BARS; i++) {
-            const h = this._heights[i];
-            this._bars[i].set_height(h);
-            const frac = h / MAX_HEIGHT;
-            if (frac < 0.5) {
-                this._bars[i].set_style('background-color: rgba(51, 217, 51, 0.9);');
-            } else if (frac < 0.8) {
-                this._bars[i].set_style('background-color: rgba(242, 204, 25, 0.9);');
-            } else {
-                this._bars[i].set_style('background-color: rgba(242, 51, 51, 0.9);');
+        cr.setLineWidth(1);
+        cr.setLineJoin(1);
+
+        // Background
+        const radius = 2;
+        cr.moveTo(radius, 0);
+        cr.lineTo(w - radius, 0);
+        cr.arc(w - radius, radius, radius, -Math.PI / 2, 0);
+        cr.lineTo(w, h - radius);
+        cr.arc(w - radius, h - radius, radius, 0, Math.PI / 2);
+        cr.lineTo(radius, h);
+        cr.arc(radius, h - radius, radius, Math.PI / 2, Math.PI);
+        cr.lineTo(0, radius);
+        cr.arc(radius, radius, radius, Math.PI, Math.PI * 1.5);
+        cr.closePath();
+
+        cr.setSourceRGBA(0.5, 0.5, 0.5, 0.3);
+        cr.fill();
+
+        // Fill
+        if (fillW > 0) {
+            cr.moveTo(radius, 0);
+            cr.lineTo(fillW > w - radius ? w - radius : fillW, 0);
+            if (fillW > w - radius) {
+                cr.arc(w - radius, radius, radius, -Math.PI / 2, 0);
+                cr.lineTo(w, h - radius);
+                cr.arc(w - radius, h - radius, radius, 0, Math.PI / 2);
+            } else if (fillW > radius) {
+                cr.lineTo(fillW, h);
             }
+            cr.lineTo(radius, h);
+            cr.arc(radius, h - radius, radius, Math.PI / 2, Math.PI);
+            cr.lineTo(0, radius);
+            cr.arc(radius, radius, radius, Math.PI, Math.PI * 1.5);
+            cr.closePath();
+
+            if (level < 0.13) {
+                cr.setSourceRGBA(0.4, 0.4, 0.4, 0.7);
+            } else if (level < 0.5) {
+                cr.setSourceRGBA(0.2, 0.85, 0.2, 0.9);
+            } else if (level < 0.7) {
+                cr.setSourceRGBA(0.95, 0.8, 0.1, 0.9);
+            } else {
+                cr.setSourceRGBA(0.95, 0.2, 0.2, 0.9);
+            }
+            cr.fill();
         }
+
+        cr.$dispose();
     }
 
     destroy() {
