@@ -2,6 +2,7 @@ import GLib from 'gi://GLib';
 import {Extension} from 'resource:///org/gnome/shell/extensions/extension.js';
 import {VoiceIndicator} from './indicator.js';
 import {Recorder} from './recorder.js';
+import {GstVisualizer} from './gst-visualizer.js';
 import {registerHotkey, unregisterHotkey} from './hotkey.js';
 import {typeText} from './typer.js';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
@@ -13,6 +14,7 @@ export default class VoiceToTextExtension extends Extension {
         this._indicator = new VoiceIndicator();
         this._binPath = GLib.find_program_in_path('voice-to-text');
         this._recorder = null;
+        this._visualizer = null;
         this._recording = false;
 
         this._indicator.onStart = () => this._start();
@@ -24,6 +26,7 @@ export default class VoiceToTextExtension extends Extension {
 
     disable() {
         unregisterHotkey('hotkey');
+        this._visualizer?.stop();
         this._indicator?.destroy();
         this._recorder?.stop();
         this._settings = null;
@@ -52,6 +55,11 @@ export default class VoiceToTextExtension extends Extension {
         this._indicator.setRecording(true);
         this._recording = true;
 
+        this._visualizer = new GstVisualizer((frame) => {
+            this._indicator.updateBars(frame.prevHeights);
+        });
+        this._visualizer.start();
+
         this._recorder = new Recorder(this._binPath);
         this._recorder.onAudioLevel = (level) => this._indicator.updateLevel(level);
         this._recorder.onTranscription = (text) => {
@@ -79,6 +87,8 @@ export default class VoiceToTextExtension extends Extension {
 
     _setIdle() {
         this._recording = false;
+        this._visualizer?.stop();
+        this._visualizer = null;
         this._indicator.setRecording(false);
     }
 

@@ -1,89 +1,101 @@
 import Gst from 'gi://Gst';
 import GLib from 'gi://GLib';
 
-const N_FFT = 2048;
+const FFT_SIZE = 2048;
 const SAMPLE_RATE = 44100;
-const MIN_FREQ = 20;
-const MAX_FREQ = 8000;
+const MIN_HEIGHT = 2;
 const NOISE_FLOOR = 0.02;
-const ALPHA_RISE = 0.4;
-const ALPHA_FALL = 0.15;
+const MAX_HEIGHT = 32;
+const FRAMERATE = 20;
+
+function fft(re, im) {
+    const n = re.length;
+    let j = 0;
+    for (let i = 1; i < n; i++) {
+        let bit = n >> 1;
+        for (; j & bit; bit >>= 1) j ^= bit;
+        j ^= bit;
+        if (i < j) {
+            [re[i], re[j]] = [re[j], re[i]];
+            [im[i], im[j]] = [im[j], im[i]];
+        }
+    }
+    for (let len = 2; len <= n; len <<= 1) {
+        const ang = -2 * Math.PI / len;
+        const wRe = Math.cos(ang);
+        const wIm = Math.sin(ang);
+        for (let i = 0; i < n; i += len) {
+            let curRe = 1, curIm = 0;
+            for (let k = 0; k < len / 2; k++) {
+                const uRe = re[i + k];
+                const uIm = im[i + k];
+                const vRe = re[i + k + len / 2] * curRe - im[i + k + len / 2] * curIm;
+                const vIm = re[i + k + len / 2] * curIm + im[i + k + len / 2] * curRe;
+                re[i + k] = uRe + vRe;
+                im[i + k] = uIm + vIm;
+                re[i + k + len / 2] = uRe - vRe;
+                im[i + k + len / 2] = uIm - vIm;
+                const newRe = curRe * wRe - curIm * wIm;
+                curIm = curRe * wIm + curIm * wRe;
+                curRe = newRe;
+            }
+        }
+    }
+}
+
+function hannWindow(n) {
+    const w = new Float32Array(n);
+    for (let i = 0; i < n; i++)
+        w[i] = 0.5 * (1 - Math.cos(2 * Math.PI * i / (n - 1)));
+    return w;
+}
+
+function buildLogMap(numBars, numBins) {
+    const map = new Array(numBars).fill(null).map(() => []);
+    const fMin = Math.log(20);
+    const fMax = Math.log(20000);
+    const binHz = SAMPLE_RATE / FFT_SIZE;
+
+    for (let b = 1; b < numBins; b++) {
+        const freq = b * binHz;
+        if (freq < 20 || freq > 20000) continue;
+        const logPos = (Math.log(freq) - fMin) / (fMax - fMin);
+        const barIdx = Math.min(numBars - 1, Math.floor(logPos * numBars));
+        map[barIdx].push(b);
+    }
+    for (let i = 0; i < numBars; i++) {
+        if (map[i].length === 0) {
+            const prev = i > 0 ? map[i - 1] : null;
+            const next = i < numBars - 1 ? map[i + 1] : null;
+            map[i] = prev && prev.length ? [prev[prev.length - 1]]
+                   : next && next.length ? [next[0]] : [1];
+        }
+    }
+    return map;
+}
 
 export class GstVisualizer {
     constructor(onFrame, { numBars = 16 } = {}) {
         this._onFrame = onFrame;
         this._numBars = numBars;
-        this._prevHeights = new Float64Array(numBars);
         this._running = false;
-        this._samples = new Int16Array(N_FFT);
-        this._sampleCount = 0;
-        this._silentFrames = 0;
-        this._framePending = false;
         this._gstInit = false;
 
-        this._real = new Float64Array(N_FFT);
-        this._imag = new Float64Array(N_FFT);
-        this._magnitudes = new Float64Array(N_FFT >> 1);
+        this._prevHeights = new Array(this._numBars).fill(MIN_HEIGHT);
+        this._silentFrames = 0;
 
-        this._precomputeBitRev();
-        this._precomputeHann();
-        this._precomputeFreqMap();
-    }
+        this._hannWin = hannWindow(FFT_SIZE);
+        this._pcmBuffer = new Float32Array(FFT_SIZE);
+        this._fftRe = new Float32Array(FFT_SIZE);
+        this._fftIm = new Float32Array(FFT_SIZE);
+        this._mags = new Float32Array(FFT_SIZE / 2);
+        this._barMags = new Float32Array(this._numBars);
+        this._pcmFill = 0;
+        this._logMap = buildLogMap(this._numBars, FFT_SIZE / 2);
 
-    _bitReverse(x) {
-        let result = 0;
-        for (let i = 0; i < 11; i++) {
-            result = (result << 1) | (x & 1);
-            x >>= 1;
-        }
-        return result;
-    }
-
-    _precomputeBitRev() {
-        this._bitRev = new Uint16Array(N_FFT);
-        for (let i = 0; i < N_FFT; i++) {
-            this._bitRev[i] = this._bitReverse(i);
-        }
-    }
-
-    _precomputeHann() {
-        this._hann = new Float64Array(N_FFT);
-        for (let i = 0; i < N_FFT; i++) {
-            this._hann[i] = 0.5 * (1 - Math.cos(2 * Math.PI * i / (N_FFT - 1)));
-        }
-    }
-
-    _precomputeFreqMap() {
-        const barFreqs = new Float64Array(this._numBars);
-        for (let k = 0; k < this._numBars; k++) {
-            barFreqs[k] = MIN_FREQ * Math.pow(MAX_FREQ / MIN_FREQ, k / (this._numBars - 1));
-        }
-
-        const barRanges = [];
-        for (let k = 0; k < this._numBars; k++) {
-            const fLow = k > 0 ? Math.sqrt(barFreqs[k - 1] * barFreqs[k]) : MIN_FREQ;
-            const fHigh = k < this._numBars - 1
-                ? Math.sqrt(barFreqs[k] * barFreqs[k + 1])
-                : MAX_FREQ;
-            barRanges.push({ low: fLow, high: fHigh });
-        }
-
-        const binFreq = SAMPLE_RATE / N_FFT;
-        this._binsPerBar = [];
-        this._allBins = [];
-        for (let k = 0; k < this._numBars; k++) {
-            this._binsPerBar[k] = [];
-        }
-        for (let bin = 1; bin < N_FFT / 2; bin++) {
-            const freq = bin * binFreq;
-            for (let k = 0; k < this._numBars; k++) {
-                if (freq >= barRanges[k].low && freq < barRanges[k].high) {
-                    this._binsPerBar[k].push(bin);
-                    this._allBins.push(bin);
-                    break;
-                }
-            }
-        }
+        this._pipeline = null;
+        this._appsink = null;
+        this._pollId = null;
     }
 
     start() {
@@ -99,165 +111,150 @@ export class GstVisualizer {
             this._gstInit = true;
         }
 
-        const pipelineStr =
-            'pulsesrc ! audioconvert ! audioresample ! audio/x-raw,format=S16LE,rate=44100,channels=1 ! appsink name=sink max-buffers=4 drop=true sync=false';
         try {
-            this._pipeline = Gst.parse_launch(pipelineStr);
-            if (!this._pipeline) {
-                throw new Error('Failed to parse pipeline');
-            }
-            
-            this._appsink = this._pipeline.get_by_name('sink');
-            if (!this._appsink) {
-                throw new Error('Failed to get appsink element');
-            }
-            
-            this._appsink.props.emit_signals = true;
-            this._appsink.connect('new-sample', () => this._onNewSample());
-            this._pipeline.set_state(Gst.State.PLAYING);
+            this._buildPipeline();
         } catch (e) {
             console.error('GstVisualizer: failed to start pipeline', e);
             this._running = false;
         }
     }
 
-    _onNewSample() {
-        try {
-            const sample = this._appsink.emit('pull-sample');
-            if (!sample) return 0;
+    _buildPipeline() {
+        const pipelineStr =
+            'pulsesrc ! audioconvert ! audioresample ! audio/x-raw,format=S16LE,rate=44100,channels=1 ! appsink name=sink max-buffers=4 drop=true sync=false';
 
-            const buffer = sample.get_buffer();
-            if (!buffer) return 0;
-
-            const [success, map] = buffer.map(Gst.MapFlags.READ);
-            if (!success) return 0;
-
-            const data = map.get_data();
-            const numSamples = data.byteLength / 2;
-
-            let offset = 0;
-            while (offset < numSamples) {
-                const remaining = N_FFT - this._sampleCount;
-                const toCopy = Math.min(remaining, numSamples - offset);
-                for (let i = 0; i < toCopy; i++) {
-                    this._samples[this._sampleCount + i] =
-                        (data[2 * (offset + i) + 1] << 8) | data[2 * (offset + i)];
-                }
-                this._sampleCount += toCopy;
-                offset += toCopy;
-
-                if (this._sampleCount >= N_FFT) {
-                    this._processFFT();
-                    this._sampleCount = 0;
-                }
-            }
-
-            buffer.unmap(map);
-        } catch (e) {
-            console.error('GstVisualizer: _onNewSample error', e);
+        this._pipeline = Gst.parse_launch(pipelineStr);
+        if (!this._pipeline) {
+            throw new Error('Failed to parse pipeline');
         }
 
-        return 0;
+        this._appsink = this._pipeline.get_by_name('sink');
+        if (!this._appsink) {
+            throw new Error('Failed to get appsink element');
+        }
+
+        const stateChange = this._pipeline.set_state(Gst.State.PLAYING);
+        if (stateChange === Gst.StateChangeReturn.FAILURE) {
+            throw new Error('Failed to set pipeline to PLAYING');
+        }
+
+        const pollMs = Math.round(1000 / FRAMERATE);
+        this._pollId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, pollMs, () => {
+            this._pollSamples();
+            return GLib.SOURCE_CONTINUE;
+        });
     }
 
-    _processFFT() {
-        for (let i = 0; i < N_FFT; i++) {
-            this._real[i] = this._samples[i] * this._hann[i];
-            this._imag[i] = 0;
+    _pollSamples() {
+        if (!this._appsink) return;
+
+        let sample;
+        try {
+            sample = this._appsink.emit('try-pull-sample', 0);
+        } catch (e) {
+            console.log('VTT pull error:', e.message);
+            return;
+        }
+        if (!sample) {
+            console.log('VTT no sample');
+            return;
         }
 
-        for (let i = 0; i < N_FFT; i++) {
-            const j = this._bitRev[i];
-            if (i < j) {
-                const tre = this._real[i];
-                this._real[i] = this._real[j];
-                this._real[j] = tre;
-                const tim = this._imag[i];
-                this._imag[i] = this._imag[j];
-                this._imag[j] = tim;
-            }
+        const buf = sample.get_buffer();
+        if (!buf) return;
+
+        const size = buf.get_size();
+        if (size === 0) return;
+
+        const data = buf.extract_dup(0, size);
+        if (!data || data.length === 0) {
+            console.log('VTT empty data');
+            return;
         }
 
-        for (let len = 2; len <= N_FFT; len <<= 1) {
-            const halfLen = len >> 1;
-            const wRe = Math.cos(-2 * Math.PI / len);
-            const wIm = Math.sin(-2 * Math.PI / len);
-            for (let i = 0; i < N_FFT; i += len) {
-                let wr = 1, wi = 0;
-                for (let j = 0; j < halfLen; j++) {
-                    const tRe = wr * this._real[i + j + halfLen] - wi * this._imag[i + j + halfLen];
-                    const tIm = wr * this._imag[i + j + halfLen] + wi * this._real[i + j + halfLen];
-                    this._real[i + j + halfLen] = this._real[i + j] - tRe;
-                    this._imag[i + j + halfLen] = this._imag[i + j] - tIm;
-                    this._real[i + j] += tRe;
-                    this._imag[i + j] += tIm;
-                    const nwr = wr * wRe - wi * wIm;
-                    wi = wr * wIm + wi * wRe;
-                    wr = nwr;
-                }
-            }
+        console.log('VTT got', data.length, 'bytes');
+        const numSamples = Math.floor(data.length / 2);
+        this._processFFT(data, numSamples);
+    }
+
+    _processFFT(data, numSamples) {
+        for (let i = 0; i < numSamples; i++) {
+            const lo = data[i * 2];
+            const hi = data[i * 2 + 1];
+            let s = (hi << 8) | lo;
+            if (s >= 32768) s -= 65536;
+            this._pcmBuffer[this._pcmFill % FFT_SIZE] = s / 32768.0;
+            this._pcmFill++;
         }
 
-        for (let i = 0; i < N_FFT / 2; i++) {
-            this._magnitudes[i] = Math.sqrt(
-                this._real[i] * this._real[i] + this._imag[i] * this._imag[i]
-            );
+        if (this._pcmFill < FFT_SIZE) return;
+
+        const offset = this._pcmFill % FFT_SIZE;
+        for (let i = 0; i < FFT_SIZE; i++) {
+            this._fftRe[i] = this._pcmBuffer[(offset + i) % FFT_SIZE] * this._hannWin[i];
+            this._fftIm[i] = 0;
         }
 
-        const targetHeights = new Float64Array(this._numBars);
+        fft(this._fftRe, this._fftIm);
+
+        const numBins = FFT_SIZE / 2;
+        for (let i = 0; i < numBins; i++) {
+            const mag = Math.sqrt(
+                this._fftRe[i] * this._fftRe[i] + this._fftIm[i] * this._fftIm[i]
+            ) / FFT_SIZE;
+            this._mags[i] = mag > 0 ? 20 * Math.log10(mag) : -80;
+        }
+
         let maxMag = 0.001;
-        for (let k = 0; k < this._numBars; k++) {
-            const bins = this._binsPerBar[k];
-            let sum = 0;
-            for (const bin of bins) {
-                sum += this._magnitudes[bin];
+        for (let i = 0; i < this._numBars; i++) {
+            let best = 0;
+            for (const b of this._logMap[i]) {
+                const mag = this._mags[b];
+                const norm = Math.max(0, (mag + 80) / 80);
+                if (norm > best) best = norm;
             }
-            targetHeights[k] = sum / (bins.length || 1);
-            maxMag = Math.max(maxMag, targetHeights[k]);
+            this._barMags[i] = best;
+            if (best > maxMag) maxMag = best;
         }
 
-        for (let k = 0; k < this._numBars; k++) {
-            targetHeights[k] /= maxMag;
+        for (let i = 0; i < this._numBars; i++) {
+            this._barMags[i] /= maxMag;
         }
 
         let totalEnergy = 0;
-        for (let k = 0; k < this._numBars; k++) {
-            totalEnergy += targetHeights[k];
+        for (let i = 0; i < this._numBars; i++) {
+            totalEnergy += this._barMags[i];
         }
         const isSilent = totalEnergy / this._numBars < NOISE_FLOOR;
-
-        if (isSilent) {
-            this._silentFrames++;
-        } else {
-            this._silentFrames = 0;
-        }
+        if (isSilent) this._silentFrames++; else this._silentFrames = 0;
 
         let changed = false;
-        for (let k = 0; k < this._numBars; k++) {
-            const target = isSilent ? 0 : targetHeights[k];
-            const prev = this._prevHeights[k];
-            const alpha = target > prev ? ALPHA_RISE : ALPHA_FALL;
-            const smoothed = prev + alpha * (target - prev);
-            if (Math.abs(smoothed - prev) > 0.001) changed = true;
-            this._prevHeights[k] = smoothed;
+        if (this._silentFrames >= 10) {
+            for (let i = 0; i < this._numBars; i++) {
+                if (this._prevHeights[i] !== MIN_HEIGHT) {
+                    this._prevHeights[i] = MIN_HEIGHT;
+                    changed = true;
+                }
+            }
+        } else {
+            const SMOOTH = 0.7;
+            for (let i = 0; i < this._numBars; i++) {
+                const target = this._barMags[i] * MAX_HEIGHT;
+                const prev = this._prevHeights[i];
+                const h = SMOOTH * prev + (1 - SMOOTH) * target;
+                if (Math.abs(h - prev) > 0.3) {
+                    this._prevHeights[i] = h;
+                    changed = true;
+                }
+            }
         }
 
-        if (this._onFrame && changed && !this._framePending) {
-            this._framePending = true;
-            const heights = new Float64Array(this._prevHeights);
-            const silentCount = this._silentFrames;
-            GLib.idle_add(GLib.PRIORITY_DEFAULT_IDLE, () => {
-                this._framePending = false;
-                try {
-                    this._onFrame({
-                        silentFrames: silentCount,
-                        prevHeights: heights,
-                        changed,
-                    });
-                } catch (e) {
-                    console.error('GstVisualizer: onFrame error', e);
-                }
-                return GLib.SOURCE_REMOVE;
+        if (this._onFrame) {
+            console.log('VTT gst frame:', this._barMags.slice(0, 4).map(v => v.toFixed(3)).join(', '), 'silent:', this._silentFrames);
+            this._onFrame({
+                silentFrames: this._silentFrames,
+                prevHeights: this._prevHeights,
+                changed,
             });
         }
     }
@@ -265,6 +262,12 @@ export class GstVisualizer {
     stop() {
         if (!this._running) return;
         this._running = false;
+
+        if (this._pollId) {
+            GLib.Source.remove(this._pollId);
+            this._pollId = null;
+        }
+
         try {
             if (this._pipeline) {
                 this._pipeline.set_state(Gst.State.NULL);
@@ -272,11 +275,11 @@ export class GstVisualizer {
         } catch (e) {
             console.error('GstVisualizer: stop error', e);
         }
+
         this._pipeline = null;
         this._appsink = null;
-        this._sampleCount = 0;
-        this._framePending = false;
-        this._prevHeights.fill(0);
+        this._pcmFill = 0;
+        this._prevHeights.fill(MIN_HEIGHT);
         this._silentFrames = 0;
     }
 }

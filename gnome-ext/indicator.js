@@ -3,10 +3,18 @@ import Clutter from 'gi://Clutter';
 import GObject from 'gi://GObject';
 import * as PanelMenu from 'resource:///org/gnome/shell/ui/panelMenu.js';
 
+const NUM_BARS = 16;
+const BAR_WIDTH = 3;
+const BAR_MARGIN = 1;
+const MAX_HEIGHT = 32;
+const MIN_HEIGHT = 2;
+
 export const VoiceIndicator = GObject.registerClass(
 class VoiceIndicator extends PanelMenu.Button {
     _init() {
         super._init(0.0, 'Voice to Text');
+        this._heights = new Array(NUM_BARS).fill(MIN_HEIGHT);
+        this._destroyed = false;
         this._buildUI();
         this._recording = false;
         this.onStart = null;
@@ -15,10 +23,18 @@ class VoiceIndicator extends PanelMenu.Button {
 
     _buildUI() {
         this._bars = [];
-        this._barBox = new St.BoxLayout({ style_class: 'vtt-bars' });
-        for (let i = 0; i < 5; i++) {
+        this._barBox = new St.BoxLayout({
+            style_class: 'vtt-bars',
+            vertical: false,
+            x_align: Clutter.ActorAlign.CENTER,
+            y_align: Clutter.ActorAlign.END,
+        });
+        for (let i = 0; i < NUM_BARS; i++) {
             const bar = new St.Widget({
                 style_class: 'vtt-bar',
+                width: BAR_WIDTH,
+                height: MIN_HEIGHT,
+                x_expand: false,
                 y_align: Clutter.ActorAlign.END,
             });
             this._barBox.add_child(bar);
@@ -67,6 +83,7 @@ class VoiceIndicator extends PanelMenu.Button {
 
     _setIdleUI() {
         this._startBtn.visible = true;
+        this._heights.fill(MIN_HEIGHT);
         this._barBox.hide();
         this._stopBtn.visible = false;
     }
@@ -78,9 +95,38 @@ class VoiceIndicator extends PanelMenu.Button {
     }
 
     updateLevel(level) {
-        this._bars.forEach((bar, i) => {
-            const h = Math.max(4, Math.round(level * 8000));
-            bar.set_height(h);
-        });
+        if (this._destroyed) return;
+        const h = Math.max(MIN_HEIGHT, Math.round(level * 8000));
+        this._heights.fill(h);
+        this._updateBarHeights();
+    }
+
+    updateBars(heights) {
+        if (this._destroyed) return;
+        for (let i = 0; i < NUM_BARS; i++) {
+            this._heights[i] = Math.max(MIN_HEIGHT, Math.round(heights[i] ?? MIN_HEIGHT));
+        }
+        this._updateBarHeights();
+    }
+
+    _updateBarHeights() {
+        if (this._destroyed) return;
+        for (let i = 0; i < NUM_BARS; i++) {
+            const h = this._heights[i];
+            this._bars[i].set_height(h);
+            const frac = h / MAX_HEIGHT;
+            if (frac < 0.5) {
+                this._bars[i].set_style('background-color: rgba(51, 217, 51, 0.9);');
+            } else if (frac < 0.8) {
+                this._bars[i].set_style('background-color: rgba(242, 204, 25, 0.9);');
+            } else {
+                this._bars[i].set_style('background-color: rgba(242, 51, 51, 0.9);');
+            }
+        }
+    }
+
+    destroy() {
+        this._destroyed = true;
+        super.destroy();
     }
 });
