@@ -1,0 +1,61 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Install dependencies
+        run: uv sync --frozen
+
+      - name: Build Python package
+        run: uv build --out-dir dist
+
+      - name: Build standalone binary
+        run: |
+          uv run pyinstaller \
+            --name voice-to-text \
+            --onefile \
+            src/voice_to_text/main.py \
+            --distpath dist \
+            --clean
+
+      - name: Pack GNOME extension
+        run: |
+          UUID="voice-to-text@happytomatoe.com"
+          SRC="gnome-ext"
+          rm -rf "dist/$UUID"
+          mkdir -p "dist/$UUID/schemas"
+          cp "$SRC"/*.js "$SRC"/*.json "$SRC"/*.css "dist/$UUID/"
+          cp "$SRC"/schemas/*.xml "dist/$UUID/schemas/"
+          glib-compile-schemas "dist/$UUID/schemas/"
+          cd dist && zip -r "$UUID.shell-extension.zip" "$UUID"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/voice_to_text-*.whl
+            dist/voice_to_text-*.tar.gz
+            dist/voice-to-text
+            dist/voice-to-text@happytomatoe.com.shell-extension.zip
+          generate_release_notes: true
