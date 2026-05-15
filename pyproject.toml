@@ -4,13 +4,13 @@ version = "0.1.0"
 description = "Voice to Text using Groq Whisper and Voxtral APIs"
 requires-python = ">=3.13"
 dependencies = [
-    "groq~=1.2.0",
-    "sounddevice~=0.5.5",
-    "numpy~=2.4.4",
-    "pyyaml~=6.0.3",
-    "python-dotenv~=1.2.2",
-    "pyinstaller~=6.20.0",
-  "requests~=2.33.1"
+  "groq~=1.2.0",
+  "sounddevice~=0.5.5",
+  "numpy~=2.4.4",
+  "pyyaml~=6.0.3",
+  "python-dotenv~=1.2.2",
+  "pyinstaller~=6.20.0",
+  "requests~=2.33.1",
 ]
 
 [project.scripts]

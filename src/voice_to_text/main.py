@@ -9,7 +9,6 @@ import subprocess
 import sys
 import os
 import logging
-import curses
 from pathlib import Path
 
 import numpy as np
@@ -145,6 +144,8 @@ def run_stdout_mode(args, config_mgr, transcriber, language, duration):
     BLOCK_SIZE = 2048
     LEVEL_INTERVAL = 0.1
 
+    logger.info("run_stdout_mode started, duration=%s, device=%s", duration, args.device)
+
     stop_requested = False
 
     def handle_sigint(signum, frame):
@@ -168,8 +169,10 @@ def run_stdout_mode(args, config_mgr, transcriber, language, duration):
         device=args.device,
     )
     stream.start()
+    logger.info("Audio stream started")
 
     last_level_time = time.time()
+    level_count = 0
 
     try:
         while not stop_requested:
@@ -181,6 +184,8 @@ def run_stdout_mode(args, config_mgr, transcriber, language, duration):
                 if recorded_frames:
                     latest = recorded_frames[-1]
                     rms = compute_rms(latest)
+                    level_count += 1
+                    logger.debug("LEVEL[%d]: %.4f", level_count, rms)
                     print(f"LEVEL:{rms:.4f}", flush=True)
                 last_level_time = now
 
@@ -192,6 +197,7 @@ def run_stdout_mode(args, config_mgr, transcriber, language, duration):
     finally:
         stream.stop()
         stream.close()
+        logger.info("Audio stream stopped, collected %d frames, %d level readings", len(recorded_frames), level_count)
 
     try:
         text = transcribe_audio(recorded_frames, SAMPLE_RATE, transcriber, language)
@@ -319,20 +325,20 @@ def main():
     BLOCK_SIZE = 2048
     SMOOTH = 0.7
 
-    audio_buffer = np.zeros(BLOCK_SIZE, dtype=np.float32)
-    smoothed = None
-    stop = False
-    exit_key = None
+    import select
+    import termios
+    import tty
+
+    smoothed_level = 0.0
     recorded_frames = []
     start_time = time.time()
 
     def audio_callback(indata, frames, time_info, status):
+        nonlocal smoothed_level
         float_data = indata[:, 0].astype(np.float32) / 32768.0
-        num_samples = min(frames, BLOCK_SIZE)
-        audio_buffer[:num_samples] = float_data[:num_samples]
-        if num_samples < BLOCK_SIZE:
-            audio_buffer[num_samples:] = 0
         recorded_frames.append(indata.copy())
+        rms = math.sqrt(np.mean(float_data ** 2))
+        smoothed_level = SMOOTH * smoothed_level + (1 - SMOOTH) * rms
 
     stream = sd.InputStream(
         samplerate=SAMPLE_RATE,
@@ -344,95 +350,52 @@ def main():
     )
     stream.start()
 
-    def get_bar_values(num_bars):
-        nonlocal smoothed
-        if smoothed is None or len(smoothed) != num_bars:
-            smoothed = np.zeros(num_bars)
-        max_freq = SAMPLE_RATE // 2
-        freq_bins = np.logspace(np.log10(20), np.log10(max_freq), num_bars + 1)
-        freqs = np.fft.rfftfreq(BLOCK_SIZE, d=1 / SAMPLE_RATE)
-        windowed = audio_buffer * np.hanning(BLOCK_SIZE)
-        fft_mag = np.abs(np.fft.rfft(windowed))
-        fft_db = 20 * np.log10(fft_mag + 1e-10)
-        fft_db = np.clip((fft_db + 60) / 60, 0, 1)
-        bar_vals = np.zeros(num_bars)
-        for i in range(num_bars):
-            lo = np.searchsorted(freqs, freq_bins[i])
-            hi = max(np.searchsorted(freqs, freq_bins[i + 1]), lo + 1)
-            hi = min(hi, len(fft_db))
-            slice_ = fft_db[lo:hi]
-            bar_vals[i] = np.max(slice_) if len(slice_) > 0 else 0
-        smoothed = SMOOTH * smoothed + (1 - SMOOTH) * bar_vals
-        return smoothed
+    METER_WIDTH = 50
+    GREY = "\033[90m"
+    GREEN = "\033[32m"
+    YELLOW = "\033[33m"
+    RED = "\033[31m"
+    RESET = "\033[0m"
+    BLOCK = "\u2588"
 
-    def curses_loop(stdscr):
-        nonlocal stop, exit_key
-        curses.curs_set(0)
-        stdscr.nodelay(True)
-        curses.start_color()
-        curses.init_pair(1, curses.COLOR_RED, curses.COLOR_BLACK)
-        curses.init_pair(2, curses.COLOR_YELLOW, curses.COLOR_BLACK)
-        curses.init_pair(3, curses.COLOR_GREEN, curses.COLOR_BLACK)
+    old_settings = termios.tcgetattr(sys.stdin)
+    try:
+        tty.setcbreak(sys.stdin.fileno())
+        print("Recording... (ESC/Q to cancel, ENTER to continue)", flush=True)
 
-        while not stop:
-            try:
-                key = stdscr.getch()
-                if key in (ord("q"), ord("Q"), 27):
-                    exit_key = "exit"
-                    stop = True
+        while True:
+            if select.select([sys.stdin], [], [], 0.03)[0]:
+                key = sys.stdin.read(1)
+                if key in ("q", "Q") or ord(key) == 27:
+                    print("\nExiting without transcription")
+                    sys.exit(0)
+                elif key == "\n" or key == "\r":
                     break
-                elif key == 10:
-                    exit_key = "transcribe"
-                    stop = True
-                    break
-            except Exception:
-                pass
 
             if duration > 0 and (time.time() - start_time) > duration:
-                exit_key = "transcribe"
-                stop = True
                 break
 
-            height, width = stdscr.getmaxyx()
-            num_bars = width - 2
-            bar_height = height - 2
+            level = min(1.0, smoothed_level)
+            filled = int(level * METER_WIDTH)
 
-            bar_vals = get_bar_values(num_bars)
-            stdscr.erase()
+            if level < 0.13:
+                color = GREY
+            elif level < 0.5:
+                color = GREEN
+            elif level < 0.7:
+                color = YELLOW
+            else:
+                color = RED
 
-            for x, val in enumerate(bar_vals):
-                filled = int(val * bar_height)
-                for y in range(filled):
-                    row = height - 2 - y
-                    frac = y / bar_height if bar_height > 0 else 0
-                    if frac < 0.5:
-                        color = curses.color_pair(3)
-                    elif frac < 0.8:
-                        color = curses.color_pair(2)
-                    else:
-                        color = curses.color_pair(1)
-                    try:
-                        stdscr.addch(row, x + 1, "\u2588", color)
-                    except curses.error:
-                        pass
-
+            bar = BLOCK * filled + " " * (METER_WIDTH - filled)
             elapsed = time.time() - start_time
-            stdscr.addstr(
-                height - 1,
-                1,
-                f"Recording... (ESC/Q to cancel, ENTER to continue) Elapsed: {elapsed:.1f}s",
-                curses.A_DIM,
-            )
-            stdscr.refresh()
-            time.sleep(0.03)
-
-    curses.wrapper(curses_loop)
+            sys.stdout.write(f"\r[{color}{bar}{RESET}] {elapsed:.1f}s   ")
+            sys.stdout.flush()
+    finally:
+        termios.tcsetattr(sys.stdin, termios.TCSADRAIN, old_settings)
+        print()
     stream.stop()
     stream.close()
-
-    if exit_key == "exit":
-        print("\nExiting without transcription")
-        sys.exit(0)
 
     if not recorded_frames:
         print("No audio recorded")
