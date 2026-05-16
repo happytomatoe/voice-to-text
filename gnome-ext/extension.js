@@ -91,7 +91,8 @@ export default class VoiceToTextExtension extends Extension {
 
     _setIdle() {
         this._recording = false;
-        this._indicator.setRecording(false);
+        this._indicator?.setRecording(false);
+        this._recorder = null;
     }
 
     _showNotification(message) {
