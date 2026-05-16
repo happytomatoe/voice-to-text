@@ -22,6 +22,14 @@ export class Recorder {
             GLib.spawn_async_with_pipes(null, argv, null,
                 GLib.SpawnFlags.DO_NOT_REAP_CHILD, null);
 
+        if (!ok) {
+            GLib.close(stdin);
+            GLib.close(stdout);
+            GLib.close(stderr);
+            this.onError?.('Failed to spawn voice-to-text process');
+            return;
+        }
+
         GLib.close(stdin);
         GLib.close(stderr);
 
