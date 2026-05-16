@@ -2,7 +2,7 @@
 
 Convert speech to text for free by using free APIs(Voxtral, Groq) on Linux
 
-![Voice to Text Demo](./demo.gif)
+https://github.com/user-attachments/assets/a51d6826-e417-4e69-afd0-9ff40799d3a1
 
 ## Requirements
 
