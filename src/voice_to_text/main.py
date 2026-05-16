@@ -2,13 +2,17 @@
 
 import argparse
 import math
+import select
 import signal
+import termios
 import time
 import tempfile
+import tty
 import subprocess
 import sys
 import os
 import logging
+import wave
 from pathlib import Path
 
 import numpy as np
@@ -20,6 +24,17 @@ from voice_to_text.providers import get_provider
 from voice_to_text.config import ConfigManager
 
 DEFAULT_LOG_FILE = Path("/tmp") / "voice-to-text.log"
+
+SAMPLE_RATE = 16000
+BLOCK_SIZE = 2048
+
+METER_WIDTH = 50
+GREY = "\033[90m"
+GREEN = "\033[32m"
+YELLOW = "\033[33m"
+RED = "\033[31m"
+RESET = "\033[0m"
+BLOCK = "\u2588"
 
 logger = logging.getLogger(__name__)
 
@@ -42,19 +57,16 @@ def load_config():
 
 
 def copy_to_clipboard(text: str):
-    try:
-        subprocess.run(
-            ["xclip", "-selection", "clipboard"], input=text.encode(), check=True
-        )
-        return True
-    except FileNotFoundError:
+    clipboard_commands = [
+        ["xclip", "-selection", "clipboard"],
+        ["xsel", "--clipboard", "--input"],
+    ]
+    for cmd in clipboard_commands:
         try:
-            subprocess.run(
-                ["xsel", "--clipboard", "--input"], input=text.encode(), check=True
-            )
+            subprocess.run(cmd, input=text.encode(), check=True)
             return True
         except FileNotFoundError:
-            pass
+            continue
     return False
 
 
@@ -112,8 +124,6 @@ def transcribe_audio(recorded_frames, sample_rate, transcriber, language):
 
     audio_data = np.concatenate(recorded_frames, axis=0)
     with tempfile.NamedTemporaryFile(suffix=".wav", delete=True) as f:
-        import wave
-
         with wave.open(f.name, "wb") as wf:
             wf.setnchannels(1)
             wf.setsampwidth(2)
@@ -329,13 +339,7 @@ def main():
     print("Recording... (press ESC or Q to cancel, ENTER to continue)")
     print("-" * 60)
 
-    SAMPLE_RATE = 16000
-    BLOCK_SIZE = 2048
     SMOOTH = 0.7
-
-    import select
-    import termios
-    import tty
 
     smoothed_level = 0.0
     recorded_frames = []
@@ -357,14 +361,6 @@ def main():
         device=args.device,
     )
     stream.start()
-
-    METER_WIDTH = 50
-    GREY = "\033[90m"
-    GREEN = "\033[32m"
-    YELLOW = "\033[33m"
-    RED = "\033[31m"
-    RESET = "\033[0m"
-    BLOCK = "\u2588"
 
     old_settings = termios.tcgetattr(sys.stdin)
     try:

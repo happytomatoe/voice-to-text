@@ -1,7 +1,7 @@
 """Groq Whisper transcription provider."""
 
 from groq import Groq
-from typing import AsyncIterator, Dict, Any
+from typing import Dict, Any
 import logging
 import os
 from .base import TranscriptionProvider
