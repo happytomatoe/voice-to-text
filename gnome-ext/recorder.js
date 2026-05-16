@@ -6,6 +6,7 @@ export class Recorder {
     constructor(pythonAppPath) {
         this._appPath = pythonAppPath;
         this._proc = null;
+        this._childWatchId = null;
         this._timeoutId = null;
         this.onTranscription = null;
         this.onAudioLevel = null;
@@ -19,11 +20,22 @@ export class Recorder {
             GLib.spawn_async_with_pipes(null, argv, null,
                 GLib.SpawnFlags.DO_NOT_REAP_CHILD, null);
 
+        GLib.close(stdin);
+        GLib.close(stderr);
+
         this._proc = pid;
         this._stdout = new Gio.DataInputStream({
-            base_stream: new GioUnix.InputStream({ fd: stdout })
+            base_stream: new GioUnix.InputStream({ fd: stdout, close_fd: true })
         });
         this._readOutput();
+
+        this._childWatchId = GLib.child_watch_add(
+            GLib.PRIORITY_DEFAULT, pid, (p, status) => {
+                this._childWatchId = null;
+                this._proc = null;
+                GLib.spawn_close_pid(p);
+            }
+        );
 
         this._timeoutId = GLib.timeout_add_seconds(
             GLib.PRIORITY_DEFAULT, 300, () => {
@@ -39,9 +51,10 @@ export class Recorder {
             this._timeoutId = null;
         }
         if (this._proc) {
-            GLib.spawn_close_pid(this._proc);
+            const pid = this._proc;
+            this._proc = null;
             Gio.Subprocess.new(
-                ['kill', '-INT', String(this._proc)], 0
+                ['kill', '-INT', String(pid)], 0
             ).wait_async(null, null);
         }
     }

@@ -56,6 +56,8 @@ class VoiceIndicator extends PanelMenu.Button {
         }));
         this._stopBtn.connect('clicked', () => this.onStop?.());
 
+        this._box.add_child(this._stopBtn);
+
         this.add_child(this._box);
         this._setIdleUI();
     }
