@@ -66,7 +66,7 @@ class ConfigManager:
 
     def get_selected_provider(self) -> str:
         """Get the selected transcription provider."""
-        return self.config.get("transcription", {}).get("provider", "groq")
+        return self.config.get("transcription", {}).get("provider", "voxtral")
 
     def get_audio_config(self) -> Dict[str, Any]:
         """Get audio configuration."""
@@ -79,4 +79,3 @@ class ConfigManager:
     def get_logging_config(self) -> Dict[str, Any]:
         """Get logging configuration."""
         return self.config.get("logging", {})
-

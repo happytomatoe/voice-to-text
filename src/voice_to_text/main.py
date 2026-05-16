@@ -74,8 +74,8 @@ def setup_interactive():
     print("=" * 60)
     print("Choose your transcription provider:")
     print()
-    print("1. Groq (default) - Uses Groq API for transcription")
-    print("2. Voxtral - Uses Voxtral API for transcription")
+    print("1. Voxtral (default)  - Uses Voxtral API for transcription")
+    print("2. Groq - Uses Groq API for transcription")
     print()
 
     config_mgr = load_config()
@@ -87,9 +87,9 @@ def setup_interactive():
     choice = input("Enter your choice (1-2): ").strip()
 
     if choice == "1":
-        provider = "groq"
-    elif choice == "2":
         provider = "voxtral"
+    elif choice == "2":
+        provider = "groq"
     else:
         print("Invalid choice. Keeping current provider.")
         return
@@ -135,7 +135,7 @@ def transcribe_audio(recorded_frames, sample_rate, transcriber, language):
 
 def compute_rms(indata):
     samples = indata[:, 0].astype(np.float64)
-    rms = math.sqrt(np.mean(samples ** 2))
+    rms = math.sqrt(np.mean(samples**2))
     return min(rms / 32768.0, 1.0)
 
 
@@ -144,7 +144,9 @@ def run_stdout_mode(args, config_mgr, transcriber, language, duration):
     BLOCK_SIZE = 2048
     LEVEL_INTERVAL = 0.1
 
-    logger.info("run_stdout_mode started, duration=%s, device=%s", duration, args.device)
+    logger.info(
+        "run_stdout_mode started, duration=%s, device=%s", duration, args.device
+    )
 
     stop_requested = False
 
@@ -197,7 +199,11 @@ def run_stdout_mode(args, config_mgr, transcriber, language, duration):
     finally:
         stream.stop()
         stream.close()
-        logger.info("Audio stream stopped, collected %d frames, %d level readings", len(recorded_frames), level_count)
+        logger.info(
+            "Audio stream stopped, collected %d frames, %d level readings",
+            len(recorded_frames),
+            level_count,
+        )
 
     try:
         text = transcribe_audio(recorded_frames, SAMPLE_RATE, transcriber, language)
@@ -312,7 +318,9 @@ def main():
     default_duration = audio_config.get("duration", 0)
     duration = args.duration if args.duration is not None else default_duration
 
-    output_mode = args.output if hasattr(args, "output") and args.output else "clipboard"
+    output_mode = (
+        args.output if hasattr(args, "output") and args.output else "clipboard"
+    )
 
     if output_mode == "stdout":
         run_stdout_mode(args, config_mgr, transcriber, language, duration)
@@ -337,7 +345,7 @@ def main():
         nonlocal smoothed_level
         float_data = indata[:, 0].astype(np.float32) / 32768.0
         recorded_frames.append(indata.copy())
-        rms = math.sqrt(np.mean(float_data ** 2))
+        rms = math.sqrt(np.mean(float_data**2))
         smoothed_level = SMOOTH * smoothed_level + (1 - SMOOTH) * rms
 
     stream = sd.InputStream(
