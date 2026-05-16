@@ -7,7 +7,9 @@ export class Recorder {
         this._appPath = pythonAppPath;
         this._proc = null;
         this._childWatchId = null;
+        this._stdout = null;
         this._timeoutId = null;
+        this._cancellable = null;
         this.onTranscription = null;
         this.onAudioLevel = null;
         this.onTimeout = null;
@@ -24,6 +26,7 @@ export class Recorder {
         GLib.close(stderr);
 
         this._proc = pid;
+        this._cancellable = new Gio.Cancellable();
         this._stdout = new Gio.DataInputStream({
             base_stream: new GioUnix.InputStream({ fd: stdout, close_fd: true })
         });
@@ -50,6 +53,7 @@ export class Recorder {
             GLib.source_remove(this._timeoutId);
             this._timeoutId = null;
         }
+
         if (this._proc) {
             const pid = this._proc;
             this._proc = null;
@@ -60,19 +64,30 @@ export class Recorder {
     }
 
     _readOutput() {
-        this._stdout.read_line_async(0, null, (src, res) => {
-            const [line] = src.read_line_finish_utf8(res);
-            if (line !== null) {
+        this._stdout.read_line_async(
+            GLib.PRIORITY_DEFAULT, this._cancellable, (src, res) => {
+                let line;
+                try {
+                    [line] = src.read_line_finish_utf8(res);
+                } catch (e) {
+                    return;
+                }
+
+                if (line === null) return;
+
                 if (line.startsWith('LEVEL:')) {
                     const level = parseFloat(line.slice(6));
-                    this.onAudioLevel?.(level);
+                    if (!Number.isNaN(level)) {
+                        this.onAudioLevel?.(level);
+                    }
                 } else if (line.startsWith('TEXT:')) {
                     this.onTranscription?.(line.slice(5).trim());
                 } else if (line.startsWith('ERROR:')) {
                     this.onError?.(line.slice(6).trim());
                 }
+
                 this._readOutput();
             }
-        });
+        );
     }
 }
