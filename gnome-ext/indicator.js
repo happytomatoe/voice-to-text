@@ -139,7 +139,7 @@ class VoiceIndicator extends PanelMenu.Button {
                 cr.arc(w - radius, radius, radius, -Math.PI / 2, 0);
                 cr.lineTo(w, h - radius);
                 cr.arc(w - radius, h - radius, radius, 0, Math.PI / 2);
-            } else if (fillW > radius) {
+            } else {
                 cr.lineTo(fillW, h);
             }
             cr.lineTo(radius, h);
