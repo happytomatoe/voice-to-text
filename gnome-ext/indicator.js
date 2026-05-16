@@ -27,6 +27,15 @@ class VoiceIndicator extends PanelMenu.Button {
         this._icon = new St.Icon({
             icon_name: 'audio-input-microphone-symbolic',
             style_class: 'system-status-icon',
+            reactive: true,
+        });
+        this._icon.connect('button-press-event', () => {
+            if (this._recording) {
+                this.onStop?.();
+            } else {
+                this.onStart?.();
+            }
+            return Clutter.EVENT_STOP;
         });
         this._box.add_child(this._icon);
 
@@ -54,7 +63,10 @@ class VoiceIndicator extends PanelMenu.Button {
             icon_name: 'media-playback-stop-symbolic',
             style_class: 'system-status-icon',
         }));
-        this._stopBtn.connect('clicked', () => this.onStop?.());
+        this._stopBtn.connect('button-press-event', () => {
+            this.onStop?.();
+            return Clutter.EVENT_STOP;
+        });
 
         this._box.add_child(this._stopBtn);
 
