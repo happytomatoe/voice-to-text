@@ -3,11 +3,15 @@ from typing import Dict, Any, Type
 from .base import TranscriptionProvider
 from .groq import GroqProvider
 from .voxtral import VoxtralProvider
+from .whisper_cpp import WhisperCppProvider
+from .faster_whisper import FasterWhisperProvider
 
 # Provider registry
 _PROVIDERS: Dict[str, Type[TranscriptionProvider]] = {
     "groq": GroqProvider,
     "voxtral": VoxtralProvider,
+    "whisper": WhisperCppProvider,
+    "faster-whisper": FasterWhisperProvider,
 }
 
 def get_provider(provider_name: str, config: Dict[str, Any]) -> TranscriptionProvider:

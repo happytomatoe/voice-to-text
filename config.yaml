@@ -3,7 +3,7 @@
 
 # Provider selection
 transcription:
-  provider: "voxtral"  # "groq" or "voxtral"
+  provider: "voxtral"  # "groq", "voxtral", or "whisper"
   language: "en"
 
 # Provider-specific configurations
@@ -13,6 +13,23 @@ groq:
 voxtral:
   api_key_env: "VOXTRAL_API_KEY"
   model: "voxtral-mini-latest"
+
+whisper:
+  # Path to whisper.cpp model (relative or absolute).
+  # Default: ~/whisper.cpp/models/ggml-small.bin
+  model_path: "~/whisper.cpp/models/ggml-small.bin"
+  # Override if whisper-cli is somewhere else.
+  # cli_bin: "~/whisper.cpp/build/bin/whisper-cli"
+
+faster-whisper:
+  # English-only model. tiny.en=fastest, base.en=best balance, small.en=best accuracy
+  model_size: "base.en"
+  # Device: cpu or cuda
+  device: "cpu"
+  # Quantisation for CPU: float32, float16, int8
+  compute_type: "int8"
+  # Language hint ('' = auto-detect)
+  language: "en"
 
 audio:
   sample_rate: 16000

@@ -86,8 +86,10 @@ def setup_interactive():
     print("=" * 60)
     print("Choose your transcription provider:")
     print()
-    print("1. Voxtral (default)  - Uses Voxtral API for transcription")
-    print("2. Groq - Uses Groq API for transcription")
+    print("1. Voxtral         - Voxtral API (cloud, best quality)")
+    print("2. Groq            - Groq API (cloud, fast)")
+    print("3. whisper         - Local via whisper.cpp (CPU only)")
+    print("4. faster-whisper  - Local via CTranslate2 INT8 (2-3× CPU-only)")
     print()
 
     config_mgr = load_config()
@@ -96,12 +98,16 @@ def setup_interactive():
     print(f"Config path: {config_mgr.config_path}")
     print()
 
-    choice = input("Enter your choice (1-2): ").strip()
+    choice = input("Enter your choice (1-4): ").strip()
 
     if choice == "1":
         provider = "voxtral"
     elif choice == "2":
         provider = "groq"
+    elif choice == "3":
+        provider = "whisper"
+    elif choice == "4":
+        provider = "faster-whisper"
     else:
         print("Invalid choice. Keeping current provider.")
         return
@@ -245,7 +251,7 @@ def main():
     record_parser.add_argument(
         "--provider",
         type=str,
-        choices=["groq", "voxtral"],
+        choices=["groq", "voxtral", "whisper", "faster-whisper"],
         help="Transcription provider to use",
     )
     record_parser.add_argument(
