@@ -2,7 +2,7 @@
 
 Convert speech to text for free by using free APIs(Voxtral, Groq) on Linux
 
-![Demo](./demo.gif)
+![Demo](./demo.webm)
 
 ## Requirements
 
@@ -20,10 +20,12 @@ Convert speech to text for free by using free APIs(Voxtral, Groq) on Linux
 ## Configuration
 
 Edit [`config.yaml`](./config.yaml) to customize
+
 ## Output Methods
 
 - **clipboard**: Copies text to system clipboard using `xclip`/`xsel`
 - **output** - used by gnome extension
+
 ## License
 
 MIT

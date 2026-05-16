@@ -5,5 +5,9 @@
       <default><![CDATA[['<Super>w']]]></default>
       <summary>Recording hotkey</summary>
     </key>
+    <key name="show-recording-notification" type="b">
+      <default>false</default>
+      <summary>Show notification when recording starts</summary>
+    </key>
   </schema>
 </schemalist>

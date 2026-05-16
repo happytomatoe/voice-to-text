@@ -83,7 +83,9 @@ export default class VoiceToTextExtension extends Extension {
         };
         this._recorder.onProcessExit = () => this._setIdle();
         this._recorder.start();
-        this._showNotification('Recording...');
+        if (this._settings.get_boolean('show-recording-notification')) {
+            this._showNotification('Recording...');
+        }
     }
 
     _stop() {
