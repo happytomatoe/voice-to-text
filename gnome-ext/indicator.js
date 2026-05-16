@@ -110,7 +110,7 @@ class VoiceIndicator extends PanelMenu.Button {
     }
 
     _setRecordingUI() {
-        this._icon.visible = true;
+        this._icon.visible = false;
         this._spinner.visible = false;
         this._meter.visible = true;
         this._stopBtn.visible = true;
