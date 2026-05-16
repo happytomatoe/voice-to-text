@@ -159,8 +159,6 @@ class VoiceIndicator extends PanelMenu.Button {
             }
             cr.fill();
         }
-
-        cr.$dispose();
     }
 
     destroy() {
