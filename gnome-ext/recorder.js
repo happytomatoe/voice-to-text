@@ -14,6 +14,7 @@ export class Recorder {
         this.onAudioLevel = null;
         this.onTimeout = null;
         this.onError = null;
+        this.onProcessExit = null;
     }
 
     start() {
@@ -45,6 +46,7 @@ export class Recorder {
                 this._childWatchId = null;
                 this._proc = null;
                 GLib.spawn_close_pid(p);
+                this.onProcessExit?.();
             }
         );
 
@@ -91,7 +93,10 @@ export class Recorder {
                 } else if (line.startsWith('TEXT:')) {
                     this.onTranscription?.(line.slice(5).trim());
                 } else if (line.startsWith('ERROR:')) {
-                    this.onError?.(line.slice(6).trim());
+                    const errorMsg = line.slice(6).trim();
+                    this.stop();
+                    this.onError?.(errorMsg);
+                    return;
                 }
 
                 this._readOutput();

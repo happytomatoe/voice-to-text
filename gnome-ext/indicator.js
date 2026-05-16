@@ -39,6 +39,13 @@ class VoiceIndicator extends PanelMenu.Button {
         });
         this._box.add_child(this._icon);
 
+        this._spinner = new St.Widget({
+            style_class: 'system-status-icon',
+            visible: false,
+        });
+        this._spinner.set_content(new St.SpinnerContent());
+        this._box.add_child(this._spinner);
+
         const spacer1 = new St.Widget({ x_expand: true });
         this._box.add_child(spacer1);
 
@@ -83,8 +90,19 @@ class VoiceIndicator extends PanelMenu.Button {
         }
     }
 
+    setProcessing() {
+        this._recording = false;
+        this._icon.visible = false;
+        this._spinner.visible = true;
+        this._meter.visible = false;
+        this._stopBtn.visible = false;
+        this._smoothedLevel = 0;
+        this._meter.queue_repaint();
+    }
+
     _setIdleUI() {
         this._icon.visible = true;
+        this._spinner.visible = false;
         this._meter.visible = false;
         this._stopBtn.visible = false;
         this._smoothedLevel = 0;
@@ -93,6 +111,7 @@ class VoiceIndicator extends PanelMenu.Button {
 
     _setRecordingUI() {
         this._icon.visible = true;
+        this._spinner.visible = false;
         this._meter.visible = true;
         this._stopBtn.visible = true;
         this._meter.queue_repaint();

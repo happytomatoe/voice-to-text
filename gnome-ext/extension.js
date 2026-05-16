@@ -5,6 +5,7 @@ import {Recorder} from './recorder.js';
 import {registerHotkey, unregisterHotkey} from './hotkey.js';
 import {typeText} from './typer.js';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
+import * as MessageTray from 'resource:///org/gnome/shell/ui/messageTray.js';
 
 
 export default class VoiceToTextExtension extends Extension {
@@ -80,6 +81,7 @@ export default class VoiceToTextExtension extends Extension {
             this._showNotification('Transcription failed: ' + msg);
             this._setIdle();
         };
+        this._recorder.onProcessExit = () => this._setIdle();
         this._recorder.start();
         this._showNotification('Recording...');
     }
@@ -88,7 +90,7 @@ export default class VoiceToTextExtension extends Extension {
         console.log('VoiceToText: _stop called');
         if (!this._recording) return;
         this._recorder?.stop();
-        this._setIdle();
+        this._indicator?.setProcessing();
     }
 
     _setIdle() {
@@ -98,6 +100,13 @@ export default class VoiceToTextExtension extends Extension {
     }
 
     _showNotification(message) {
-        Main.notify('Voice to Text', message);
+        const systemSource = MessageTray.getSystemSource();
+        const notification = new MessageTray.Notification({
+            source: systemSource,
+            title: 'Voice to Text',
+            body: message,
+            iconName: 'audio-input-microphone-symbolic',
+        });
+        systemSource.addNotification(notification);
     }
 }
