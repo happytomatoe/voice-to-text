@@ -66,9 +66,9 @@ export default class VoiceToTextExtension extends Extension {
 
         this._recorder = new Recorder(this._binPath);
         this._recorder.onAudioLevel = (level) => this._indicator.updateLevel(level);
-        this._recorder.onTranscription = (text) => {
+        this._        recorder.onTranscription = (text) => {
             if (!typeText(text)) {
-                this._showNotification('Failed to type text — is ydotool installed and ydotoold running?');
+                this._showNotification('ydotool failed — text copied to clipboard instead');
             }
             this._setIdle();
         };
