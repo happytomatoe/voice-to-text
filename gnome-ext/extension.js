@@ -5,6 +5,7 @@ import {Recorder} from './recorder.js';
 import {registerHotkey, unregisterHotkey} from './hotkey.js';
 import {typeText} from './typer.js';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
+import * as MessageTray from 'resource:///org/gnome/shell/ui/messageTray.js';
 
 
 export default class VoiceToTextExtension extends Extension {
@@ -24,9 +25,21 @@ export default class VoiceToTextExtension extends Extension {
 
     disable() {
         unregisterHotkey('hotkey');
+
+        if (this._recorder) {
+            this._recorder.onAudioLevel = null;
+            this._recorder.onTranscription = null;
+            this._recorder.onTimeout = null;
+            this._recorder.onError = null;
+            this._recorder.stop();
+            this._recorder = null;
+        }
+
         this._indicator?.destroy();
-        this._recorder?.stop();
+        this._indicator = null;
         this._settings = null;
+        this._binPath = null;
+        this._recording = false;
     }
 
     _toggle() {
@@ -55,7 +68,9 @@ export default class VoiceToTextExtension extends Extension {
         this._recorder = new Recorder(this._binPath);
         this._recorder.onAudioLevel = (level) => this._indicator.updateLevel(level);
         this._recorder.onTranscription = (text) => {
-            typeText(text);
+            if (!typeText(text)) {
+                this._showNotification('ydotool failed — text copied to clipboard instead');
+            }
             this._setIdle();
         };
         this._recorder.onTimeout = () => {
@@ -66,6 +81,7 @@ export default class VoiceToTextExtension extends Extension {
             this._showNotification('Transcription failed: ' + msg);
             this._setIdle();
         };
+        this._recorder.onProcessExit = () => this._setIdle();
         this._recorder.start();
         this._showNotification('Recording...');
     }
@@ -74,15 +90,23 @@ export default class VoiceToTextExtension extends Extension {
         console.log('VoiceToText: _stop called');
         if (!this._recording) return;
         this._recorder?.stop();
-        this._setIdle();
+        this._indicator?.setProcessing();
     }
 
     _setIdle() {
         this._recording = false;
-        this._indicator.setRecording(false);
+        this._indicator?.setRecording(false);
+        this._recorder = null;
     }
 
     _showNotification(message) {
-        Main.notify('Voice to Text', message);
+        const systemSource = MessageTray.getSystemSource();
+        const notification = new MessageTray.Notification({
+            source: systemSource,
+            title: 'Voice to Text',
+            body: message,
+            iconName: 'audio-input-microphone-symbolic',
+        });
+        systemSource.addNotification(notification);
     }
 }

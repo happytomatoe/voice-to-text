@@ -27,8 +27,24 @@ class VoiceIndicator extends PanelMenu.Button {
         this._icon = new St.Icon({
             icon_name: 'audio-input-microphone-symbolic',
             style_class: 'system-status-icon',
+            reactive: true,
+        });
+        this._icon.connect('button-press-event', () => {
+            if (this._recording) {
+                this.onStop?.();
+            } else {
+                this.onStart?.();
+            }
+            return Clutter.EVENT_STOP;
         });
         this._box.add_child(this._icon);
+
+        this._spinner = new St.Widget({
+            style_class: 'system-status-icon',
+            visible: false,
+        });
+        this._spinner.set_content(new St.SpinnerContent());
+        this._box.add_child(this._spinner);
 
         const spacer1 = new St.Widget({ x_expand: true });
         this._box.add_child(spacer1);
@@ -54,7 +70,12 @@ class VoiceIndicator extends PanelMenu.Button {
             icon_name: 'media-playback-stop-symbolic',
             style_class: 'system-status-icon',
         }));
-        this._stopBtn.connect('clicked', () => this.onStop?.());
+        this._stopBtn.connect('button-press-event', () => {
+            this.onStop?.();
+            return Clutter.EVENT_STOP;
+        });
+
+        this._box.add_child(this._stopBtn);
 
         this.add_child(this._box);
         this._setIdleUI();
@@ -69,8 +90,19 @@ class VoiceIndicator extends PanelMenu.Button {
         }
     }
 
+    setProcessing() {
+        this._recording = false;
+        this._icon.visible = false;
+        this._spinner.visible = true;
+        this._meter.visible = false;
+        this._stopBtn.visible = false;
+        this._smoothedLevel = 0;
+        this._meter.queue_repaint();
+    }
+
     _setIdleUI() {
         this._icon.visible = true;
+        this._spinner.visible = false;
         this._meter.visible = false;
         this._stopBtn.visible = false;
         this._smoothedLevel = 0;
@@ -79,6 +111,7 @@ class VoiceIndicator extends PanelMenu.Button {
 
     _setRecordingUI() {
         this._icon.visible = true;
+        this._spinner.visible = false;
         this._meter.visible = true;
         this._stopBtn.visible = true;
         this._meter.queue_repaint();
@@ -125,7 +158,7 @@ class VoiceIndicator extends PanelMenu.Button {
                 cr.arc(w - radius, radius, radius, -Math.PI / 2, 0);
                 cr.lineTo(w, h - radius);
                 cr.arc(w - radius, h - radius, radius, 0, Math.PI / 2);
-            } else if (fillW > radius) {
+            } else {
                 cr.lineTo(fillW, h);
             }
             cr.lineTo(radius, h);
@@ -145,8 +178,6 @@ class VoiceIndicator extends PanelMenu.Button {
             }
             cr.fill();
         }
-
-        cr.$dispose();
     }
 
     destroy() {
