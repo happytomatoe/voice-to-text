@@ -46,6 +46,10 @@ export class Recorder {
                 this._childWatchId = null;
                 this._proc = null;
                 GLib.spawn_close_pid(p);
+                if (this._timeoutId) {
+                    GLib.source_remove(this._timeoutId);
+                    this._timeoutId = null;
+                }
                 this.onProcessExit?.();
             }
         );
