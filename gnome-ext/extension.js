@@ -24,9 +24,21 @@ export default class VoiceToTextExtension extends Extension {
 
     disable() {
         unregisterHotkey('hotkey');
+
+        if (this._recorder) {
+            this._recorder.onAudioLevel = null;
+            this._recorder.onTranscription = null;
+            this._recorder.onTimeout = null;
+            this._recorder.onError = null;
+            this._recorder.stop();
+            this._recorder = null;
+        }
+
         this._indicator?.destroy();
-        this._recorder?.stop();
+        this._indicator = null;
         this._settings = null;
+        this._binPath = null;
+        this._recording = false;
     }
 
     _toggle() {
