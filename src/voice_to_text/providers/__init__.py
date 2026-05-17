@@ -3,11 +3,13 @@ from typing import Dict, Any, Type
 from .base import TranscriptionProvider
 from .groq import GroqProvider
 from .voxtral import VoxtralProvider
+from .voxtral_realtime import VoxtralRealtimeStreamingProvider
 
 # Provider registry
 _PROVIDERS: Dict[str, Type[TranscriptionProvider]] = {
     "groq": GroqProvider,
     "voxtral": VoxtralProvider,
+    "voxtral_realtime": VoxtralRealtimeStreamingProvider,
 }
 
 def get_provider(provider_name: str, config: Dict[str, Any]) -> TranscriptionProvider:

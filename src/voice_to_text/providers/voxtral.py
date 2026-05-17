@@ -12,6 +12,8 @@ logger = logging.getLogger(__name__)
 class VoxtralProvider(TranscriptionProvider):
     """Voxtral batch file transcription provider."""
 
+    supports_streaming = False
+
     def __init__(self, config: Dict[str, Any]):
         self.api_key = config.get("api_key") or os.getenv(
             config.get("api_key_env", "VOXTRAL_API_KEY")

@@ -1,6 +1,11 @@
 """Tests for Voxtral provider."""
-import pytest
+import os
 import sys
+import pytest
+import requests
+import tempfile
+from unittest.mock import patch, Mock
+
 sys.path.insert(0, 'src')
 
 from voice_to_text.providers import get_provider
@@ -22,7 +27,6 @@ class TestVoxtralProvider:
     
     def test_missing_api_key(self):
         # Unset the environment variable for this test
-        import os
         old_key = os.environ.pop('VOXTRAL_API_KEY', None)
         try:
             with pytest.raises(ValueError):
@@ -33,9 +37,6 @@ class TestVoxtralProvider:
     
     def test_transcribe_file_request_format(self):
         """Test that transcribe_file sends properly formatted request."""
-        import requests
-        from unittest.mock import patch, Mock
-        
         # Mock the requests.post method
         mock_response = Mock()
         mock_response.raise_for_status.return_value = None
@@ -46,8 +47,6 @@ class TestVoxtralProvider:
             provider = VoxtralProvider(config)
             
             # Create a temporary audio file for testing
-            import tempfile
-            import os
             with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as tmp:
                 tmp.write(b'RIFF....WAVEfmt ')  # Minimal WAV header
                 tmp_path = tmp.name

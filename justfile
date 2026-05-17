@@ -1,16 +1,22 @@
 default:
     @just --list
 
-run:
-    PYTHONPATH=src .venv/bin/python -m voice_to_text.main
+run +args='':
+    uv run -m voice_to_text.main {{args}}
 
 install:
-    uv tool install . --force
+    uv pip install -e .
+    # Create wrapper script that uses uv run (editable install)
+    echo '#!/bin/bash' > ~/.local/bin/voice-to-text
+    echo 'cd /var/home/l/git/voice-to-text' >> ~/.local/bin/voice-to-text
+    echo 'exec uv run -m voice_to_text.main "$@"' >> ~/.local/bin/voice-to-text
+    chmod +x ~/.local/bin/voice-to-text
 
 uninstall:
     uv tool uninstall voice-to-text
 
-reinstall: uninstall install
+reinstall:
+        uv tool install . --force-reinstall
 
 # Run a nested GNOME Shell for testing the extension
 nested-shell:
@@ -24,7 +30,13 @@ nested-shell:
 
 # Reinstall extension from gnome-ext/ and start nested shell
 dev-extension:
-    ./gnome-ext/run-dev.sh --nested 2>&1 | tee /tmp/gnome-shell-nested.log
+    rm -f gnome-shell-nested.log voice-to-text.log
+    ./gnome-ext/run-dev.sh --nested 2>&1 | tee gnome-shell-nested.log
+
+# Kill running voice-to-text processes
+kill:
+    pkill -f "voice-to-text" || true
+    pkill -f "ydotool" || true
 
 # Reload extension: reinstall files and reset in GNOME Shell
 reload-extension:

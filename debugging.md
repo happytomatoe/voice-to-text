@@ -2,7 +2,8 @@
 
 ## Log File Location
 
-The log file is located at: `~/.local/share/groq_voice/groq_voice.log`
+The log file is located at: voice-to-text.log
+Gnome nested shell logs are in gnome-shell-nested.log
 
 ## Debugging Steps
 

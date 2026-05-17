@@ -1,6 +1,7 @@
 import GLib from "gi://GLib";
 import Gio from "gi://Gio";
 import GioUnix from "gi://GioUnix";
+import { typeText } from "./typer.js";
 
 export class Recorder {
   constructor(pythonAppPath, timeoutSeconds = 600) {
@@ -9,6 +10,7 @@ export class Recorder {
     this._proc = null;
     this._childWatchId = null;
     this._stdout = null;
+    this._stderr = null;
     this._timeoutId = null;
     this._cancellable = null;
     this.onTranscription = null;
@@ -19,7 +21,7 @@ export class Recorder {
   }
 
   start() {
-    const argv = [this._appPath, "--output", "stdout"];
+    const argv = [this._appPath, '--output', 'stdout'];
     const [ok, pid, stdin, stdout, stderr] = GLib.spawn_async_with_pipes(
       null,
       argv,
@@ -37,14 +39,17 @@ export class Recorder {
     }
 
     GLib.close(stdin);
-    GLib.close(stderr);
 
     this._proc = pid;
     this._cancellable = new Gio.Cancellable();
     this._stdout = new Gio.DataInputStream({
       base_stream: new GioUnix.InputStream({ fd: stdout, close_fd: true }),
     });
+    this._stderr = new Gio.DataInputStream({
+      base_stream: new GioUnix.InputStream({ fd: stderr, close_fd: true }),
+    });
     this._readOutput();
+    this._readStderr();
 
     this._childWatchId = GLib.child_watch_add(
       GLib.PRIORITY_DEFAULT,
@@ -81,6 +86,7 @@ export class Recorder {
     if (this._proc) {
       const pid = this._proc;
       this._proc = null;
+      this._stderr = null;
       Gio.Subprocess.new(["kill", "-INT", String(pid)], 0).wait_async(
         null,
         null,
@@ -97,6 +103,7 @@ export class Recorder {
         try {
           [line] = src.read_line_finish_utf8(res);
         } catch (e) {
+          console.warn('VoiceToText: stdout read error:', e.message);
           return;
         }
 
@@ -108,7 +115,15 @@ export class Recorder {
             this.onAudioLevel?.(level);
           }
         } else if (line.startsWith("TEXT:")) {
-          this.onTranscription?.(line.slice(5).trim());
+          const text = line.slice(5).trim();
+          if (text && text.length > 0) {
+            typeText(text);
+          }
+        } else if (line.startsWith("FINAL:")) {
+          const text = line.slice(6).trim();
+          if (text && text.length > 0) {
+            typeText(text);
+          }
         } else if (line.startsWith("ERROR:")) {
           const errorMsg = line.slice(6).trim();
           this.stop();
@@ -117,6 +132,27 @@ export class Recorder {
         }
 
         this._readOutput();
+      },
+    );
+  }
+
+  _readStderr() {
+    if (!this._stderr) return;
+    this._stderr.read_line_async(
+      GLib.PRIORITY_DEFAULT,
+      this._cancellable,
+      (src, res) => {
+        let line;
+        try {
+          [line] = src.read_line_finish_utf8(res);
+        } catch (e) {
+          return;
+        }
+
+        if (line !== null) {
+          console.error('VoiceToText: child stderr:', line.trim());
+        }
+        this._readStderr();
       },
     );
   }

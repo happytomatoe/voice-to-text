@@ -174,7 +174,7 @@ audio:
   smooth_factor: 0.7
 
 logging:
-  file: "/tmp/groq_voice.log"
+  file: "/tmp/voice-to-text.log"
   level: "info"
 EOF
 echo "Provider configured: $PROVIDER"

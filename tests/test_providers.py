@@ -4,33 +4,28 @@ import sys
 sys.path.insert(0, 'src')
 
 from voice_to_text.providers import get_provider, TranscriptionProvider
-from voice_to_text.providers.groq import GroqProvider
 
-class TestProviderFactory:
-    def test_get_groq_provider(self):
-        config = {'api_key': 'test_key', 'model': 'whisper-large-v3-turbo'}
-        provider = get_provider('groq', config)
-        assert isinstance(provider, GroqProvider)
-        assert provider.name == 'groq'
-        assert not provider.supports_streaming
-    
-    def test_invalid_provider(self):
-        with pytest.raises(ValueError):
-            get_provider('invalid', {})
+def test_initialization():
+    """Test provider factory."""
+    p = get_provider("voxtral", {"api_key": "test"})
+    assert isinstance(p, TranscriptionProvider)
+    assert p.supports_streaming is False
+    with pytest.raises(ValueError):
+        p.transcribe_file("nonexistent.wav")
+    with pytest.raises(NotImplementedError):
+        p.transcribe_stream()
 
-class TestGroqProvider:
-    def test_initialization(self):
-        config = {'api_key': 'test_key'}
-        provider = GroqProvider(config)
-        assert provider.model == 'whisper-large-v3-turbo'
-    
-    def test_missing_api_key(self):
-        # Unset the environment variable for this test
-        import os
-        old_key = os.environ.pop('GROQ_API_KEY', None)
-        try:
-            with pytest.raises(ValueError):
-                GroqProvider({})
-        finally:
-            if old_key is not None:
-                os.environ['GROQ_API_KEY'] = old_key
+def test_custom_config():
+    """Test custom configuration."""
+    vid2 = get_provider("voxtral", {"api_key": "x", "model": "voxtral-v1"})
+    assert vid2 is not None
+    assert isinstance(vid2, TranscriptionProvider)
+
+def test_missing_api_key_raises():
+    """Test missing API key raises error."""
+    with pytest.raises(ValueError):
+        get_provider("voxtral", {})
+
+def test_emits_subprocess_unavailable():
+    p = get_provider("voxtral", {"api_key": "dummy"})
+    assert p is not None

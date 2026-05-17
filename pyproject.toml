@@ -5,6 +5,7 @@ description = "Voice to Text using Groq Whisper and Voxtral APIs"
 requires-python = ">=3.13"
 dependencies = [
   "groq~=1.2.0",
+  "mistralai[realtime]~=2.4",
   "sounddevice~=0.5.5",
   "numpy~=2.4.4",
   "pyyaml~=6.0.3",

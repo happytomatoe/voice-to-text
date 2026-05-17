@@ -13,10 +13,10 @@ import sys
 import os
 import logging
 import wave
-from pathlib import Path
 
 import numpy as np
-import sounddevice as sd
+from pathlib import Path
+
 import yaml
 from dotenv import load_dotenv
 
@@ -144,12 +144,16 @@ def transcribe_audio(recorded_frames, sample_rate, transcriber, language):
 
 
 def compute_rms(indata):
+    import numpy as np
     samples = indata[:, 0].astype(np.float64)
     rms = math.sqrt(np.mean(samples**2))
     return min(rms / 32768.0, 1.0)
 
 
 def run_stdout_mode(args, config_mgr, transcriber, language, duration):
+    import asyncio
+    import numpy as np
+    import sounddevice as sd
     SAMPLE_RATE = 16000
     BLOCK_SIZE = 2048
     LEVEL_INTERVAL = 0.1
@@ -157,6 +161,14 @@ def run_stdout_mode(args, config_mgr, transcriber, language, duration):
     logger.info(
         "run_stdout_mode started, duration=%s, device=%s", duration, args.device
     )
+
+    # Check if provider supports streaming
+    if getattr(transcriber, "supports_streaming", False):
+        logger.info("Using streaming mode for provider: %s", transcriber.name)
+        # For streaming providers, they handle their own audio capture
+        # We just need to run their async transcribe_stream
+        asyncio.run(transcriber.transcribe_stream(language=language, device=args.device))
+        return
 
     stop_requested = False
 
@@ -245,7 +257,7 @@ def main():
     record_parser.add_argument(
         "--provider",
         type=str,
-        choices=["groq", "voxtral"],
+        choices=["groq", "voxtral", "voxtral_realtime"],
         help="Transcription provider to use",
     )
     record_parser.add_argument(
@@ -289,6 +301,7 @@ def main():
     setup_logging(log_file)
 
     if args.command == "devices":
+        import sounddevice as sd
         print("Available audio input devices:")
         print("-" * 60)
         all_devices = sd.query_devices()
@@ -338,6 +351,9 @@ def main():
 
     print("Recording... (press ESC or Q to cancel, ENTER to continue)")
     print("-" * 60)
+
+    import numpy as np
+    import sounddevice as sd
 
     SMOOTH = 0.7
 

@@ -7,6 +7,15 @@ import {typeText} from './typer.js';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import * as MessageTray from 'resource:///org/gnome/shell/ui/messageTray.js';
 
+// Catch every unhandled exception or rejected promise in the extension
+window.onerror = (msg, url, line, col, err) => {
+    console.error('VoiceToText: unhandled error:', msg,
+        url ? `(${url}:${line}:${col})` : '');
+};
+
+globalThis.onunhandledrejection = (event) => {
+    console.error('VoiceToText: unhandled promise rejection:', event.reason);
+};
 
 export default class VoiceToTextExtension extends Extension {
     enable() {
@@ -65,7 +74,10 @@ export default class VoiceToTextExtension extends Extension {
         this._indicator.setRecording(true);
         this._recording = true;
 
-        this._recorder = new Recorder(this._binPath);
+        this._recorder = new Recorder(
+            this._binPath,
+            600,
+        );
         this._recorder.onAudioLevel = (level) => this._indicator.updateLevel(level);
         this._recorder.onTranscription = (text) => {
             if (!typeText(text)) {

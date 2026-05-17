@@ -3,7 +3,7 @@
 
 # Provider selection
 transcription:
-  provider: "voxtral"  # "groq" or "voxtral"
+  provider: "voxtral_realtime" # "groq", "voxtral", or "voxtral_realtime"
   language: "en"
 
 # Provider-specific configurations
@@ -14,6 +14,11 @@ voxtral:
   api_key_env: "VOXTRAL_API_KEY"
   model: "voxtral-mini-latest"
 
+voxtral_realtime:
+  api_key_env: "VOXTRAL_API_KEY"
+  realtime_model: "voxtral-mini-transcribe-realtime-2602"
+  target_delay_ms: 400
+
 audio:
   sample_rate: 16000
   channels: 1
@@ -21,5 +26,5 @@ audio:
   smooth_factor: 0.7
 
 logging:
-  file: "/tmp/groq_voice.log"
+  file: "/var/home/l/git/voice-to-text/voice-to-text.log"
   level: "info"
