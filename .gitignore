@@ -59,4 +59,4 @@
  .flaskenv
 
 
-  
+  *.log
