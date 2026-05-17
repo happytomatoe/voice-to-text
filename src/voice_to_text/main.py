@@ -87,7 +87,8 @@ def setup_interactive():
     print("Choose your transcription provider:")
     print()
     print("1. Voxtral (default)  - Uses Voxtral API for transcription")
-    print("2. Groq - Uses Groq API for transcription")
+    print("2. Voxtral Realtime - Uses Voxtral real-time streaming API")
+    print("3. Groq - Uses Groq API for transcription")
     print()
 
     config_mgr = load_config()
@@ -96,11 +97,13 @@ def setup_interactive():
     print(f"Config path: {config_mgr.config_path}")
     print()
 
-    choice = input("Enter your choice (1-2): ").strip()
+    choice = input("Enter your choice (1-3): ").strip()
 
     if choice == "1":
         provider = "voxtral"
     elif choice == "2":
+        provider = "voxtral_realtime"
+    elif choice == "3":
         provider = "groq"
     else:
         print("Invalid choice. Keeping current provider.")

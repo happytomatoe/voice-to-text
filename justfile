@@ -16,7 +16,7 @@ uninstall:
     uv tool uninstall voice-to-text
 
 reinstall:
-        uv tool install . --force-reinstall
+        uv tool install . --force-reinstall --force
 
 # Run a nested GNOME Shell for testing the extension
 nested-shell:
