@@ -62,11 +62,18 @@ export default class VoiceToTextExtension extends Extension {
         }
         console.log('VoiceToText: binary found at', this._binPath);
 
-        this._indicator.setRecording(true);
+        this._indicator.setProcessing();
         this._recording = true;
 
+        let firstLevelReceived = false;
         this._recorder = new Recorder(this._binPath);
-        this._recorder.onAudioLevel = (level) => this._indicator.updateLevel(level);
+        this._recorder.onAudioLevel = (level) => {
+            if (!firstLevelReceived) {
+                firstLevelReceived = true;
+                this._indicator.setRecordingActive();
+            }
+            this._indicator.updateLevel(level);
+        };
         this._recorder.onTranscription = (text) => {
             if (!typeText(text)) {
                 this._showNotification('ydotool failed — text copied to clipboard instead');
