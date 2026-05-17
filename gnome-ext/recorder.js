@@ -115,12 +115,12 @@ export class Recorder {
             this.onAudioLevel?.(level);
           }
         } else if (line.startsWith("TEXT:")) {
-          const text = line.slice(5).trim();
+          const text = line.slice(5).replace(/[\r\n]+$/, '');
           if (text && text.length > 0) {
             typeText(text);
           }
         } else if (line.startsWith("FINAL:")) {
-          const text = line.slice(6).trim();
+          const text = line.slice(6).replace(/[\r\n]+$/, '');
           if (text && text.length > 0) {
             typeText(text);
           }

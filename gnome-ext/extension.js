@@ -90,7 +90,10 @@ export default class VoiceToTextExtension extends Extension {
             this._setIdle();
         };
         this._recorder.onError = (msg) => {
-            this._showNotification('Transcription failed: ' + msg);
+            // Ignore "Connection is closed" errors which occur during normal stop
+            if (msg !== 'Connection is closed') {
+                this._showNotification('Transcription failed: ' + msg);
+            }
             this._setIdle();
         };
         this._recorder.onProcessExit = () => this._setIdle();
