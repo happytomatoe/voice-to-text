@@ -15,11 +15,11 @@ def test_provider_config():
     import os
 
     config_content = """
-providers:
-  groq:
-    api_key_env: GROQ_API_KEY
-    model: whisper-large-v3-turbo
-selected_provider: groq
+transcription:
+  provider: groq
+groq:
+  api_key_env: GROQ_API_KEY
+  model: whisper-large-v3-turbo
 """
     with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as f:
         f.write(config_content)
