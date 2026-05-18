@@ -204,8 +204,8 @@ unregisterHotkey('hotkey');
     _openPreferences() {
         console.log('VoiceToText: opening preferences dialog');
         try {
-            const proc = new Gio.SubprocessLauncher();
-            proc.spawn(['gnome-extensions', 'prefs', this.uuid]);
+            const launcher = new Gio.SubprocessLauncher();
+            launcher.spawnv(['gnome-extensions', 'prefs', this.uuid]);
         } catch (e) {
             console.error('VoiceToText: failed to open preferences:', e);
             this._showNotification('Failed to open preferences: ' + e.message);
