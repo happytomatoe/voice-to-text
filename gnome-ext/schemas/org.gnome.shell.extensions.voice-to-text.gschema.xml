@@ -9,5 +9,10 @@
       <default>false</default>
       <summary>Show notification when recording starts</summary>
     </key>
+    <key name="stop-timeout-seconds" type="i">
+      <default>15</default>
+      <range min="1" max="120"/>
+      <summary>Timeout in seconds to wait for recording process to stop</summary>
+    </key>
   </schema>
 </schemalist>

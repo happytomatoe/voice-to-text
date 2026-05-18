@@ -1,4 +1,5 @@
 import GLib from 'gi://GLib';
+import Gio from 'gi://Gio';
 import {Extension} from 'resource:///org/gnome/shell/extensions/extension.js';
 import {VoiceIndicator} from './indicator.js';
 import {Recorder} from './recorder.js';
@@ -15,6 +16,7 @@ export default class VoiceToTextExtension extends Extension {
         this._binPath = GLib.find_program_in_path('voice-to-text');
         this._recorder = null;
         this._recording = false;
+        this._stopTimeoutId = null;
 
         this._indicator.onStart = () => this._start();
         this._indicator.onStop = () => this._stop();
@@ -25,6 +27,11 @@ export default class VoiceToTextExtension extends Extension {
 
     disable() {
         unregisterHotkey('hotkey');
+
+        if (this._stopTimeoutId) {
+            GLib.source_remove(this._stopTimeoutId);
+            this._stopTimeoutId = null;
+        }
 
         if (this._recorder) {
             this._recorder.onAudioLevel = null;
@@ -98,11 +105,52 @@ export default class VoiceToTextExtension extends Extension {
     _stop() {
         console.log('VoiceToText: _stop called');
         if (!this._recording) return;
+        
         this._recorder?.stop();
         this._indicator?.setProcessing();
+        
+        // Set a timeout to forcefully return to idle if the process doesn't exit
+        // This prevents the spinner from hanging indefinitely
+        const stopTimeoutSeconds = this._settings.get_int('stop-timeout-seconds');
+        console.log(`VoiceToText: setting stop timeout for ${stopTimeoutSeconds} seconds`);
+        
+        if (this._stopTimeoutId) {
+            GLib.source_remove(this._stopTimeoutId);
+            this._stopTimeoutId = null;
+        }
+        
+        this._stopTimeoutId = GLib.timeout_add_seconds(
+            GLib.PRIORITY_DEFAULT,
+            stopTimeoutSeconds,
+            () => {
+                console.log('VoiceToText: stop timeout reached, forcing idle state');
+                this._forceStop();
+                return GLib.SOURCE_REMOVE;
+            }
+        );
+    }
+    
+    _forceStop() {
+        if (this._stopTimeoutId) {
+            GLib.source_remove(this._stopTimeoutId);
+            this._stopTimeoutId = null;
+        }
+        
+        if (this._recorder?._proc) {
+            console.log('VoiceToText: forcefully killing process');
+            const pid = this._recorder._proc;
+            Gio.Subprocess.new(['kill', '-9', String(pid)], 0).wait_async(null, null);
+        }
+        
+        this._setIdle();
     }
 
     _setIdle() {
+        if (this._stopTimeoutId) {
+            GLib.source_remove(this._stopTimeoutId);
+            this._stopTimeoutId = null;
+        }
+        
         this._recording = false;
         this._indicator?.setRecording(false);
         this._recorder = null;
