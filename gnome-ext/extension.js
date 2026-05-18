@@ -175,7 +175,6 @@ export default class VoiceToTextExtension extends Extension {
     }
 
     _registerHotkey() {
-        // Unregister first if already registered
         this._unregisterHotkey();
         
         try {
@@ -188,7 +187,7 @@ export default class VoiceToTextExtension extends Extension {
 
     _unregisterHotkey() {
         try {
-            unregisterHotkey('hotkey');
+unregisterHotkey('hotkey');
             console.log('VoiceToText: hotkey unregistered');
         } catch (e) {
             console.error('VoiceToText: failed to unregister hotkey:', e.message);

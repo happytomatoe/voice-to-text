@@ -36,7 +36,7 @@ export default class VoiceToTextPrefs extends ExtensionPreferences {
         hotkeyRow.add_suffix(hotkeyBox);
         
         const hotkeyLabel = new Gtk.Label({
-            label: this._getHotkeyDisplay(settings.get_string('hotkey')),
+            label: this._getHotkeyDisplay(settings.get_strv('hotkey')[0]),
             xalign: 0,
         });
         hotkeyBox.append(hotkeyLabel);
@@ -82,12 +82,9 @@ export default class VoiceToTextPrefs extends ExtensionPreferences {
     }
 
     _getHotkeyDisplay(hotkeyValue) {
-        // Parse the hotkey array string like "['<Super>w']"
         try {
-            // Remove brackets and quotes
-            const clean = hotkeyValue.replace(/[\['\]]/g, '');
-            if (clean) {
-                return clean;
+            if (hotkeyValue && hotkeyValue.trim()) {
+                return hotkeyValue;
             }
         } catch (e) {
             console.error('Error parsing hotkey:', e);
@@ -152,12 +149,15 @@ export default class VoiceToTextPrefs extends ExtensionPreferences {
         dialog.add_controller(keyController);
         
         keyController.connect('key-pressed', (controller, keyval, keycode, state) => {
-            // Ignore modifier-only keys
             const mask = state & Gtk.accelerator_get_default_mod_mask();
-            
-            // Check if it's a valid accelerator
+            const key = Gdk.keyval_name(keyval);
+
+            if (!mask || !key) {
+                return true;
+            }
+
             const accel = Gtk.accelerator_name(keyval, mask);
-            if (accel) {
+            if (accel && accel !== '<Disabled>') {
                 currentKey = accel;
                 keyLabel.set_label(`New shortcut: ${accel}`);
                 setButton.sensitive = true;
@@ -171,8 +171,7 @@ export default class VoiceToTextPrefs extends ExtensionPreferences {
         
         setButton.connect('clicked', () => {
             if (currentKey) {
-                // Save the new hotkey
-                settings.set_string('hotkey', `[ '${currentKey}' ]`);
+                settings.set_strv('hotkey', [currentKey]);
                 label.set_label(currentKey);
             }
             dialog.close();
