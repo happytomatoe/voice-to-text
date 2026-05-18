@@ -7,6 +7,7 @@ import {registerHotkey, unregisterHotkey} from './hotkey.js';
 import {typeText} from './typer.js';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import * as MessageTray from 'resource:///org/gnome/shell/ui/messageTray.js';
+import {gettext as _} from 'resource:///org/gnome/shell/extensions/extension.js';
 
 
 export default class VoiceToTextExtension extends Extension {
@@ -20,6 +21,7 @@ export default class VoiceToTextExtension extends Extension {
 
         this._indicator.onStart = () => this._start();
         this._indicator.onStop = () => this._stop();
+        this._indicator.onConfigure = () => this._openPreferences();
 
         Main.panel.addToStatusArea(this.uuid, this._indicator, 0, 'right');
         registerHotkey('hotkey', this._settings, () => this._toggle());
@@ -165,5 +167,21 @@ export default class VoiceToTextExtension extends Extension {
             iconName: 'audio-input-microphone-symbolic',
         });
         systemSource.addNotification(notification);
+    }
+
+    _openPreferences() {
+        console.log('VoiceToText: opening preferences dialog');
+        try {
+            // Use the extension's openPreferences method if available
+            if (this.openPreferences) {
+                this.openPreferences();
+            } else {
+                // Fallback: try to open via Gio
+                Gio.Subprocess.new(['gnome-extensions', 'prefs', this.uuid], 0).init(null);
+            }
+        } catch (e) {
+            console.error('VoiceToText: failed to open preferences:', e);
+            this._showNotification('Failed to open preferences: ' + e.message);
+        }
     }
 }

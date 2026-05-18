@@ -2,6 +2,8 @@ import St from 'gi://St';
 import Clutter from 'gi://Clutter';
 import GObject from 'gi://GObject';
 import * as PanelMenu from 'resource:///org/gnome/shell/ui/panelMenu.js';
+import * as PopupMenu from 'resource:///org/gnome/shell/ui/popupMenu.js';
+import {gettext as _} from 'resource:///org/gnome/shell/extensions/extension.js';
 
 const METER_WIDTH = 50;
 const METER_HEIGHT = 6;
@@ -17,6 +19,7 @@ class VoiceIndicator extends PanelMenu.Button {
         this._recording = false;
         this.onStart = null;
         this.onStop = null;
+        this.onConfigure = null;
     }
 
     _buildUI() {
@@ -29,7 +32,12 @@ class VoiceIndicator extends PanelMenu.Button {
             style_class: 'system-status-icon',
             reactive: true,
         });
-        this._icon.connect('button-press-event', () => {
+        this._icon.connect('button-press-event', (actor, event) => {
+            // Right-click opens the menu, left-click toggles recording
+            if (event.get_button() === Clutter.BUTTON_SECONDARY) {
+                this.menu.open();
+                return Clutter.EVENT_STOP;
+            }
             if (this._recording) {
                 this.onStop?.();
             } else {
@@ -79,6 +87,21 @@ class VoiceIndicator extends PanelMenu.Button {
 
         this.add_child(this._box);
         this._setIdleUI();
+        
+        // Build the right-click menu
+        this._buildMenu();
+    }
+
+    _buildMenu() {
+        // Clear any existing menu items
+        this.menu.removeAll();
+
+        // Add Preferences menu item
+        const prefsItem = new PopupMenu.PopupMenuItem(_('Preferences'));
+        prefsItem.connect('activate', () => {
+            this.onConfigure?.();
+        });
+        this.menu.addMenuItem(prefsItem);
     }
 
     setRecording(recording) {
