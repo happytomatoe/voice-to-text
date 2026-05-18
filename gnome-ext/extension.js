@@ -204,12 +204,14 @@ unregisterHotkey('hotkey');
     _openPreferences() {
         console.log('VoiceToText: opening preferences dialog');
         try {
-            // Use the extension's openPreferences method if available
             if (this.openPreferences) {
-                this.openPreferences();
+                this.openPreferences().catch(e => {
+                    console.error('VoiceToText: failed to open preferences:', e);
+                    this._showNotification('Failed to open preferences: ' + e.message);
+                });
             } else {
-                // Fallback: try to open via Gio
-                Gio.Subprocess.new(['gnome-extensions', 'prefs', this.uuid], 0).wait_async(null, null);
+                const proc = new Gio.SubprocessLauncher();
+                proc.spawn(['gnome-extensions', 'prefs', this.uuid]);
             }
         } catch (e) {
             console.error('VoiceToText: failed to open preferences:', e);
