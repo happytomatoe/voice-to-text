@@ -24,11 +24,16 @@ export default class VoiceToTextExtension extends Extension {
         this._indicator.onConfigure = () => this._openPreferences();
 
         Main.panel.addToStatusArea(this.uuid, this._indicator, 0, 'right');
-        registerHotkey('hotkey', this._settings, () => this._toggle());
+        this._registerHotkey();
+        
+        // Listen for hotkey changes
+        this._settings.connect('changed::hotkey', () => {
+            this._registerHotkey();
+        });
     }
 
     disable() {
-        unregisterHotkey('hotkey');
+        this._unregisterHotkey();
 
         if (this._stopTimeoutId) {
             GLib.source_remove(this._stopTimeoutId);
@@ -167,6 +172,27 @@ export default class VoiceToTextExtension extends Extension {
             iconName: 'audio-input-microphone-symbolic',
         });
         systemSource.addNotification(notification);
+    }
+
+    _registerHotkey() {
+        // Unregister first if already registered
+        this._unregisterHotkey();
+        
+        try {
+            registerHotkey('hotkey', this._settings, () => this._toggle());
+            console.log('VoiceToText: hotkey registered');
+        } catch (e) {
+            console.error('VoiceToText: failed to register hotkey:', e.message);
+        }
+    }
+
+    _unregisterHotkey() {
+        try {
+            unregisterHotkey('hotkey');
+            console.log('VoiceToText: hotkey unregistered');
+        } catch (e) {
+            console.error('VoiceToText: failed to unregister hotkey:', e.message);
+        }
     }
 
     _openPreferences() {
