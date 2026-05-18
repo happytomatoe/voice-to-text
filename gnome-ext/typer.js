@@ -2,7 +2,11 @@ import GLib from 'gi://GLib';
 import St from 'gi://St';
 
 export function typeText(text, outputMethod = 'type-fallback-clipboard') {
-    const typed = tryType(text);
+    let typed = false;
+    
+    if (outputMethod === 'type' || outputMethod === 'type-fallback-clipboard') {
+        typed = tryType(text);
+    }
     
     if (outputMethod === 'type-fallback-clipboard') {
         if (!typed) {

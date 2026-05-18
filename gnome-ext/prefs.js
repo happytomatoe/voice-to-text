@@ -201,8 +201,12 @@ export default class VoiceToTextPrefs extends ExtensionPreferences {
             const mask = state & Gtk.accelerator_get_default_mod_mask();
             const key = Gdk.keyval_name(keyval);
 
-            if (!mask || !key) {
-                return true;
+            if (!key) {
+                return false;
+            }
+
+            if (!mask) {
+                return false;
             }
 
             const accel = Gtk.accelerator_name(keyval, mask);

@@ -7,6 +7,7 @@ run:
 install: build-binary
     uv tool uninstall voice-to-text 2>/dev/null || true
     rm -f ~/.local/bin/voice-to-text
+    mkdir -p ~/.local/bin
     cp dist/voice-to-text ~/.local/bin/voice-to-text
     chmod +x ~/.local/bin/voice-to-text
 

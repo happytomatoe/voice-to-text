@@ -18,6 +18,7 @@ export default class VoiceToTextExtension extends Extension {
         this._recorder = null;
         this._recording = false;
         this._stopTimeoutId = null;
+        this._hotkeySignalId = null;
 
         this._indicator.onStart = () => this._start();
         this._indicator.onStop = () => this._stop();
@@ -27,13 +28,18 @@ export default class VoiceToTextExtension extends Extension {
         this._registerHotkey();
         
         // Listen for hotkey changes
-        this._settings.connect('changed::hotkey', () => {
+        this._hotkeySignalId = this._settings.connect('changed::hotkey', () => {
             this._registerHotkey();
         });
     }
 
     disable() {
         this._unregisterHotkey();
+
+        if (this._hotkeySignalId) {
+            this._settings.disconnect(this._hotkeySignalId);
+            this._hotkeySignalId = null;
+        }
 
         if (this._stopTimeoutId) {
             GLib.source_remove(this._stopTimeoutId);
@@ -203,7 +209,7 @@ unregisterHotkey('hotkey');
                 this.openPreferences();
             } else {
                 // Fallback: try to open via Gio
-                Gio.Subprocess.new(['gnome-extensions', 'prefs', this.uuid], 0).init(null);
+                Gio.Subprocess.new(['gnome-extensions', 'prefs', this.uuid], 0).wait_async(null, null);
             }
         } catch (e) {
             console.error('VoiceToText: failed to open preferences:', e);
