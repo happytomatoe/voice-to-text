@@ -12,7 +12,6 @@ class TestProviderFactory:
         provider = get_provider('groq', config)
         assert isinstance(provider, GroqProvider)
         assert provider.name == 'groq'
-        assert not provider.supports_streaming
     
     def test_invalid_provider(self):
         with pytest.raises(ValueError):

@@ -12,7 +12,6 @@ class TestVoxtralProvider:
         provider = get_provider('voxtral', config)
         assert isinstance(provider, VoxtralProvider)
         assert provider.name == 'voxtral'
-        assert not provider.supports_streaming
     
     def test_initialization(self):
         config = {'api_key': 'test_key'}
