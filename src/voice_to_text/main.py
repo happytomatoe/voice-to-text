@@ -16,6 +16,8 @@ import wave
 from pathlib import Path
 
 import numpy as np
+import asyncio
+import collections
 import sounddevice as sd
 import yaml
 from dotenv import load_dotenv
@@ -27,6 +29,8 @@ DEFAULT_LOG_FILE = Path("/tmp") / "voice-to-text.log"
 
 SAMPLE_RATE = 16000
 BLOCK_SIZE = 2048
+
+MAX_RECORDED_FRAMES_LEN = int(SAMPLE_RATE * 5)
 
 METER_WIDTH = 50
 GREY = "\033[90m"
@@ -68,17 +72,6 @@ def copy_to_clipboard(text: str):
         except FileNotFoundError:
             continue
     return False
-
-
-def show_notification(title: str, body: str):
-    try:
-        subprocess.run(
-            ["notify-send", "-u", "normal", title, body],
-            check=True,
-            capture_output=True,
-        )
-    except Exception:
-        pass
 
 
 def setup_interactive():
@@ -166,7 +159,7 @@ def run_stdout_mode(args, config_mgr, transcriber, language, duration):
 
     signal.signal(signal.SIGINT, handle_sigint)
 
-    recorded_frames = []
+    recorded_frames = collections.deque(maxlen=MAX_RECORDED_FRAMES_LEN)
     start_time = time.time()
 
     def audio_callback(indata, frames, time_info, status):
@@ -180,8 +173,8 @@ def run_stdout_mode(args, config_mgr, transcriber, language, duration):
         callback=audio_callback,
         device=args.device,
     )
+    asyncio.set_event_loop_policy(None)
     stream.start()
-    logger.info("Audio stream started")
 
     last_level_time = time.time()
     level_count = 0
@@ -263,6 +256,17 @@ def main():
     )
     parser.add_argument("--model", type=str, help="Whisper model to use")
     parser.add_argument(
+        "--provider",
+        type=str,
+        choices=["groq", "voxtral"],
+        help="Transcription provider to use",
+    )
+    parser.add_argument(
+        "--language",
+        type=str,
+        help="Language code for transcription",
+    )
+    parser.add_argument(
         "--output",
         type=str,
         choices=["clipboard", "stdout"],
@@ -313,6 +317,9 @@ def main():
     provider_override = (
         args.provider if hasattr(args, "provider") and args.provider else None
     )
+    language_override = (
+        args.language if hasattr(args, "language") and args.language else None
+    )
     selected_provider = provider_override or config_mgr.get_selected_provider()
     provider_config = config_mgr.get_provider_config(selected_provider)
 
@@ -320,10 +327,10 @@ def main():
         transcriber = get_provider(selected_provider, provider_config)
     except ValueError as e:
         logger.error("Provider initialization failed: %s", e)
-        show_notification("Voice to Text", f"Error: {e}")
+        print(f"ERROR:Provider initialization failed: {e}", file=sys.stdout, flush=True)
         sys.exit(1)
 
-    language = config_mgr.config.get("transcription", {}).get("language", "en")
+    language = language_override or config_mgr.config.get("transcription", {}).get("language", "en")
     audio_config = config_mgr.config.get("audio", {})
     default_duration = audio_config.get("duration", 0)
     duration = args.duration if args.duration is not None else default_duration
@@ -342,7 +349,7 @@ def main():
     SMOOTH = 0.7
 
     smoothed_level = 0.0
-    recorded_frames = []
+    recorded_frames = collections.deque(maxlen=MAX_RECORDED_FRAMES_LEN)
     start_time = time.time()
 
     def audio_callback(indata, frames, time_info, status):
@@ -360,9 +367,9 @@ def main():
         callback=audio_callback,
         device=args.device,
     )
+    asyncio.set_event_loop_policy(None)
     stream.start()
-
-    old_settings = termios.tcgetattr(sys.stdin)
+    old_settings = termios.tcgetattr(sys.stdin.fileno())
     try:
         tty.setcbreak(sys.stdin.fileno())
         print("Recording... (ESC/Q to cancel, ENTER to continue)", flush=True)
@@ -402,28 +409,40 @@ def main():
     stream.close()
 
     if not recorded_frames:
-        print("No audio recorded")
-        show_notification("Voice to Text", "No audio recorded")
+        print("ERROR:No audio recorded")
         sys.exit(1)
 
     try:
         text = transcribe_audio(recorded_frames, SAMPLE_RATE, transcriber, language)
     except Exception as e:
         logger.exception("Transcription failed: %s", e)
-        show_notification("Voice to Text", f"Error: {e}")
+        print(f"ERROR:Transcription failed: {e}")
         sys.exit(1)
 
     if not text:
         logger.warning("No speech detected")
-        show_notification("Voice to Text", "No speech detected")
+        print("ERROR:No speech detected")
         sys.exit(1)
 
     if copy_to_clipboard(text):
         logger.info("Copied to clipboard: %s", text[:50])
     else:
         logger.error("Clipboard copy failed")
-        show_notification("Voice to Text", text[:50])
+        print(f"ERROR:Clipboard copy failed")
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except SystemExit:
+        raise
+    except Exception as e:
+        output_mode = (
+            sys.argv
+            and "--output" in sys.argv
+            and "stdout" in sys.argv
+        )
+        if output_mode:
+            print(f"ERROR:{e}", flush=True)
+        logger.exception("Unhandled exception: %s", e)
+        sys.exit(1)
