@@ -19,10 +19,8 @@ export function registerHotkey(name, settings, callback) {
             }
         );
         console.log(`VoiceToText: hotkey '${hotkeyValue}' registered successfully`);
-        Main.notify('Voice to Text', `Hotkey ${hotkeyValue} registered`);
     } catch (e) {
         console.error(`VoiceToText: failed to register hotkey '${hotkeyValue}': ${e.message}`);
-        Main.notify('Voice to Text', `Hotkey "${hotkeyValue}" failed to register`);
     }
 }
 

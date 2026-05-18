@@ -3,8 +3,9 @@ import Gio from "gi://Gio";
 import GioUnix from "gi://GioUnix";
 
 export class Recorder {
-  constructor(pythonAppPath, timeoutSeconds = 600) {
+  constructor(pythonAppPath, settings, timeoutSeconds = 600) {
     this._appPath = pythonAppPath;
+    this._settings = settings;
     this._timeoutSeconds = timeoutSeconds;
     this._proc = null;
     this._childWatchId = null;
@@ -19,7 +20,14 @@ export class Recorder {
   }
 
   start() {
-    const argv = [this._appPath, "--output", "stdout"];
+    const provider = this._settings.get_string('provider');
+    const language = this._settings.get_string('language');
+    const argv = [
+      this._appPath,
+      '--output', 'stdout',
+      '--provider', provider,
+      '--language', language,
+    ];
     const [ok, pid, stdin, stdout, stderr] = GLib.spawn_async_with_pipes(
       null,
       argv,

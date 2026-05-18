@@ -4,11 +4,15 @@ default:
 run:
     PYTHONPATH=src .venv/bin/python -m voice_to_text.main
 
-install:
-    uv tool install . --force
+install: build-binary
+    uv tool uninstall voice-to-text 2>/dev/null || true
+    rm -f ~/.local/bin/voice-to-text
+    cp dist/voice-to-text ~/.local/bin/voice-to-text
+    chmod +x ~/.local/bin/voice-to-text
 
 uninstall:
-    uv tool uninstall voice-to-text
+    rm -f ~/.local/bin/voice-to-text
+    uv tool uninstall voice-to-text 2>/dev/null || true
 
 reinstall: uninstall install
 
@@ -50,13 +54,8 @@ build-python:
 # Build standalone Linux binary using PyInstaller
 build-binary:
     #!/usr/bin/env bash
-    uv run pyinstaller \
-      --name voice-to-text \
-      --onefile \
-      --add-data "src/voice_to_text/config.yaml:voice_to_text" \
-      src/voice_to_text/main.py \
-      --distpath dist \
-      --clean
+    set -e
+    uv run pyinstaller voice-to-text.spec
     echo "Binary built to dist/voice-to-text"
 
 # Build all release artifacts: Python wheel, sdist, extension ZIP, and binary

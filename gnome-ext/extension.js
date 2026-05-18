@@ -80,7 +80,7 @@ export default class VoiceToTextExtension extends Extension {
         this._recording = true;
 
         let firstLevelReceived = false;
-        this._recorder = new Recorder(this._binPath);
+        this._recorder = new Recorder(this._binPath, this._settings);
         this._recorder.onAudioLevel = (level) => {
             if (!firstLevelReceived) {
                 firstLevelReceived = true;
@@ -89,7 +89,8 @@ export default class VoiceToTextExtension extends Extension {
             this._indicator.updateLevel(level);
         };
         this._recorder.onTranscription = (text) => {
-            if (!typeText(text)) {
+            const outputMethod = this._settings.get_string('output-method');
+            if (!typeText(text, outputMethod)) {
                 this._showNotification('ydotool failed — text copied to clipboard instead');
             }
             this._setIdle();

@@ -40,6 +40,7 @@ export default class VoiceToTextPrefs extends ExtensionPreferences {
             xalign: 0,
         });
         hotkeyBox.append(hotkeyLabel);
+        hotkeyLabel.set_hexpand(true);
         
         const hotkeyButton = new Gtk.Button({
             label: _('Set Shortcut…'),
@@ -79,6 +80,54 @@ export default class VoiceToTextPrefs extends ExtensionPreferences {
             stopTimeoutRow, 'value',
             Gio.SettingsBindFlags.DEFAULT);
         group.add(stopTimeoutRow);
+
+        // Provider setting
+        const providerRow = new Adw.ActionRow({
+            title: _('Transcription Provider'),
+        });
+        
+        const providerCombo = new Gtk.ComboBoxText();
+        providerCombo.append('groq', 'Groq');
+        providerCombo.append('voxtral', 'Voxtral');
+        providerCombo.set_active_id(settings.get_string('provider'));
+        providerCombo.connect('changed', () => {
+            settings.set_string('provider', providerCombo.get_active_id());
+        });
+        providerRow.add_suffix(providerCombo);
+        group.add(providerRow);
+
+        // Output method setting
+        const outputMethodRow = new Adw.ActionRow({
+            title: _('Output Method'),
+            subtitle: _('How to deliver transcribed text'),
+        });
+        
+        const outputMethodCombo = new Gtk.ComboBoxText();
+        outputMethodCombo.append('type-fallback-clipboard', _('Type (fallback to clipboard)'));
+        outputMethodCombo.append('type', _('Type'));
+        outputMethodCombo.append('clipboard', _('Clipboard'));
+        outputMethodCombo.set_active_id(settings.get_string('output-method'));
+        outputMethodCombo.connect('changed', () => {
+            settings.set_string('output-method', outputMethodCombo.get_active_id());
+        });
+        outputMethodRow.add_suffix(outputMethodCombo);
+        group.add(outputMethodRow);
+
+        // Language setting
+        const languageRow = new Adw.ActionRow({
+            title: _('Language'),
+            subtitle: _('Language code (e.g., en, es, fr)'),
+        });
+        
+        const languageEntry = new Gtk.Entry({
+            text: settings.get_string('language'),
+            width_chars: 6,
+        });
+        languageEntry.connect('changed', () => {
+            settings.set_string('language', languageEntry.get_text());
+        });
+        languageRow.add_suffix(languageEntry);
+        group.add(languageRow);
     }
 
     _getHotkeyDisplay(hotkeyValue) {
