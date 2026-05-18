@@ -14,6 +14,7 @@ export function typeText(text, outputMethod = 'type-fallback-clipboard') {
         }
     } else if (outputMethod === 'clipboard') {
         copyToClipboard(text);
+        typed = true;
     }
     return typed;
 }
