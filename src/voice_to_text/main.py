@@ -16,7 +16,6 @@ import wave
 from pathlib import Path
 
 import numpy as np
-import asyncio
 import collections
 import sounddevice as sd
 import yaml
@@ -173,7 +172,6 @@ def run_stdout_mode(args, config_mgr, transcriber, language, duration):
         callback=audio_callback,
         device=args.device,
     )
-    asyncio.set_event_loop_policy(None)
     stream.start()
 
     last_level_time = time.time()
@@ -367,7 +365,6 @@ def main():
         callback=audio_callback,
         device=args.device,
     )
-    asyncio.set_event_loop_policy(None)
     stream.start()
     old_settings = termios.tcgetattr(sys.stdin.fileno())
     try:
