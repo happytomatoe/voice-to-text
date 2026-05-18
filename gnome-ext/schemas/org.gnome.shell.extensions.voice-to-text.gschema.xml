@@ -9,5 +9,22 @@
       <default>false</default>
       <summary>Show notification when recording starts</summary>
     </key>
+    <key name="stop-timeout-seconds" type="i">
+      <default>15</default>
+      <range min="1" max="120"/>
+      <summary>Timeout in seconds to wait for recording process to stop</summary>
+    </key>
+    <key name="provider" type="s">
+      <default>"voxtral"</default>
+      <summary>Transcription provider (groq or voxtral)</summary>
+    </key>
+    <key name="language" type="s">
+      <default>"en"</default>
+      <summary>Language code for transcription</summary>
+    </key>
+    <key name="output-method" type="s">
+      <default>"type-fallback-clipboard"</default>
+      <summary>Output method for transcribed text</summary>
+    </key>
   </schema>
 </schemalist>

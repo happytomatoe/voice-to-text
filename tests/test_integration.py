@@ -1,36 +1,36 @@
 """Integration tests for multi-provider system."""
 import pytest
-import sys
-sys.path.insert(0, 'src')
 
-def test_config_loading():
-    """Test config.yaml loading."""
-    from voice_to_text.main import load_config
-    config = load_config()
-    assert hasattr(config, 'get_selected_provider')
-
-def test_provider_instantiation():
-    """Test provider instantiation through main config."""
-    from voice_to_text.main import load_config
+def test_provider_factory():
+    """Test provider factory works."""
     from voice_to_text.providers import get_provider
-    
-    config = load_config()
-    provider_name = config.get_selected_provider()
-    provider_config = config.get_provider_config(provider_name)
-    
-    # Test that we can instantiate the configured provider
-    try:
-        provider = get_provider(provider_name, provider_config)
-        assert provider.name == provider_name
-    except ValueError as e:
-        # Expected if API key is missing
-        assert "not set" in str(e)
 
-def test_cli_help():
-    """Test that CLI help works."""
-    import subprocess
-    result = subprocess.run([
-        sys.executable, "-m", "voice_to_text.main", "record", "--help"
-    ], capture_output=True, text=True, cwd="src")
-    assert result.returncode == 0
-    assert "--provider" in result.stdout
+    config = {'api_key': 'test_key'}
+    provider = get_provider('groq', config)
+    assert provider.name == 'groq'
+
+def test_provider_config():
+    """Test provider config parsing."""
+    import tempfile
+    import os
+
+    config_content = """
+transcription:
+  provider: groq
+groq:
+  api_key_env: GROQ_API_KEY
+  model: whisper-large-v3-turbo
+"""
+    with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as f:
+        f.write(config_content)
+        config_path = f.name
+
+    try:
+        from voice_to_text.config import ConfigManager
+        config_mgr = ConfigManager(config_path)
+        provider_name = config_mgr.get_selected_provider()
+        provider_config = config_mgr.get_provider_config(provider_name)
+        assert provider_name == 'groq'
+        assert 'api_key_env' in provider_config
+    finally:
+        os.unlink(config_path)

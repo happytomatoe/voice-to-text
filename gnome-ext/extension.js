@@ -1,4 +1,5 @@
 import GLib from 'gi://GLib';
+import Gio from 'gi://Gio';
 import {Extension} from 'resource:///org/gnome/shell/extensions/extension.js';
 import {VoiceIndicator} from './indicator.js';
 import {Recorder} from './recorder.js';
@@ -6,6 +7,7 @@ import {registerHotkey, unregisterHotkey} from './hotkey.js';
 import {typeText} from './typer.js';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import * as MessageTray from 'resource:///org/gnome/shell/ui/messageTray.js';
+import {gettext as _} from 'resource:///org/gnome/shell/extensions/extension.js';
 
 
 export default class VoiceToTextExtension extends Extension {
@@ -15,16 +17,34 @@ export default class VoiceToTextExtension extends Extension {
         this._binPath = GLib.find_program_in_path('voice-to-text');
         this._recorder = null;
         this._recording = false;
+        this._stopTimeoutId = null;
+        this._hotkeySignalId = null;
 
         this._indicator.onStart = () => this._start();
         this._indicator.onStop = () => this._stop();
+        this._indicator.onConfigure = () => this._openPreferences();
 
         Main.panel.addToStatusArea(this.uuid, this._indicator, 0, 'right');
-        registerHotkey('hotkey', this._settings, () => this._toggle());
+        this._registerHotkey();
+        
+        // Listen for hotkey changes
+        this._hotkeySignalId = this._settings.connect('changed::hotkey', () => {
+            this._registerHotkey();
+        });
     }
 
     disable() {
-        unregisterHotkey('hotkey');
+        this._unregisterHotkey();
+
+        if (this._hotkeySignalId) {
+            this._settings.disconnect(this._hotkeySignalId);
+            this._hotkeySignalId = null;
+        }
+
+        if (this._stopTimeoutId) {
+            GLib.source_remove(this._stopTimeoutId);
+            this._stopTimeoutId = null;
+        }
 
         if (this._recorder) {
             this._recorder.onAudioLevel = null;
@@ -66,7 +86,7 @@ export default class VoiceToTextExtension extends Extension {
         this._recording = true;
 
         let firstLevelReceived = false;
-        this._recorder = new Recorder(this._binPath);
+        this._recorder = new Recorder(this._binPath, this._settings);
         this._recorder.onAudioLevel = (level) => {
             if (!firstLevelReceived) {
                 firstLevelReceived = true;
@@ -75,7 +95,8 @@ export default class VoiceToTextExtension extends Extension {
             this._indicator.updateLevel(level);
         };
         this._recorder.onTranscription = (text) => {
-            if (!typeText(text)) {
+            const outputMethod = this._settings.get_string('output-method');
+            if (!typeText(text, outputMethod)) {
                 this._showNotification('ydotool failed — text copied to clipboard instead');
             }
             this._setIdle();
@@ -98,11 +119,52 @@ export default class VoiceToTextExtension extends Extension {
     _stop() {
         console.log('VoiceToText: _stop called');
         if (!this._recording) return;
+        
         this._recorder?.stop();
         this._indicator?.setProcessing();
+        
+        // Set a timeout to forcefully return to idle if the process doesn't exit
+        // This prevents the spinner from hanging indefinitely
+        const stopTimeoutSeconds = this._settings.get_int('stop-timeout-seconds');
+        console.log(`VoiceToText: setting stop timeout for ${stopTimeoutSeconds} seconds`);
+        
+        if (this._stopTimeoutId) {
+            GLib.source_remove(this._stopTimeoutId);
+            this._stopTimeoutId = null;
+        }
+        
+        this._stopTimeoutId = GLib.timeout_add_seconds(
+            GLib.PRIORITY_DEFAULT,
+            stopTimeoutSeconds,
+            () => {
+                console.log('VoiceToText: stop timeout reached, forcing idle state');
+                this._forceStop();
+                return GLib.SOURCE_REMOVE;
+            }
+        );
+    }
+    
+    _forceStop() {
+        if (this._stopTimeoutId) {
+            GLib.source_remove(this._stopTimeoutId);
+            this._stopTimeoutId = null;
+        }
+        
+        if (this._recorder?._proc) {
+            console.log('VoiceToText: forcefully killing process');
+            const pid = this._recorder._proc;
+            Gio.Subprocess.new(['kill', '-9', String(pid)], 0).wait_async(null, null);
+        }
+        
+        this._setIdle();
     }
 
     _setIdle() {
+        if (this._stopTimeoutId) {
+            GLib.source_remove(this._stopTimeoutId);
+            this._stopTimeoutId = null;
+        }
+        
         this._recording = false;
         this._indicator?.setRecording(false);
         this._recorder = null;
@@ -117,5 +179,36 @@ export default class VoiceToTextExtension extends Extension {
             iconName: 'audio-input-microphone-symbolic',
         });
         systemSource.addNotification(notification);
+    }
+
+    _registerHotkey() {
+        this._unregisterHotkey();
+        
+        try {
+            registerHotkey('hotkey', this._settings, () => this._toggle());
+            console.log('VoiceToText: hotkey registered');
+        } catch (e) {
+            console.error('VoiceToText: failed to register hotkey:', e.message);
+        }
+    }
+
+    _unregisterHotkey() {
+        try {
+unregisterHotkey('hotkey');
+            console.log('VoiceToText: hotkey unregistered');
+        } catch (e) {
+            console.error('VoiceToText: failed to unregister hotkey:', e.message);
+        }
+    }
+
+    _openPreferences() {
+        console.log('VoiceToText: opening preferences dialog');
+        try {
+            const launcher = new Gio.SubprocessLauncher();
+            launcher.spawnv(['gnome-extensions', 'prefs', this.uuid]);
+        } catch (e) {
+            console.error('VoiceToText: failed to open preferences:', e);
+            this._showNotification('Failed to open preferences: ' + e.message);
+        }
     }
 }
