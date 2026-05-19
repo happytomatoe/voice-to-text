@@ -30,10 +30,6 @@ class ParakeetProvider(TranscriptionProvider):
         logger.info("Transcription result: %s", result[:100])
         return result
 
-    def _transcribe_http(self, audio_path: str) -> str:
-        """Transcribe via HTTP endpoint (OpenAI-compatible)."""
-        return self.transcribe_file(audio_path)
-
     @property
     def name(self) -> str:
         return "parakeet"
