@@ -89,6 +89,7 @@ export default class VoiceToTextPrefs extends ExtensionPreferences {
         const providerCombo = new Gtk.ComboBoxText();
         providerCombo.append('groq', 'Groq');
         providerCombo.append('voxtral', 'Voxtral');
+        providerCombo.append('parakeet', 'Parakeet (HTTP)');
         providerCombo.set_active_id(settings.get_string('provider'));
         providerCombo.connect('changed', () => {
             settings.set_string('provider', providerCombo.get_active_id());

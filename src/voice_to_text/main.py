@@ -115,7 +115,7 @@ def transcribe_audio(recorded_frames, sample_rate, transcriber, language):
         return None
 
     audio_data = np.concatenate(recorded_frames, axis=0)
-    with tempfile.NamedTemporaryFile(suffix=".wav", delete=True) as f:
+    with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as f:
         with wave.open(f.name, "wb") as wf:
             wf.setnchannels(1)
             wf.setsampwidth(2)
@@ -125,8 +125,10 @@ def transcribe_audio(recorded_frames, sample_rate, transcriber, language):
 
         try:
             logger.info("Starting transcription")
+            start_time = time.time()
             text = transcriber.transcribe_file(audio_path, language=language)
-            logger.info("Transcription complete: %s", text[:100])
+            elapsed = time.time() - start_time
+            logger.info("Transcription complete in %.2fs: %s", elapsed, text[:100])
             return text.strip()
         except Exception as e:
             logger.exception("Transcription failed")
@@ -233,19 +235,6 @@ def main():
         help="Recording duration in seconds (0 = wait for key)",
     )
     record_parser.add_argument("--model", type=str, help="Whisper model to use")
-    record_parser.add_argument(
-        "--provider",
-        type=str,
-        choices=["groq", "voxtral"],
-        help="Transcription provider to use",
-    )
-    record_parser.add_argument(
-        "--output",
-        type=str,
-        choices=["clipboard", "stdout"],
-        default="clipboard",
-        help="Output method: 'clipboard' or 'stdout' (default: clipboard)",
-    )
 
     parser.add_argument(
         "--duration",
@@ -256,7 +245,7 @@ def main():
     parser.add_argument(
         "--provider",
         type=str,
-        choices=["groq", "voxtral"],
+        choices=["groq", "voxtral", "parakeet"],
         help="Transcription provider to use",
     )
     parser.add_argument(
