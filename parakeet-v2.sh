@@ -14,11 +14,11 @@ mkdir -p "$MODELS_DIR"
 echo "Downloading v2 models to $MODELS_DIR..."
 cd "$MODELS_DIR"
 
-curl -L -o config.json "https://huggingface.co/istupakov/parakeet-tdt-0.6b-v2-onnx/resolve/main/config.json"
-curl -L -o vocab.txt "https://huggingface.co/istupakov/parakeet-tdt-0.6b-v2-onnx/resolve/main/vocab.txt"
-curl -L -o nemo128.onnx "https://huggingface.co/istupakov/parakeet-tdt-0.6b-v2-onnx/resolve/main/nemo128.onnx"
-curl -L -o encoder-model.int8.onnx "https://huggingface.co/istupakov/parakeet-tdt-0.6b-v2-onnx/resolve/main/encoder-model.int8.onnx"
-curl -L -o decoder_joint-model.int8.onnx "https://huggingface.co/istupakov/parakeet-tdt-0.6b-v2-onnx/resolve/main/decoder_joint-model.int8.onnx"
+curl -L -f -o config.json "https://huggingface.co/istupakov/parakeet-tdt-0.6b-v2-onnx/resolve/main/config.json"
+curl -L -f -o vocab.txt "https://huggingface.co/istupakov/parakeet-tdt-0.6b-v2-onnx/resolve/main/vocab.txt"
+curl -L -f -o nemo128.onnx "https://huggingface.co/istupakov/parakeet-tdt-0.6b-v2-onnx/resolve/main/nemo128.onnx"
+curl -L -f -o encoder-model.int8.onnx "https://huggingface.co/istupakov/parakeet-tdt-0.6b-v2-onnx/resolve/main/encoder-model.int8.onnx"
+curl -L -f -o decoder_joint-model.int8.onnx "https://huggingface.co/istupakov/parakeet-tdt-0.6b-v2-onnx/resolve/main/decoder_joint-model.int8.onnx"
 
 echo "Models downloaded."
 

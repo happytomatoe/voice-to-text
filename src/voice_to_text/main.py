@@ -234,6 +234,19 @@ def main():
         type=float,
         help="Recording duration in seconds (0 = wait for key)",
     )
+    record_parser.add_argument(
+        "--provider",
+        type=str,
+        choices=["groq", "voxtral", "parakeet"],
+        help="Transcription provider to use",
+    )
+    record_parser.add_argument(
+        "--output",
+        type=str,
+        choices=["clipboard", "stdout"],
+        default="clipboard",
+        help="Output method: 'clipboard' or 'stdout' (default: clipboard)",
+    )
     record_parser.add_argument("--model", type=str, help="Whisper model to use")
 
     parser.add_argument(

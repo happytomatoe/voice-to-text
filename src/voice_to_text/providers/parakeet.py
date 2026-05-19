@@ -26,7 +26,8 @@ class ParakeetProvider(TranscriptionProvider):
 
         if self.mode == "http":
             self.http_endpoint = config.get("http_endpoint", "http://localhost:5092")
-            logger.info("Using Parakeet HTTP mode: %s", self.http_endpoint)
+            self._http_timeout = config.get("timeout_seconds", 30)
+            logger.info("Using Parakeet HTTP mode: %s (timeout=%ss)", self.http_endpoint, self._http_timeout)
             return
 
         if not NEMO_AVAILABLE:
@@ -61,7 +62,7 @@ class ParakeetProvider(TranscriptionProvider):
         with open(audio_path, "rb") as f:
             files = {"file": (os.path.basename(audio_path), f, "audio/wav")}
             data = {"model": self.model_name}
-            response = requests.post(url, files=files, data=data)
+            response = requests.post(url, files=files, data=data, timeout=self._http_timeout)
         response.raise_for_status()
         result = response.json().get("text", "").strip()
         logger.info("Transcription result: %s", result[:100])
