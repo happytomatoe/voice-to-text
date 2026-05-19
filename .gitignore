@@ -58,5 +58,5 @@
  .env
  .flaskenv
 
-
-  *.log
+*.log
+build/
