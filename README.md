@@ -38,7 +38,7 @@ If you want to use Parakeet check out [this script](./parakeet-v2.sh)
 
 ## Configuration
 
-Edit [`config.yaml`](./config.yaml) to customize
+Edit [`config.yaml`](./config.yaml) to customize if you are using python app or right click on microphone icon->Preferences if you are using gnome extension
 
 ## Output Methods
 
