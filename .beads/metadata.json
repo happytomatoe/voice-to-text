@@ -1,7 +1,0 @@
-{
-  "database": "dolt",
-  "backend": "dolt",
-  "dolt_mode": "embedded",
-  "dolt_database": "voice_to_text",
-  "project_id": "3e611170-a61f-4eb5-8280-e569cfba2141"
-}
