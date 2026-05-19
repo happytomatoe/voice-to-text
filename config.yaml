@@ -3,7 +3,7 @@
 
 # Provider selection
 transcription:
-  provider: "parakeet"  # "groq", "voxtral", or "parakeet"
+  provider: "parakeet" # "groq", "voxtral", or "parakeet"
   language: "en"
 
 # Provider-specific configurations
@@ -16,8 +16,6 @@ voxtral:
 
 parakeet:
   model: "nvidia/parakeet-tdt-0.6b-v3"
-  device: "cuda"
-  mode: "http"
   http_endpoint: "http://localhost:5092"
   timeout_seconds: 30
 
@@ -28,5 +26,5 @@ audio:
   smooth_factor: 0.7
 
 logging:
-  file: "/tmp/groq_voice.log"
+  file: "/tmp/voice-to-text.log"
   level: "info"

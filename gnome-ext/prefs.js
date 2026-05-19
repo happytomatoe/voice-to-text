@@ -1,247 +1,264 @@
-import Adw from 'gi://Adw';
-import Gtk from 'gi://Gtk';
-import Gio from 'gi://Gio';
-import GLib from 'gi://GLib';
-import Gdk from 'gi://Gdk';
-import {ExtensionPreferences, gettext as _} from 'resource:///org/gnome/Shell/Extensions/js/extensions/prefs.js';
+import Adw from "gi://Adw";
+import Gtk from "gi://Gtk";
+import Gio from "gi://Gio";
+import GLib from "gi://GLib";
+import Gdk from "gi://Gdk";
+import {
+  ExtensionPreferences,
+  gettext as _,
+} from "resource:///org/gnome/Shell/Extensions/js/extensions/prefs.js";
 
 export default class VoiceToTextPrefs extends ExtensionPreferences {
-    fillPreferencesWindow(window) {
-        this._window = window;
-        const settings = this.getSettings();
-        
-        // Create a preferences page
-        const page = new Adw.PreferencesPage({
-            title: _('General'),
-            icon_name: 'audio-input-microphone-symbolic',
-        });
-        window.add(page);
+  fillPreferencesWindow(window) {
+    this._window = window;
+    const settings = this.getSettings();
 
-        // Create a preferences group
-        const group = new Adw.PreferencesGroup({
-            title: _('Recording Settings'),
-            description: _('Configure voice to text recording behavior'),
-        });
-        page.add(group);
+    // Create a preferences page
+    const page = new Adw.PreferencesPage({
+      title: _("General"),
+      icon_name: "audio-input-microphone-symbolic",
+    });
+    window.add(page);
 
-        // Hotkey setting - using a custom row with key capture
-        const hotkeyRow = new Adw.ActionRow({
-            title: _('Recording Hotkey'),
-        });
-        
-        const hotkeyBox = new Gtk.Box({
-            hexpand: true,
-            spacing: 6,
-        });
-        hotkeyRow.add_suffix(hotkeyBox);
-        
-        const hotkeyLabel = new Gtk.Label({
-            label: this._getHotkeyDisplay(settings.get_strv('hotkey')[0]),
-            xalign: 0,
-        });
-        hotkeyBox.append(hotkeyLabel);
-        hotkeyLabel.set_hexpand(true);
-        
-        const hotkeyButton = new Gtk.Button({
-            label: _('Set Shortcut…'),
-            halign: Gtk.Align.END,
-        });
-        hotkeyBox.append(hotkeyButton);
-        
-        // Create a key capture dialog
-        hotkeyButton.connect('clicked', () => {
-            this._showHotkeyDialog(settings, hotkeyLabel);
-        });
-        
-        group.add(hotkeyRow);
+    // Create a preferences group
+    const group = new Adw.PreferencesGroup({
+      title: _("Recording Settings"),
+      description: _("Configure voice to text recording behavior"),
+    });
+    page.add(group);
 
-        // Show recording notification toggle
-        const showNotificationRow = new Adw.SwitchRow({
-            title: _('Show Recording Notification'),
-            subtitle: _('Show a notification when recording starts'),
-        });
-        settings.bind('show-recording-notification',
-            showNotificationRow, 'active',
-            Gio.SettingsBindFlags.DEFAULT);
-        group.add(showNotificationRow);
+    // Hotkey setting - using a custom row with key capture
+    const hotkeyRow = new Adw.ActionRow({
+      title: _("Recording Hotkey"),
+    });
 
-        // Stop timeout setting
-        const stopTimeoutRow = new Adw.SpinRow({
-            title: _('Stop Timeout'),
-            subtitle: _('Seconds to wait for recording process to stop before forcing it'),
-            adjustment: new Gtk.Adjustment({
-                lower: 1,
-                upper: 120,
-                step_increment: 1,
-                page_increment: 10,
-            }),
-        });
-        settings.bind('stop-timeout-seconds',
-            stopTimeoutRow, 'value',
-            Gio.SettingsBindFlags.DEFAULT);
-        group.add(stopTimeoutRow);
+    const hotkeyBox = new Gtk.Box({
+      hexpand: true,
+      spacing: 6,
+    });
+    hotkeyRow.add_suffix(hotkeyBox);
 
-        // Provider setting
-        const providerRow = new Adw.ActionRow({
-            title: _('Transcription Provider'),
-        });
-        
-        const providerCombo = new Gtk.ComboBoxText();
-        providerCombo.append('groq', 'Groq');
-        providerCombo.append('voxtral', 'Voxtral');
-        providerCombo.append('parakeet', 'Parakeet (HTTP)');
-        providerCombo.set_active_id(settings.get_string('provider'));
-        providerCombo.connect('changed', () => {
-            settings.set_string('provider', providerCombo.get_active_id());
-        });
-        providerRow.add_suffix(providerCombo);
-        group.add(providerRow);
+    const hotkeyLabel = new Gtk.Label({
+      label: this._getHotkeyDisplay(settings.get_strv("hotkey")[0]),
+      xalign: 0,
+    });
+    hotkeyBox.append(hotkeyLabel);
+    hotkeyLabel.set_hexpand(true);
 
-        // Output method setting
-        const outputMethodRow = new Adw.ActionRow({
-            title: _('Output Method'),
-            subtitle: _('How to deliver transcribed text'),
-        });
-        
-        const outputMethodCombo = new Gtk.ComboBoxText();
-        outputMethodCombo.append('type-fallback-clipboard', _('Type (fallback to clipboard)'));
-        outputMethodCombo.append('type', _('Type'));
-        outputMethodCombo.append('clipboard', _('Clipboard'));
-        outputMethodCombo.set_active_id(settings.get_string('output-method'));
-        outputMethodCombo.connect('changed', () => {
-            settings.set_string('output-method', outputMethodCombo.get_active_id());
-        });
-        outputMethodRow.add_suffix(outputMethodCombo);
-        group.add(outputMethodRow);
+    const hotkeyButton = new Gtk.Button({
+      label: _("Set Shortcut…"),
+      halign: Gtk.Align.END,
+    });
+    hotkeyBox.append(hotkeyButton);
 
-        // Language setting
-        const languageRow = new Adw.ActionRow({
-            title: _('Language'),
-            subtitle: _('Language code (e.g., en, es, fr)'),
-        });
-        
-        const languageEntry = new Gtk.Entry({
-            text: settings.get_string('language'),
-            width_chars: 6,
-        });
-        languageEntry.connect('changed', () => {
-            settings.set_string('language', languageEntry.get_text());
-        });
-        languageRow.add_suffix(languageEntry);
-        group.add(languageRow);
+    // Create a key capture dialog
+    hotkeyButton.connect("clicked", () => {
+      this._showHotkeyDialog(settings, hotkeyLabel);
+    });
+
+    group.add(hotkeyRow);
+
+    // Show recording notification toggle
+    const showNotificationRow = new Adw.SwitchRow({
+      title: _("Show Recording Notification"),
+      subtitle: _("Show a notification when recording starts"),
+    });
+    settings.bind(
+      "show-recording-notification",
+      showNotificationRow,
+      "active",
+      Gio.SettingsBindFlags.DEFAULT,
+    );
+    group.add(showNotificationRow);
+
+    // Stop timeout setting
+    const stopTimeoutRow = new Adw.SpinRow({
+      title: _("Stop Timeout"),
+      subtitle: _(
+        "Seconds to wait for recording process to stop before forcing it",
+      ),
+      adjustment: new Gtk.Adjustment({
+        lower: 1,
+        upper: 120,
+        step_increment: 1,
+        page_increment: 10,
+      }),
+    });
+    settings.bind(
+      "stop-timeout-seconds",
+      stopTimeoutRow,
+      "value",
+      Gio.SettingsBindFlags.DEFAULT,
+    );
+    group.add(stopTimeoutRow);
+
+    // Provider setting
+    const providerRow = new Adw.ActionRow({
+      title: _("Transcription Provider"),
+    });
+
+    const providerCombo = new Gtk.ComboBoxText();
+    providerCombo.append("groq", "Groq");
+    providerCombo.append("voxtral", "Voxtral");
+    providerCombo.append("parakeet", "Parakeet");
+    providerCombo.set_active_id(settings.get_string("provider"));
+    providerCombo.connect("changed", () => {
+      settings.set_string("provider", providerCombo.get_active_id());
+    });
+    providerRow.add_suffix(providerCombo);
+    group.add(providerRow);
+
+    // Output method setting
+    const outputMethodRow = new Adw.ActionRow({
+      title: _("Output Method"),
+      subtitle: _("How to deliver transcribed text"),
+    });
+
+    const outputMethodCombo = new Gtk.ComboBoxText();
+    outputMethodCombo.append(
+      "type-fallback-clipboard",
+      _("Type (fallback to clipboard)"),
+    );
+    outputMethodCombo.append("type", _("Type"));
+    outputMethodCombo.append("clipboard", _("Clipboard"));
+    outputMethodCombo.set_active_id(settings.get_string("output-method"));
+    outputMethodCombo.connect("changed", () => {
+      settings.set_string("output-method", outputMethodCombo.get_active_id());
+    });
+    outputMethodRow.add_suffix(outputMethodCombo);
+    group.add(outputMethodRow);
+
+    // Language setting
+    const languageRow = new Adw.ActionRow({
+      title: _("Language"),
+      subtitle: _("Language code (e.g., en, es, fr)"),
+    });
+
+    const languageEntry = new Gtk.Entry({
+      text: settings.get_string("language"),
+      width_chars: 6,
+    });
+    languageEntry.connect("changed", () => {
+      settings.set_string("language", languageEntry.get_text());
+    });
+    languageRow.add_suffix(languageEntry);
+    group.add(languageRow);
+  }
+
+  _getHotkeyDisplay(hotkeyValue) {
+    try {
+      if (hotkeyValue && hotkeyValue.trim()) {
+        return hotkeyValue;
+      }
+    } catch (e) {
+      console.error("Error parsing hotkey:", e);
     }
+    return _("Not set");
+  }
 
-    _getHotkeyDisplay(hotkeyValue) {
-        try {
-            if (hotkeyValue && hotkeyValue.trim()) {
-                return hotkeyValue;
-            }
-        } catch (e) {
-            console.error('Error parsing hotkey:', e);
+  _showHotkeyDialog(settings, label) {
+    const dialog = new Gtk.Window({
+      title: _("Set Shortcut"),
+      modal: true,
+      transient_for: this._window,
+      default_width: 400,
+      default_height: 200,
+    });
+
+    const mainBox = new Gtk.Box({
+      orientation: Gtk.Orientation.VERTICAL,
+      spacing: 12,
+      margin_top: 12,
+      margin_bottom: 12,
+      margin_start: 12,
+      margin_end: 12,
+    });
+    dialog.set_child(mainBox);
+
+    const instructionLabel = new Gtk.Label({
+      label: _("Press a new shortcut key combination"),
+      wrap: true,
+      xalign: 0,
+    });
+    mainBox.append(instructionLabel);
+
+    const keyLabel = new Gtk.Label({
+      label: _("New shortcut: None"),
+      xalign: 0,
+    });
+    mainBox.append(keyLabel);
+
+    const cancelButton = new Gtk.Button({
+      label: _("Cancel"),
+      halign: Gtk.Align.END,
+    });
+    const setButton = new Gtk.Button({
+      label: _("Set"),
+      halign: Gtk.Align.END,
+      sensitive: false,
+    });
+
+    const buttonBox = new Gtk.Box({
+      spacing: 6,
+      halign: Gtk.Align.END,
+    });
+    buttonBox.append(cancelButton);
+    buttonBox.append(setButton);
+    mainBox.append(buttonBox);
+
+    let currentKey = null;
+
+    // Create a key capture controller
+    const keyController = new Gtk.EventControllerKey();
+    dialog.add_controller(keyController);
+
+    keyController.connect(
+      "key-pressed",
+      (controller, keyval, keycode, state) => {
+        const mask = state & Gtk.accelerator_get_default_mod_mask();
+        const key = Gdk.keyval_name(keyval);
+
+        if (!key) {
+          return false;
         }
-        return _('Not set');
-    }
 
-    _showHotkeyDialog(settings, label) {
-        const dialog = new Gtk.Window({
-            title: _('Set Shortcut'),
-            modal: true,
-            transient_for: this._window,
-            default_width: 400,
-            default_height: 200,
-        });
-        
-        const mainBox = new Gtk.Box({
-            orientation: Gtk.Orientation.VERTICAL,
-            spacing: 12,
-            margin_top: 12,
-            margin_bottom: 12,
-            margin_start: 12,
-            margin_end: 12,
-        });
-        dialog.set_child(mainBox);
-        
-        const instructionLabel = new Gtk.Label({
-            label: _('Press a new shortcut key combination'),
-            wrap: true,
-            xalign: 0,
-        });
-        mainBox.append(instructionLabel);
-        
-        const keyLabel = new Gtk.Label({
-            label: _('New shortcut: None'),
-            xalign: 0,
-        });
-        mainBox.append(keyLabel);
-        
-        const cancelButton = new Gtk.Button({
-            label: _('Cancel'),
-            halign: Gtk.Align.END,
-        });
-        const setButton = new Gtk.Button({
-            label: _('Set'),
-            halign: Gtk.Align.END,
-            sensitive: false,
-        });
-        
-        const buttonBox = new Gtk.Box({
-            spacing: 6,
-            halign: Gtk.Align.END,
-        });
-        buttonBox.append(cancelButton);
-        buttonBox.append(setButton);
-        mainBox.append(buttonBox);
-        
-        let currentKey = null;
-        
-        // Create a key capture controller
-        const keyController = new Gtk.EventControllerKey();
-        dialog.add_controller(keyController);
-        
-        keyController.connect('key-pressed', (controller, keyval, keycode, state) => {
-            const mask = state & Gtk.accelerator_get_default_mod_mask();
-            const key = Gdk.keyval_name(keyval);
+        if (!mask) {
+          return false;
+        }
 
-            if (!key) {
-                return false;
-            }
+        const accel = Gtk.accelerator_name(keyval, mask);
+        if (accel && accel !== "<Disabled>") {
+          currentKey = accel;
+          keyLabel.set_label(`New shortcut: ${accel}`);
+          setButton.sensitive = true;
+        }
+        return true;
+      },
+    );
 
-            if (!mask) {
-                return false;
-            }
+    cancelButton.connect("clicked", () => {
+      dialog.close();
+    });
 
-            const accel = Gtk.accelerator_name(keyval, mask);
-            if (accel && accel !== '<Disabled>') {
-                currentKey = accel;
-                keyLabel.set_label(`New shortcut: ${accel}`);
-                setButton.sensitive = true;
-            }
-            return true;
-        });
-        
-        cancelButton.connect('clicked', () => {
-            dialog.close();
-        });
-        
-        setButton.connect('clicked', () => {
-            if (currentKey) {
-                settings.set_strv('hotkey', [currentKey]);
-                label.set_label(currentKey);
-            }
-            dialog.close();
-        });
-        
-        // Handle escape key
-        const escapeController = new Gtk.EventControllerKey();
-        dialog.add_controller(escapeController);
-        escapeController.connect('key-pressed', (controller, keyval) => {
-            if (keyval === Gdk.KEY_Escape) {
-                dialog.close();
-                return GLib.SOURCE_REMOVE;
-            }
-            return false;
-        });
-        
-        dialog.present();
-    }
+    setButton.connect("clicked", () => {
+      if (currentKey) {
+        settings.set_strv("hotkey", [currentKey]);
+        label.set_label(currentKey);
+      }
+      dialog.close();
+    });
+
+    // Handle escape key
+    const escapeController = new Gtk.EventControllerKey();
+    dialog.add_controller(escapeController);
+    escapeController.connect("key-pressed", (controller, keyval) => {
+      if (keyval === Gdk.KEY_Escape) {
+        dialog.close();
+        return GLib.SOURCE_REMOVE;
+      }
+      return false;
+    });
+
+    dialog.present();
+  }
 }
