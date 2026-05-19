@@ -3,7 +3,7 @@
 
 # Provider selection
 transcription:
-  provider: "voxtral"  # "groq" or "voxtral"
+  provider: "parakeet"  # "groq", "voxtral", or "parakeet"
   language: "en"
 
 # Provider-specific configurations
@@ -13,6 +13,12 @@ groq:
 voxtral:
   api_key_env: "VOXTRAL_API_KEY"
   model: "voxtral-mini-latest"
+
+parakeet:
+  model: "nvidia/parakeet-tdt-0.6b-v3"
+  device: "cuda"
+  mode: "http"
+  http_endpoint: "http://localhost:5092"
 
 audio:
   sample_rate: 16000
