@@ -19,6 +19,7 @@ parakeet:
   device: "cuda"
   mode: "http"
   http_endpoint: "http://localhost:5092"
+  timeout_seconds: 30
 
 audio:
   sample_rate: 16000
