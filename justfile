@@ -48,7 +48,7 @@ setup-global-hotkey:
 
 # @category gnome-ext
 # Start a nested GNOME Shell for development
-gnome-ext-nested:
+gnome-ext-dev:
     #!/usr/bin/env bash
     GNOME_VERSION=$$(gnome-shell --version | awk '{print int($$3)}')
     if [ "$$GNOME_VERSION" -ge 49 ]; then
@@ -56,11 +56,6 @@ gnome-ext-nested:
     else
       MUTTER_DEBUG_NESTED=1 dbus-run-session -- gnome-shell --wayland --nested 2>&1 | tee /tmp/gnome-shell-nested.log
     fi
-
-# Install extension from gnome-ext/ and start nested shell
-gnome-ext-dev:
-    ./gnome-ext/run-dev.sh --nested 2>&1 | tee /tmp/gnome-shell-nested.log
-
 # Install extension files directly (no nested shell)
 gnome-ext-install:
     #!/usr/bin/env bash
