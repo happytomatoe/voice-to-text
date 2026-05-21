@@ -1,10 +1,15 @@
 #!/bin/bash
 set -euo pipefail
 
-SOCKET_PATH="/run/user/$(id -u)/.ydotool_socket"
+UID_ACTUAL="${SUDO_UID:-$(id -u)}"
+SOCKET_PATH="/run/user/$UID_ACTUAL/.ydotool_socket"
 
 sudo mkdir -p /etc/systemd/system/ydotool.service.d
 sudo tee /etc/systemd/system/ydotool.service.d/socket-path.conf > /dev/null <<EOF
+[Unit]
+After=user-runtime-dir@$UID_ACTUAL.service
+Requires=user-runtime-dir@$UID_ACTUAL.service
+
 [Service]
 ExecStart=
 ExecStart=/usr/bin/ydotoold --socket-path=$SOCKET_PATH --socket-perm=666

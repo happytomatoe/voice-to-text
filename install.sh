@@ -208,6 +208,10 @@ echo "Provider configured: $PROVIDER"
 #
 # # 3. Inject the custom socket path configuration
 # cat <<EOF >"$HOME/.config/systemd/user/ydotool.service.d/socket-path.conf"
+# [Unit]
+# After=user-runtime-dir@%i.service
+# Requires=user-runtime-dir@%i.service
+#
 # [Service]
 # ExecStart=
 # ExecStart=/usr/bin/ydotoold --socket-path=$SOCKET_PATH --socket-perm=666
