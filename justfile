@@ -60,12 +60,14 @@ gnome-ext-dev:
 gnome-ext-install:
     #!/usr/bin/env bash
     UUID="voice-to-text@happytomatoe.com"
-    DEST=$$HOME/.local/share/gnome-shell/extensions/$$UUID
-    mkdir -p "$$DEST/schemas"
-    cp gnome-ext/*.js gnome-ext/*.json gnome-ext/*.css "$$DEST/" 2>/dev/null || true
-    cp gnome-ext/schemas/*.xml "$$DEST/schemas/"
-    glib-compile-schemas "$$DEST/schemas/"
-    echo "Extension installed to $$DEST"
+    DEST=$HOME/.local/share/gnome-shell/extensions/$UUID
+    mkdir -p "$DEST/schemas"
+    cp gnome-ext/*.js gnome-ext/*.json gnome-ext/*.css "$DEST/" 2>/dev/null || true
+    cp gnome-ext/schemas/*.xml "$DEST/schemas/"
+    glib-compile-schemas "$DEST/schemas/"
+    echo "Extension installed to $DEST"
+    gnome-extensions enable voice-to-text@happytomatoe.com
+
 
 # Uninstall extension by removing it from the extensions directory
 gnome-ext-uninstall:
