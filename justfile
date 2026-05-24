@@ -48,10 +48,13 @@ setup-global-hotkey:
 
 # @category gnome-ext
 # Start a nested GNOME Shell for development
-gnome-ext-dev:
+gnome-ext-dev: gnome-ext-install
     #!/usr/bin/env bash
-    GNOME_VERSION=$$(gnome-shell --version | awk '{print int($$3)}')
-    if [ "$$GNOME_VERSION" -ge 49 ]; then
+    set -euo pipefail
+    UUID="voice-to-text@happytomatoe.com"
+    gnome-extensions enable "$UUID" 2>/dev/null || true
+    GNOME_VERSION=$(gnome-shell --version | awk '{print int($3)}')
+    if [ "$GNOME_VERSION" -ge 49 ]; then
       dbus-run-session -- gnome-shell --wayland --devkit 2>&1 | tee /tmp/gnome-shell-nested.log
     else
       MUTTER_DEBUG_NESTED=1 dbus-run-session -- gnome-shell --wayland --nested 2>&1 | tee /tmp/gnome-shell-nested.log
@@ -60,12 +63,12 @@ gnome-ext-dev:
 gnome-ext-install:
     #!/usr/bin/env bash
     UUID="voice-to-text@happytomatoe.com"
-    DEST=$$HOME/.local/share/gnome-shell/extensions/$$UUID
-    mkdir -p "$$DEST/schemas"
-    cp gnome-ext/*.js gnome-ext/*.json gnome-ext/*.css "$$DEST/" 2>/dev/null || true
-    cp gnome-ext/schemas/*.xml "$$DEST/schemas/"
-    glib-compile-schemas "$$DEST/schemas/"
-    echo "Extension installed to $$DEST"
+    DEST=$HOME/.local/share/gnome-shell/extensions/$UUID
+    mkdir -p "$DEST/schemas"
+    cp gnome-ext/*.js gnome-ext/*.json gnome-ext/*.css "$DEST/" 2>/dev/null || true
+    cp gnome-ext/schemas/*.xml "$DEST/schemas/"
+    glib-compile-schemas "$DEST/schemas/"
+    echo "Extension installed to $DEST"
 
 # Uninstall extension by removing it from the extensions directory
 gnome-ext-uninstall:
