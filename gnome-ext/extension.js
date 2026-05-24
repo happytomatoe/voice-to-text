@@ -192,17 +192,14 @@ export default class VoiceToTextExtension extends Extension {
         if (!this._settings.get_boolean('inhibit-sleep')) return;
 
         try {
-            const flags = GLib.Variant.new('(susu)', [
+            const cookie = this._sessionManager.InhibitSync(
                 'voice-to-text',
                 0,
                 'Voice recording in progress',
-                4, // INHIBIT_SUSPEND
-            ]);
-            const result = this._sessionManager.InhibitSync(flags);
-            if (result) {
-                this._inhibitCookie = result.get_child_value(0).get_uint32();
-                console.log('VoiceToText: sleep inhibitor acquired, cookie=' + this._inhibitCookie);
-            }
+                4 // INHIBIT_SUSPEND
+            );
+            this._inhibitCookie = cookie;
+            console.log('VoiceToText: sleep inhibitor acquired, cookie=' + this._inhibitCookie);
         } catch (e) {
             console.error('VoiceToText: failed to inhibit sleep:', e.message);
         }
@@ -212,9 +209,7 @@ export default class VoiceToTextExtension extends Extension {
         if (this._inhibitCookie === 0) return;
 
         try {
-            this._sessionManager.UninhibitSync(
-                GLib.Variant.new('(u)', [this._inhibitCookie]),
-            );
+            this._sessionManager.UninhibitSync(this._inhibitCookie);
             console.log('VoiceToText: sleep inhibitor released, cookie=' + this._inhibitCookie);
         } catch (e) {
             console.error('VoiceToText: failed to release sleep inhibitor:', e.message);
