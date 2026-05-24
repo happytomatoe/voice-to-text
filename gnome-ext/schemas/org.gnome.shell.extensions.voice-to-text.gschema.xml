@@ -10,9 +10,9 @@
       <summary>Show notification when recording starts</summary>
     </key>
     <key name="stop-timeout-seconds" type="i">
-      <default>15</default>
-      <range min="1" max="120"/>
-      <summary>Timeout in seconds to wait for recording process to stop</summary>
+      <default>300</default>
+      <range min="1" max="600"/>
+      <summary>Timeout in seconds to wait for the recording process to stop and transcription to complete</summary>
     </key>
     <key name="provider" type="s">
       <default>"voxtral"</default>
