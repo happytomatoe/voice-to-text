@@ -51,6 +51,10 @@ setup-global-hotkey:
 gnome-ext-dev: gnome-ext-install
     #!/usr/bin/env bash
     set -euo pipefail
+    if [ -n "$TOOLBOX_PATH" ] || [ "${container:-}" = "oci" ]; then
+        echo "Error: Cannot start a development GNOME Shell from within a toolbox container. Run this command on the host system." >&2
+        exit 1
+    fi
     UUID="voice-to-text@happytomatoe.com"
     gnome-extensions enable "$UUID" 2>/dev/null || true
     GNOME_VERSION=$(gnome-shell --version | awk '{print int($3)}')
