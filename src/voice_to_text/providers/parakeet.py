@@ -18,7 +18,7 @@ class ParakeetProvider(TranscriptionProvider):
         self.http_endpoint = config.get("http_endpoint", "http://localhost:5092")
         logger.info("Using Parakeet HTTP mode: %s", self.http_endpoint)
 
-    def transcribe_file(self, audio_path: str) -> str:
+    def transcribe_file(self, audio_path: str, language: str = "en") -> str:
         logger.info("Transcribing %s via HTTP", audio_path)
         url = f"{self.http_endpoint}/v1/audio/transcriptions"
         with open(audio_path, "rb") as f:
