@@ -26,5 +26,10 @@
       <default>"type-fallback-clipboard"</default>
       <summary>Output method for transcribed text</summary>
     </key>
+    <key name="inhibit-sleep" type="b">
+      <default>true</default>
+      <summary>Inhibit system sleep during recording</summary>
+      <description>Prevent the system from automatically going to sleep while a recording session is active</description>
+    </key>
   </schema>
 </schemalist>

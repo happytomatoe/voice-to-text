@@ -128,6 +128,19 @@ export default class VoiceToTextPrefs extends ExtensionPreferences {
     outputMethodRow.add_suffix(outputMethodCombo);
     group.add(outputMethodRow);
 
+    // Inhibit sleep during recording
+    const inhibitSleepRow = new Adw.SwitchRow({
+      title: _("Inhibit Sleep During Recording"),
+      subtitle: _("Prevent the system from sleeping while recording"),
+    });
+    settings.bind(
+      "inhibit-sleep",
+      inhibitSleepRow,
+      "active",
+      Gio.SettingsBindFlags.DEFAULT,
+    );
+    group.add(inhibitSleepRow);
+
     // Language setting
     const languageRow = new Adw.ActionRow({
       title: _("Language"),
