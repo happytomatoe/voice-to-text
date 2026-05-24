@@ -128,10 +128,6 @@ export default class VoiceToTextExtension extends Extension {
             }
             this._setIdle();
         };
-        this._recorder.onTimeout = () => {
-            this._showNotification('Recording timed out after 5 minutes');
-            this._setIdle();
-        };
         this._recorder.onError = (msg) => {
             this._showNotification('Transcription failed: ' + msg);
             this._setIdle();
