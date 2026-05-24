@@ -51,7 +51,7 @@ setup-global-hotkey:
 gnome-ext-dev: gnome-ext-install
     #!/usr/bin/env bash
     set -euo pipefail
-    if [ -n "$TOOLBOX_PATH" ] || [ "${container:-}" = "oci" ]; then
+    if [ -n "${TOOLBOX_PATH:-}" ] || [ "${container:-}" = "oci" ]; then
         echo "Error: Cannot start a development GNOME Shell from within a toolbox container. Run this command on the host system." >&2
         exit 1
     fi
