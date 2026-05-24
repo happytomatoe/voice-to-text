@@ -3,18 +3,15 @@ import Gio from "gi://Gio";
 import GioUnix from "gi://GioUnix";
 
 export class Recorder {
-  constructor(pythonAppPath, settings, timeoutSeconds = 600) {
+  constructor(pythonAppPath, settings) {
     this._appPath = pythonAppPath;
     this._settings = settings;
-    this._timeoutSeconds = timeoutSeconds;
     this._proc = null;
     this._childWatchId = null;
     this._stdout = null;
-    this._timeoutId = null;
     this._cancellable = null;
     this.onTranscription = null;
     this.onAudioLevel = null;
-    this.onTimeout = null;
     this.onError = null;
     this.onProcessExit = null;
   }
@@ -61,31 +58,12 @@ export class Recorder {
         this._childWatchId = null;
         this._proc = null;
         GLib.spawn_close_pid(p);
-        if (this._timeoutId) {
-          GLib.source_remove(this._timeoutId);
-          this._timeoutId = null;
-        }
         this.onProcessExit?.();
-      },
-    );
-
-    this._timeoutId = GLib.timeout_add_seconds(
-      GLib.PRIORITY_DEFAULT,
-      this._timeoutSeconds,
-      () => {
-        this.stop();
-        this.onTimeout?.();
-        return GLib.SOURCE_REMOVE;
       },
     );
   }
 
   stop() {
-    if (this._timeoutId) {
-      GLib.source_remove(this._timeoutId);
-      this._timeoutId = null;
-    }
-
     if (this._proc) {
       const pid = this._proc;
       this._proc = null;
