@@ -136,7 +136,6 @@ export default class VoiceToTextExtension extends Extension {
             this._showNotification('Transcription failed: ' + msg);
             this._setIdle();
         };
-        this._recorder.onProcessExit = () => this._setIdle();
         this._recorder.start();
         this._ensureInhibitor();
         if (this._settings.get_boolean('show-recording-notification')) {
