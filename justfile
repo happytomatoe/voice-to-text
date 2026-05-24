@@ -50,6 +50,11 @@ setup-global-hotkey:
 # Start a nested GNOME Shell for development
 gnome-ext-dev:
     #!/usr/bin/env bash
+    set -euo pipefail
+    if [ -n "$TOOLBOX_PATH" ] || [ "${container:-}" = "oci" ]; then
+        echo "Error: Cannot start a development GNOME Shell from within a toolbox container. Run this command on the host system." >&2
+        exit 1
+    fi
     GNOME_VERSION=$$(gnome-shell --version | awk '{print int($$3)}')
     if [ "$$GNOME_VERSION" -ge 49 ]; then
       dbus-run-session -- gnome-shell --wayland --devkit 2>&1 | tee /tmp/gnome-shell-nested.log
