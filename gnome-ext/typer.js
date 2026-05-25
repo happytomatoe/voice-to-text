@@ -1,19 +1,8 @@
 import Gio from 'gi://Gio';
 import St from 'gi://St';
 
-export function typeText(text, outputMethod = 'type-fallback-clipboard', onDone) {
-    if (outputMethod === 'clipboard') {
-        copyToClipboard(text);
-        onDone?.(true);
-        return;
-    }
-
-    tryTypeAsync(text, (ok) => {
-        if (!ok && outputMethod === 'type-fallback-clipboard') {
-            copyToClipboard(text);
-        }
-        onDone?.(ok);
-    });
+export function typeText(text, onDone) {
+    tryTypeAsync(text, onDone ?? (() => {}));
 }
 
 function tryTypeAsync(text, callback) {
@@ -39,6 +28,6 @@ function tryTypeAsync(text, callback) {
     }
 }
 
-function copyToClipboard(text) {
+export function copyToClipboard(text) {
     St.Clipboard.get_default().set_text(St.ClipboardType.CLIPBOARD, text);
 }

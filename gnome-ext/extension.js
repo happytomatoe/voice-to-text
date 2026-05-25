@@ -4,7 +4,7 @@ import {Extension} from 'resource:///org/gnome/shell/extensions/extension.js';
 import {VoiceIndicator} from './indicator.js';
 import {Recorder} from './recorder.js';
 import {registerHotkey, unregisterHotkey} from './hotkey.js';
-import {typeText} from './typer.js';
+import {typeText, copyToClipboard} from './typer.js';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import * as MessageTray from 'resource:///org/gnome/shell/ui/messageTray.js';
 import {gettext as _} from 'resource:///org/gnome/shell/extensions/extension.js';
@@ -96,9 +96,19 @@ export default class VoiceToTextExtension extends Extension {
         };
         this._recorder.onTranscription = (text) => {
             const outputMethod = this._settings.get_string('output-method');
-            typeText(text, outputMethod, (ok) => {
+            if (outputMethod === 'clipboard') {
+                copyToClipboard(text);
+                this._setIdle();
+                return;
+            }
+            typeText(text, (ok) => {
                 if (!ok) {
-                    this._showNotification('ydotool failed — text copied to clipboard instead');
+                    if (outputMethod === 'type-fallback-clipboard') {
+                        copyToClipboard(text);
+                        this._showNotification('ydotool failed — text copied to clipboard instead');
+                    } else {
+                        this._showNotification('ydotool failed to type text');
+                    }
                 }
                 this._setIdle();
             });
