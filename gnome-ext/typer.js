@@ -1,11 +1,7 @@
 import Gio from 'gi://Gio';
 import St from 'gi://St';
 
-export function typeText(text, onDone) {
-    tryTypeAsync(text, onDone ?? (() => {}));
-}
-
-function tryTypeAsync(text, callback) {
+export function typeText(text, onDone = () => {}) {
     try {
         const argv = [
             'ydotool', 'type',
@@ -16,15 +12,15 @@ function tryTypeAsync(text, callback) {
         proc.init(null);
         proc.wait_check_async(null, (proc, res) => {
             try {
-                callback(proc.wait_check_finish(res));
+                onDone(proc.wait_check_finish(res));
             } catch (e) {
                 console.error(`VoiceToText: ydotool failed: ${e.message}`);
-                callback(false);
+                onDone(false);
             }
         });
     } catch (e) {
         console.error(`VoiceToText: failed to run ydotool: ${e.message}`);
-        callback(false);
+        onDone(false);
     }
 }
 
