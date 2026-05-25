@@ -1,37 +1,29 @@
-import GLib from 'gi://GLib';
+import Gio from 'gi://Gio';
 import St from 'gi://St';
 
-export function typeText(text, outputMethod = 'type-fallback-clipboard') {
-    let typed = false;
-    
-    if (outputMethod === 'type' || outputMethod === 'type-fallback-clipboard') {
-        typed = tryType(text);
-    }
-    
-    if (outputMethod === 'type-fallback-clipboard') {
-        if (!typed) {
-            copyToClipboard(text);
-        }
-    } else if (outputMethod === 'clipboard') {
-        copyToClipboard(text);
-        typed = true;
-    }
-    return typed;
-}
-
-function tryType(text) {
+export function typeText(text, onDone = () => {}) {
     try {
-        const [ok, , , exitStatus] = GLib.spawn_command_line_sync(
-            `ydotool type --key-delay=0 --key-hold=0 -- ${GLib.shell_quote(text)}`);
-        if (ok && exitStatus === 0) {
-            return true;
-        }
+        const argv = [
+            'ydotool', 'type',
+            '--key-delay=0', '--key-hold=0',
+            '--', text,
+        ];
+        const proc = new Gio.Subprocess({ argv, flags: Gio.SubprocessFlags.NONE });
+        proc.init(null);
+        proc.wait_check_async(null, (proc, res) => {
+            try {
+                onDone(proc.wait_check_finish(res));
+            } catch (e) {
+                console.error(`VoiceToText: ydotool failed: ${e.message}`);
+                onDone(false);
+            }
+        });
     } catch (e) {
         console.error(`VoiceToText: failed to run ydotool: ${e.message}`);
+        onDone(false);
     }
-    return false;
 }
 
-function copyToClipboard(text) {
+export function copyToClipboard(text) {
     St.Clipboard.get_default().set_text(St.ClipboardType.CLIPBOARD, text);
 }
