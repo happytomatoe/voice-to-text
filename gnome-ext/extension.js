@@ -9,6 +9,23 @@ import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import * as MessageTray from 'resource:///org/gnome/shell/ui/messageTray.js';
 import {gettext as _} from 'resource:///org/gnome/shell/extensions/extension.js';
 
+const SessionManagerIface = '<node>\
+  <interface name="org.gnome.SessionManager">\
+    <method name="Inhibit">\
+      <arg type="s" direction="in"/>\
+      <arg type="u" direction="in"/>\
+      <arg type="s" direction="in"/>\
+      <arg type="u" direction="in"/>\
+      <arg type="u" direction="out"/>\
+    </method>\
+    <method name="Uninhibit">\
+      <arg type="u" direction="in"/>\
+    </method>\
+  </interface>\
+</node>';
+
+const SessionManagerProxy = Gio.DBusProxy.makeProxyWrapper(SessionManagerIface);
+
 
 export default class VoiceToTextExtension extends Extension {
     enable() {
@@ -31,6 +48,13 @@ export default class VoiceToTextExtension extends Extension {
         this._hotkeySignalId = this._settings.connect('changed::hotkey', () => {
             this._registerHotkey();
         });
+
+        this._inhibitCookie = 0;
+        this._sessionManager = new SessionManagerProxy(
+            Gio.DBus.session,
+            'org.gnome.SessionManager',
+            '/org/gnome/SessionManager',
+        );
     }
 
     disable() {
@@ -54,6 +78,9 @@ export default class VoiceToTextExtension extends Extension {
             this._recorder.stop();
             this._recorder = null;
         }
+
+        this._releaseInhibitor();
+        this._sessionManager = null;
 
         this._indicator?.destroy();
         this._indicator = null;
@@ -106,6 +133,7 @@ export default class VoiceToTextExtension extends Extension {
             this._setIdle();
         };
         this._recorder.start();
+        this._ensureInhibitor();
         if (this._settings.get_boolean('show-recording-notification')) {
             this._showNotification('Recording...');
         }
@@ -154,12 +182,43 @@ export default class VoiceToTextExtension extends Extension {
         this._setIdle();
     }
 
+    _ensureInhibitor() {
+        if (this._inhibitCookie !== 0) return;
+        if (!this._settings.get_boolean('inhibit-sleep')) return;
+
+        try {
+            const cookie = this._sessionManager.InhibitSync(
+                'voice-to-text',
+                0,
+                'Voice recording in progress',
+                4 // INHIBIT_SUSPEND
+            );
+            this._inhibitCookie = cookie;
+            console.log('VoiceToText: sleep inhibitor acquired, cookie=' + this._inhibitCookie);
+        } catch (e) {
+            console.error('VoiceToText: failed to inhibit sleep:', e.message);
+        }
+    }
+
+    _releaseInhibitor() {
+        if (this._inhibitCookie === 0) return;
+
+        try {
+            this._sessionManager.UninhibitSync(this._inhibitCookie);
+            console.log('VoiceToText: sleep inhibitor released, cookie=' + this._inhibitCookie);
+        } catch (e) {
+            console.error('VoiceToText: failed to release sleep inhibitor:', e.message);
+        }
+        this._inhibitCookie = 0;
+    }
+
     _setIdle() {
         if (this._stopTimeoutId) {
             GLib.source_remove(this._stopTimeoutId);
             this._stopTimeoutId = null;
         }
         
+        this._releaseInhibitor();
         this._recording = false;
         this._indicator?.setRecording(false);
         this._recorder = null;
