@@ -4,7 +4,7 @@ import St from 'gi://St';
 export function typeText(text, outputMethod = 'type-fallback-clipboard', onDone) {
     if (outputMethod === 'clipboard') {
         copyToClipboard(text);
-        onDone?.();
+        onDone?.(true);
         return;
     }
 
@@ -12,7 +12,7 @@ export function typeText(text, outputMethod = 'type-fallback-clipboard', onDone)
         if (!ok && outputMethod === 'type-fallback-clipboard') {
             copyToClipboard(text);
         }
-        onDone?.();
+        onDone?.(ok);
     });
 }
 
