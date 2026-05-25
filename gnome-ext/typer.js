@@ -1,35 +1,42 @@
-import GLib from 'gi://GLib';
+import Gio from 'gi://Gio';
 import St from 'gi://St';
 
-export function typeText(text, outputMethod = 'type-fallback-clipboard') {
-    let typed = false;
-    
-    if (outputMethod === 'type' || outputMethod === 'type-fallback-clipboard') {
-        typed = tryType(text);
+export function typeText(text, outputMethod = 'type-fallback-clipboard', onDone) {
+    if (outputMethod === 'clipboard') {
+        copyToClipboard(text);
+        onDone?.();
+        return;
     }
-    
-    if (outputMethod === 'type-fallback-clipboard') {
-        if (!typed) {
+
+    tryTypeAsync(text, (ok) => {
+        if (!ok && outputMethod === 'type-fallback-clipboard') {
             copyToClipboard(text);
         }
-    } else if (outputMethod === 'clipboard') {
-        copyToClipboard(text);
-        typed = true;
-    }
-    return typed;
+        onDone?.();
+    });
 }
 
-function tryType(text) {
+function tryTypeAsync(text, callback) {
     try {
-        const [ok, , , exitStatus] = GLib.spawn_command_line_sync(
-            `ydotool type --key-delay=0 --key-hold=0 -- ${GLib.shell_quote(text)}`);
-        if (ok && exitStatus === 0) {
-            return true;
-        }
+        const argv = [
+            'ydotool', 'type',
+            '--key-delay=0', '--key-hold=0',
+            '--', text,
+        ];
+        const proc = new Gio.Subprocess({ argv, flags: Gio.SubprocessFlags.NONE });
+        proc.init(null);
+        proc.wait_check_async(null, (proc, res) => {
+            try {
+                callback(proc.wait_check_finish(res));
+            } catch (e) {
+                console.error(`VoiceToText: ydotool failed: ${e.message}`);
+                callback(false);
+            }
+        });
     } catch (e) {
         console.error(`VoiceToText: failed to run ydotool: ${e.message}`);
+        callback(false);
     }
-    return false;
 }
 
 function copyToClipboard(text) {

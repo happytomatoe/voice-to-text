@@ -96,10 +96,7 @@ export default class VoiceToTextExtension extends Extension {
         };
         this._recorder.onTranscription = (text) => {
             const outputMethod = this._settings.get_string('output-method');
-            if (!typeText(text, outputMethod)) {
-                this._showNotification('ydotool failed — text copied to clipboard instead');
-            }
-            this._setIdle();
+            typeText(text, outputMethod, () => this._setIdle());
         };
         this._recorder.onError = (msg) => {
             this._showNotification('Transcription failed: ' + msg);
