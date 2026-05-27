@@ -131,7 +131,7 @@ def run_stdout_mode(args, config_mgr, transcriber, language, duration):
     decrease_pct = (
         args.decrease_speaker_volume
         if args.decrease_speaker_volume is not None
-        else config_mgr.get_speaker_config().get("decrease_volume", 0)
+        else config_mgr.get_speaker_config().get("decrease_volume", 50)
     )
 
     recorder = AudioRecorder(device=args.device)
@@ -314,7 +314,7 @@ def main():
     decrease_pct = (
         args.decrease_speaker_volume
         if args.decrease_speaker_volume is not None
-        else config_mgr.get_speaker_config().get("decrease_volume", 0)
+        else config_mgr.get_speaker_config().get("decrease_volume", 50)
     )
 
     recorder = AudioRecorder(device=args.device, smooth_factor=0.7)
