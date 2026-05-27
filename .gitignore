@@ -60,3 +60,6 @@
 
 *.log
 build/
+
+# Generated at build time by just build-binary
+src/voice_to_text/_build_info.py

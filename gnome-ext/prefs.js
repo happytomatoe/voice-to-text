@@ -141,6 +141,27 @@ export default class VoiceToTextPrefs extends ExtensionPreferences {
     );
     group.add(inhibitSleepRow);
 
+    // Decrease speaker volume during recording
+    const decreaseVolumeRow = new Adw.SpinRow({
+      title: _("Decrease Speaker Volume"),
+      subtitle: _(
+        "Reduce speaker output volume during recording (0=no change, 100=mute)",
+      ),
+      adjustment: new Gtk.Adjustment({
+        lower: 0,
+        upper: 100,
+        step_increment: 5,
+        page_increment: 10,
+      }),
+    });
+    settings.bind(
+      "decrease-speaker-volume",
+      decreaseVolumeRow,
+      "value",
+      Gio.SettingsBindFlags.DEFAULT,
+    );
+    group.add(decreaseVolumeRow);
+
     // Language setting
     const languageRow = new Adw.ActionRow({
       title: _("Language"),

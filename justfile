@@ -15,7 +15,33 @@ uninstall:
     rm -f ~/.local/bin/voice-to-text
     uv tool uninstall voice-to-text 2>/dev/null || true
 
-reinstall: uninstall install
+# Rebuild & install Python binary (skips PyInstaller if source hash matches)
+reinstall:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    SOURCE_HASH=$(find src/voice_to_text -name '*.py' ! -name '_build_info.py' -type f -exec sha256sum {} + | sort | sha256sum | cut -d' ' -f1)
+    BINARY="$HOME/.local/bin/voice-to-text"
+    if [ -x "$BINARY" ]; then
+        EMBEDDED_HASH=$("$BINARY" --source-hash 2>/dev/null || echo "")
+        if [ "$EMBEDDED_HASH" = "$SOURCE_HASH" ]; then
+            echo "Binary up to date (hash $SOURCE_HASH)"
+            SKIP_BUILD=1
+        else
+            echo "Binary outdated (embedded ${EMBEDDED_HASH:-none} vs source $SOURCE_HASH), rebuilding..."
+        fi
+    else
+        echo "No binary found at $BINARY, building..."
+    fi
+    if [ -z "${SKIP_BUILD:-}" ]; then
+        printf 'SOURCE_HASH = "%s"\n' "$SOURCE_HASH" > src/voice_to_text/_build_info.py
+        uv run pyinstaller voice-to-text.spec
+        uv tool uninstall voice-to-text 2>/dev/null || true
+        rm -f "$BINARY"
+        mkdir -p "$(dirname "$BINARY")"
+        cp dist/voice-to-text "$BINARY"
+        chmod +x "$BINARY"
+        echo "Binary installed to $BINARY"
+    fi
 
 build-python:
     uv build --out-dir dist
@@ -23,6 +49,8 @@ build-python:
 build-binary:
     #!/usr/bin/env bash
     set -e
+    SOURCE_HASH=$(find src/voice_to_text -name '*.py' ! -name '_build_info.py' -type f -exec sha256sum {} + | sort | sha256sum | cut -d' ' -f1)
+    printf 'SOURCE_HASH = "%s"\n' "$SOURCE_HASH" > src/voice_to_text/_build_info.py
     uv run pyinstaller voice-to-text.spec
     echo "Binary built to dist/voice-to-text"
 
@@ -47,8 +75,8 @@ setup-global-hotkey:
     echo "Global hotkey Super+q configured for voice-to-text"
 
 # @category gnome-ext
-# Start a nested GNOME Shell for development
-gnome-ext-dev: gnome-ext-install
+# Rebuild binary if stale, install extension, then start a nested GNOME Shell
+gnome-ext-dev: reinstall gnome-ext-install
     #!/usr/bin/env bash
     set -euo pipefail
     if [ -n "${TOOLBOX_PATH:-}" ] || [ "${container:-}" = "oci" ]; then

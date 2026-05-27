@@ -19,12 +19,16 @@ export class Recorder {
   start() {
     const provider = this._settings.get_string('provider');
     const language = this._settings.get_string('language');
+    const decreaseSpeakerVolume = this._settings.get_int('decrease-speaker-volume');
     const argv = [
       this._appPath,
       '--output', 'stdout',
       '--provider', provider,
       '--language', language,
     ];
+    if (decreaseSpeakerVolume > 0) {
+      argv.push('--decrease-speaker-volume', String(decreaseSpeakerVolume));
+    }
     const [ok, pid, stdin, stdout, stderr] = GLib.spawn_async_with_pipes(
       null,
       argv,

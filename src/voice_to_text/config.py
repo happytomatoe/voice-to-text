@@ -79,3 +79,7 @@ class ConfigManager:
     def get_logging_config(self) -> Dict[str, Any]:
         """Get logging configuration."""
         return self.config.get("logging", {})
+
+    def get_speaker_config(self) -> Dict[str, Any]:
+        """Get speaker volume configuration."""
+        return self.config.get("audio", {}).get("speaker", {})

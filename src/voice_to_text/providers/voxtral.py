@@ -42,24 +42,15 @@ class VoxtralProvider(TranscriptionProvider):
             logger.info("Transcription result: %s", text[:100])
             return text
 
-        except requests.exceptions.HTTPError as e:
-            logger.exception("Voxtral transcription API call failed with HTTP error")
-            if response.text:
-                try:
-                    error_details = response.json()
-                    logger.error("API error details: %s", error_details)
-                    raise RuntimeError(
-                        f"Voxtral API request failed: {e}. Error details: {error_details}"
-                    )
-                except ValueError:
-                    raise RuntimeError(
-                        f"Voxtral API request failed: {e}. Response: {response.text}"
-                    )
-            else:
-                raise RuntimeError(f"Voxtral API request failed: {e}")
         except requests.exceptions.RequestException as e:
             logger.exception("Voxtral transcription API call failed")
-            raise RuntimeError(f"Voxtral API request failed: {e}")
+            detail = ""
+            if e.response is not None:
+                try:
+                    detail = f": {e.response.json()}"
+                except ValueError:
+                    detail = f": {e.response.text}"
+            raise RuntimeError(f"Voxtral API request failed: {e}{detail}")
         except Exception as e:
             logger.exception("Voxtral transcription failed")
             raise RuntimeError(f"Voxtral transcription failed: {e}")
