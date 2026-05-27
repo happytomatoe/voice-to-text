@@ -1,43 +1,31 @@
 #!/usr/bin/env python3
 
 import argparse
-import math
 import select
 import signal
 import termios
 import time
-import tempfile
 import tty
 import subprocess
 import sys
 import os
 import logging
-import wave
 from pathlib import Path
 
-import numpy as np
-import collections
 import sounddevice as sd
 import yaml
 from dotenv import load_dotenv
 
+from voice_to_text import source_hash
 from voice_to_text.providers import get_provider
 from voice_to_text.config import ConfigManager
+from voice_to_text.audio import (
+    AudioRecorder,
+    SpeakerVolumeManager,
+    format_level_bar,
+)
 
 DEFAULT_LOG_FILE = Path("/tmp") / "voice-to-text.log"
-
-SAMPLE_RATE = 16000
-BLOCK_SIZE = 2048
-
-MAX_RECORDED_FRAMES_LEN = int(SAMPLE_RATE * 5)
-
-METER_WIDTH = 50
-GREY = "\033[90m"
-GREEN = "\033[32m"
-YELLOW = "\033[33m"
-RED = "\033[31m"
-RESET = "\033[0m"
-BLOCK = "\u2588"
 
 logger = logging.getLogger(__name__)
 
@@ -110,42 +98,22 @@ def setup_interactive():
         print(f"Failed to save configuration: {e}")
 
 
-def transcribe_audio(recorded_frames, sample_rate, transcriber, language):
-    if not recorded_frames:
-        return None
-
-    audio_data = np.concatenate(recorded_frames, axis=0)
-    with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as f:
-        with wave.open(f.name, "wb") as wf:
-            wf.setnchannels(1)
-            wf.setsampwidth(2)
-            wf.setframerate(sample_rate)
-            wf.writeframes(audio_data.tobytes())
-        audio_path = f.name
-
-        try:
-            logger.info("Starting transcription")
-            start_time = time.time()
-            text = transcriber.transcribe_file(audio_path, language=language)
-            elapsed = time.time() - start_time
-            logger.info("Transcription complete in %.2fs: %s", elapsed, text[:100])
-            return text.strip()
-        except Exception as e:
-            logger.exception("Transcription failed")
-            raise
-        finally:
-            os.remove(audio_path)
-
-
-def compute_rms(indata):
-    samples = indata[:, 0].astype(np.float64)
-    rms = math.sqrt(np.mean(samples**2))
-    return min(rms / 32768.0, 1.0)
+def transcribe_audio(audio_path: str, transcriber, language) -> str | None:
+    try:
+        logger.info("Starting transcription from %s", audio_path)
+        start_time = time.time()
+        text = transcriber.transcribe_file(audio_path, language=language)
+        elapsed = time.time() - start_time
+        logger.info("Transcription complete in %.2fs: %s", elapsed, text[:100])
+        return text.strip()
+    except Exception as e:
+        logger.exception("Transcription failed")
+        raise
+    finally:
+        os.remove(audio_path)
 
 
 def run_stdout_mode(args, config_mgr, transcriber, language, duration):
-    SAMPLE_RATE = 16000
-    BLOCK_SIZE = 2048
     LEVEL_INTERVAL = 0.1
 
     logger.info(
@@ -160,56 +128,51 @@ def run_stdout_mode(args, config_mgr, transcriber, language, duration):
 
     signal.signal(signal.SIGINT, handle_sigint)
 
-    recorded_frames = collections.deque(maxlen=MAX_RECORDED_FRAMES_LEN)
-    start_time = time.time()
-
-    def audio_callback(indata, frames, time_info, status):
-        recorded_frames.append(indata.copy())
-
-    stream = sd.InputStream(
-        samplerate=SAMPLE_RATE,
-        channels=1,
-        blocksize=BLOCK_SIZE,
-        dtype="int16",
-        callback=audio_callback,
-        device=args.device,
+    decrease_pct = (
+        args.decrease_speaker_volume
+        if args.decrease_speaker_volume is not None
+        else config_mgr.get_speaker_config().get("decrease_volume", 0)
     )
-    stream.start()
 
-    last_level_time = time.time()
-    level_count = 0
+    recorder = AudioRecorder(device=args.device)
 
-    try:
-        while not stop_requested:
-            if duration > 0 and (time.time() - start_time) > duration:
-                break
+    with SpeakerVolumeManager.with_decrease(decrease_pct):
+        recorder.start()
+        start_time = time.time()
+        last_level_time = time.time()
+        level_count = 0
+        try:
+            while not stop_requested:
+                if duration > 0 and (time.time() - start_time) > duration:
+                    break
 
-            now = time.time()
-            if now - last_level_time >= LEVEL_INTERVAL:
-                if recorded_frames:
-                    latest = recorded_frames[-1]
-                    rms = compute_rms(latest)
-                    level_count += 1
-                    logger.debug("LEVEL[%d]: %.4f", level_count, rms)
-                    print(f"LEVEL:{rms:.4f}", flush=True)
-                last_level_time = now
+                now = time.time()
+                if now - last_level_time >= LEVEL_INTERVAL:
+                    if recorder.frame_count:
+                        level_count += 1
+                        logger.debug("LEVEL[%d]: %.4f", level_count, recorder.smoothed_level)
+                        print(f"LEVEL:{recorder.smoothed_level:.4f}", flush=True)
+                    last_level_time = now
 
-            time.sleep(0.02)
-    except Exception as e:
-        logger.exception("Recording error: %s", e)
-        print(f"ERROR:{e}", flush=True)
+                time.sleep(0.02)
+        except Exception as e:
+            logger.exception("Recording error: %s", e)
+            print(f"ERROR:{e}", flush=True)
+            sys.exit(1)
+        finally:
+            recorder.stop()
+            logger.info(
+                "Audio stream stopped, collected %d frames, %d level readings",
+                recorder.frame_count,
+                level_count,
+            )
+
+    if recorder.frame_count == 0:
+        print("ERROR:No audio recorded", flush=True)
         sys.exit(1)
-    finally:
-        stream.stop()
-        stream.close()
-        logger.info(
-            "Audio stream stopped, collected %d frames, %d level readings",
-            len(recorded_frames),
-            level_count,
-        )
 
     try:
-        text = transcribe_audio(recorded_frames, SAMPLE_RATE, transcriber, language)
+        text = transcribe_audio(recorder.filepath, transcriber, language)
         if text:
             print(f"TEXT:{text}", flush=True)
         else:
@@ -221,57 +184,57 @@ def run_stdout_mode(args, config_mgr, transcriber, language, duration):
         sys.exit(1)
 
 
+def _add_record_args(parser_obj):
+    parser_obj.add_argument(
+        "--duration",
+        type=float,
+        help="Recording duration in seconds (0 = wait for key)",
+    )
+    parser_obj.add_argument(
+        "--provider",
+        type=str,
+        choices=["groq", "voxtral", "parakeet"],
+        help="Transcription provider to use",
+    )
+    parser_obj.add_argument(
+        "--output",
+        type=str,
+        choices=["clipboard", "stdout"],
+        default="clipboard",
+        help="Output method: 'clipboard' or 'stdout' (default: clipboard)",
+    )
+    parser_obj.add_argument("--model", type=str, help="Whisper model to use")
+    parser_obj.add_argument(
+        "--decrease-speaker-volume",
+        type=int,
+        choices=range(0, 101),
+        metavar="{0-100}",
+        help="Decrease speaker volume by this %% during recording (0=no change, 100=mute)",
+    )
+
+
 def main():
     parser = argparse.ArgumentParser(description="Voice to Text with Groq Whisper")
-    subparsers = parser.add_subparsers(dest="command", help="Available commands")
+    subparsers = parser.add_subparsers(dest="command")
 
     subparsers.add_parser("devices", help="List available audio input devices")
     subparsers.add_parser("setup", help="Interactive setup to configure provider")
 
     record_parser = subparsers.add_parser("record", help="Record and transcribe audio")
-    record_parser.add_argument(
-        "--duration",
-        type=float,
-        help="Recording duration in seconds (0 = wait for key)",
-    )
-    record_parser.add_argument(
-        "--provider",
-        type=str,
-        choices=["groq", "voxtral", "parakeet"],
-        help="Transcription provider to use",
-    )
-    record_parser.add_argument(
-        "--output",
-        type=str,
-        choices=["clipboard", "stdout"],
-        default="clipboard",
-        help="Output method: 'clipboard' or 'stdout' (default: clipboard)",
-    )
-    record_parser.add_argument("--model", type=str, help="Whisper model to use")
+    _add_record_args(record_parser)
+
+    # Record args also on main parser so they work without "record" subcommand
+    _add_record_args(parser)
 
     parser.add_argument(
-        "--duration",
-        type=float,
-        help="Recording duration in seconds (0 = wait for key)",
-    )
-    parser.add_argument("--model", type=str, help="Whisper model to use")
-    parser.add_argument(
-        "--provider",
-        type=str,
-        choices=["groq", "voxtral", "parakeet"],
-        help="Transcription provider to use",
+        "--source-hash",
+        action="store_true",
+        help="Print the source hash embedded in this binary",
     )
     parser.add_argument(
         "--language",
         type=str,
         help="Language code for transcription",
-    )
-    parser.add_argument(
-        "--output",
-        type=str,
-        choices=["clipboard", "stdout"],
-        default="clipboard",
-        help="Output method: 'clipboard' or 'stdout' (default: clipboard)",
     )
     parser.add_argument(
         "--device",
@@ -284,7 +247,20 @@ def main():
         help="Path to log file (default: /tmp/voice-to-text.log or config value)",
     )
 
+    # Same general args on record_parser so they work under "record" subcommand
+    record_parser.add_argument("--language", type=str, help=argparse.SUPPRESS)
+    record_parser.add_argument("--device", type=int, help=argparse.SUPPRESS)
+    record_parser.add_argument("--log-file", type=str, help=argparse.SUPPRESS)
+
     args = parser.parse_args()
+
+    if args.command is None:
+        args.command = "record"
+
+    if args.source_hash:
+        h = source_hash()
+        print(h if h else "no-source-hash")
+        return
 
     config_mgr = load_config()
     log_file_config = config_mgr.get_logging_config().get("file")
@@ -314,12 +290,8 @@ def main():
 
     load_dotenv()
 
-    provider_override = (
-        args.provider if hasattr(args, "provider") and args.provider else None
-    )
-    language_override = (
-        args.language if hasattr(args, "language") and args.language else None
-    )
+    provider_override = args.provider
+    language_override = args.language
     selected_provider = provider_override or config_mgr.get_selected_provider()
     provider_config = config_mgr.get_provider_config(selected_provider)
 
@@ -334,10 +306,7 @@ def main():
     audio_config = config_mgr.config.get("audio", {})
     default_duration = audio_config.get("duration", 0)
     duration = args.duration if args.duration is not None else default_duration
-
-    output_mode = (
-        args.output if hasattr(args, "output") and args.output else "clipboard"
-    )
+    output_mode = args.output
 
     if output_mode == "stdout":
         run_stdout_mode(args, config_mgr, transcriber, language, duration)
@@ -346,73 +315,50 @@ def main():
     print("Recording... (press ESC or Q to cancel, ENTER to continue)")
     print("-" * 60)
 
-    SMOOTH = 0.7
-
-    smoothed_level = 0.0
-    recorded_frames = collections.deque(maxlen=MAX_RECORDED_FRAMES_LEN)
-    start_time = time.time()
-
-    def audio_callback(indata, frames, time_info, status):
-        nonlocal smoothed_level
-        float_data = indata[:, 0].astype(np.float32) / 32768.0
-        recorded_frames.append(indata.copy())
-        rms = math.sqrt(np.mean(float_data**2))
-        smoothed_level = SMOOTH * smoothed_level + (1 - SMOOTH) * rms
-
-    stream = sd.InputStream(
-        samplerate=SAMPLE_RATE,
-        channels=1,
-        blocksize=BLOCK_SIZE,
-        dtype="int16",
-        callback=audio_callback,
-        device=args.device,
+    decrease_pct = (
+        args.decrease_speaker_volume
+        if args.decrease_speaker_volume is not None
+        else config_mgr.get_speaker_config().get("decrease_volume", 0)
     )
-    stream.start()
-    old_settings = termios.tcgetattr(sys.stdin.fileno())
-    try:
-        tty.setcbreak(sys.stdin.fileno())
-        print("Recording... (ESC/Q to cancel, ENTER to continue)", flush=True)
 
-        while True:
-            if select.select([sys.stdin], [], [], 0.03)[0]:
-                key = sys.stdin.read(1)
-                if key in ("q", "Q") or ord(key) == 27:
-                    print("\nExiting without transcription")
-                    sys.exit(0)
-                elif key == "\n" or key == "\r":
-                    break
+    recorder = AudioRecorder(device=args.device, smooth_factor=0.7)
+    with SpeakerVolumeManager.with_decrease(decrease_pct):
+        recorder.start()
+        start_time = time.time()
+        try:
+            old_settings = termios.tcgetattr(sys.stdin.fileno())
+            try:
+                tty.setcbreak(sys.stdin.fileno())
+                print("Recording... (ESC/Q to cancel, ENTER to continue)", flush=True)
 
-            if duration > 0 and (time.time() - start_time) > duration:
-                break
+                while True:
+                    if select.select([sys.stdin], [], [], 0.03)[0]:
+                        key = sys.stdin.read(1)
+                        if key in ("q", "Q") or ord(key) == 27:
+                            print("\nExiting without transcription")
+                            sys.exit(0)
+                        elif key == "\n" or key == "\r":
+                            break
 
-            level = min(1.0, smoothed_level)
-            filled = int(level * METER_WIDTH)
+                    if duration > 0 and (time.time() - start_time) > duration:
+                        break
 
-            if level < 0.13:
-                color = GREY
-            elif level < 0.5:
-                color = GREEN
-            elif level < 0.7:
-                color = YELLOW
-            else:
-                color = RED
+                    elapsed = time.time() - start_time
+                    bar = format_level_bar(recorder.smoothed_level, elapsed)
+                    sys.stdout.write(bar)
+                    sys.stdout.flush()
+            finally:
+                termios.tcsetattr(sys.stdin, termios.TCSADRAIN, old_settings)
+                print()
+        finally:
+            recorder.stop()
 
-            bar = BLOCK * filled + " " * (METER_WIDTH - filled)
-            elapsed = time.time() - start_time
-            sys.stdout.write(f"\r[{color}{bar}{RESET}] {elapsed:.1f}s   ")
-            sys.stdout.flush()
-    finally:
-        termios.tcsetattr(sys.stdin, termios.TCSADRAIN, old_settings)
-        print()
-    stream.stop()
-    stream.close()
-
-    if not recorded_frames:
+    if recorder.frame_count == 0:
         print("ERROR:No audio recorded")
         sys.exit(1)
 
     try:
-        text = transcribe_audio(recorded_frames, SAMPLE_RATE, transcriber, language)
+        text = transcribe_audio(recorder.filepath, transcriber, language)
     except Exception as e:
         logger.exception("Transcription failed: %s", e)
         print(f"ERROR:Transcription failed: {e}")
@@ -427,7 +373,7 @@ def main():
         logger.info("Copied to clipboard: %s", text[:50])
     else:
         logger.error("Clipboard copy failed")
-        print(f"ERROR:Clipboard copy failed")
+        print("ERROR:Clipboard copy failed")
 
 
 if __name__ == "__main__":

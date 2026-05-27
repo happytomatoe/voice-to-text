@@ -4,6 +4,7 @@ import tempfile
 import os
 
 from voice_to_text.config import ConfigManager
+from voice_to_text.providers import get_provider
 
 @pytest.fixture
 def groq_config():
@@ -28,14 +29,35 @@ def test_config_management(groq_config):
     provider_config = config_mgr.get_provider_config(provider)
     assert 'api_key_env' in provider_config
 
-def test_provider_instantiation():
-    config_mgr = ConfigManager('/home/l/git/voice_to_text/config.yaml')
+def test_provider_instantiation(groq_config):
+    config_mgr = ConfigManager(groq_config)
     provider_name = config_mgr.get_selected_provider()
     provider_config = config_mgr.get_provider_config(provider_name)
 
-    from voice_to_text.providers import get_provider
     try:
         provider = get_provider(provider_name, provider_config)
         assert provider.name == provider_name
     except ValueError as e:
         assert "not set" in str(e)
+
+def test_speaker_config_defaults(groq_config):
+    config_mgr = ConfigManager(groq_config)
+    speaker_config = config_mgr.get_speaker_config()
+    assert speaker_config == {}
+
+def test_speaker_config_with_values():
+    config_content = """
+audio:
+  speaker:
+    decrease_volume: 50
+"""
+    with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as f:
+        f.write(config_content)
+        config_path = f.name
+
+    try:
+        config_mgr = ConfigManager(config_path)
+        speaker_config = config_mgr.get_speaker_config()
+        assert speaker_config.get("decrease_volume") == 50
+    finally:
+        os.unlink(config_path)

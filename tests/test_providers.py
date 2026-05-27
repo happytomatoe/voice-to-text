@@ -1,7 +1,5 @@
 """Tests for transcription providers."""
 import pytest
-import sys
-sys.path.insert(0, 'src')
 
 from voice_to_text.providers import get_provider, TranscriptionProvider
 from voice_to_text.providers.groq import GroqProvider

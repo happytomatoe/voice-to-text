@@ -1,7 +1,5 @@
 """Tests for Voxtral provider."""
 import pytest
-import sys
-sys.path.insert(0, 'src')
 
 from voice_to_text.providers import get_provider
 from voice_to_text.providers.voxtral import VoxtralProvider
