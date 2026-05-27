@@ -19,7 +19,7 @@ import sounddevice as sd
 import yaml
 from dotenv import load_dotenv
 
-from voice_to_text import __version__, source_hash
+from voice_to_text import source_hash
 from voice_to_text.providers import get_provider
 from voice_to_text.config import ConfigManager
 from voice_to_text.audio import (
@@ -242,11 +242,6 @@ def main():
     _add_record_args(parser)
 
     parser.add_argument(
-        "--version",
-        action="store_true",
-        help="Show version and source hash",
-    )
-    parser.add_argument(
         "--source-hash",
         action="store_true",
         help="Print the source hash embedded in this binary",
@@ -275,14 +270,6 @@ def main():
     if args.source_hash:
         h = source_hash()
         print(h if h else "no-source-hash")
-        return
-
-    if args.version:
-        h = source_hash()
-        parts = [f"voice-to-text {__version__}"]
-        if h:
-            parts.append(f"source {h}")
-        print(" ".join(parts))
         return
 
     config_mgr = load_config()
