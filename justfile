@@ -19,7 +19,7 @@ uninstall:
 reinstall:
     #!/usr/bin/env bash
     set -euo pipefail
-    SOURCE_HASH=$(find src/voice_to_text -name '*.py' ! -name '_build_info.py' -type f -exec sha256sum {} + | sort | sha256sum | cut -d' ' -f1)
+    SOURCE_HASH=$( (find src/voice_to_text -name '*.py' ! -name '_build_info.py' -type f; echo "voice-to-text.spec") | xargs sha256sum | sort | sha256sum | cut -d' ' -f1)
     BINARY="$HOME/.local/bin/voice-to-text"
     if [ -x "$BINARY" ]; then
         EMBEDDED_HASH=$("$BINARY" --source-hash 2>/dev/null || echo "")
@@ -49,7 +49,7 @@ build-python:
 build-binary:
     #!/usr/bin/env bash
     set -e
-    SOURCE_HASH=$(find src/voice_to_text -name '*.py' ! -name '_build_info.py' -type f -exec sha256sum {} + | sort | sha256sum | cut -d' ' -f1)
+    SOURCE_HASH=$( (find src/voice_to_text -name '*.py' ! -name '_build_info.py' -type f; echo "voice-to-text.spec") | xargs sha256sum | sort | sha256sum | cut -d' ' -f1)
     printf 'SOURCE_HASH = "%s"\n' "$SOURCE_HASH" > src/voice_to_text/_build_info.py
     uv run pyinstaller voice-to-text.spec
     echo "Binary built to dist/voice-to-text"

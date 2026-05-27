@@ -82,4 +82,8 @@ class ConfigManager:
 
     def get_speaker_config(self) -> Dict[str, Any]:
         """Get speaker volume configuration."""
-        return self.config.get("audio", {}).get("speaker", {})
+        audio_cfg = self.config.get("audio") or {}
+        if not isinstance(audio_cfg, dict):
+            return {}
+        speaker_cfg = audio_cfg.get("speaker") or {}
+        return speaker_cfg if isinstance(speaker_cfg, dict) else {}

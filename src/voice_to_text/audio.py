@@ -150,6 +150,7 @@ class SpeakerVolumeManager:
             logger.info("Saved speaker volume: %.0f%%", self._saved_volume * 100)
 
     def decrease(self, percent: int):
+        percent = max(0, min(100, percent))
         if percent <= 0:
             return
         current = self._get_volume()
@@ -182,7 +183,11 @@ class SpeakerVolumeManager:
     @classmethod
     def with_decrease(cls, percent: int) -> "SpeakerVolumeManager":
         mgr = cls()
-        if percent > 0:
+        try:
+            pct = max(0, min(100, int(percent)))
+        except (TypeError, ValueError):
+            return mgr
+        if pct > 0:
             mgr.save()
-            mgr.decrease(percent)
+            mgr.decrease(pct)
         return mgr

@@ -135,12 +135,12 @@ def run_stdout_mode(args, config_mgr, transcriber, language, duration):
     )
 
     recorder = AudioRecorder(device=args.device)
-    recorder.start()
-    start_time = time.time()
-    last_level_time = time.time()
-    level_count = 0
 
     with SpeakerVolumeManager.with_decrease(decrease_pct):
+        recorder.start()
+        start_time = time.time()
+        last_level_time = time.time()
+        level_count = 0
         try:
             while not stop_requested:
                 if duration > 0 and (time.time() - start_time) > duration:
@@ -313,9 +313,9 @@ def main():
     )
 
     recorder = AudioRecorder(device=args.device, smooth_factor=0.7)
-    recorder.start()
-    start_time = time.time()
     with SpeakerVolumeManager.with_decrease(decrease_pct):
+        recorder.start()
+        start_time = time.time()
         try:
             old_settings = termios.tcgetattr(sys.stdin.fileno())
             try:
