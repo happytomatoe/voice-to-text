@@ -5,16 +5,13 @@ import select
 import signal
 import termios
 import time
-import tempfile
 import tty
 import subprocess
 import sys
 import os
 import logging
-import wave
 from pathlib import Path
 
-import numpy as np
 import sounddevice as sd
 import yaml
 from dotenv import load_dotenv
@@ -24,9 +21,7 @@ from voice_to_text.providers import get_provider
 from voice_to_text.config import ConfigManager
 from voice_to_text.audio import (
     AudioRecorder,
-    SAMPLE_RATE,
     SpeakerVolumeManager,
-    compute_rms,
     format_level_bar,
 )
 
@@ -103,31 +98,19 @@ def setup_interactive():
         print(f"Failed to save configuration: {e}")
 
 
-def transcribe_audio(recorded_frames, sample_rate, transcriber, language):
-    if not recorded_frames:
-        return None
-
-    audio_data = np.concatenate(recorded_frames, axis=0)
-    with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as f:
-        with wave.open(f.name, "wb") as wf:
-            wf.setnchannels(1)
-            wf.setsampwidth(2)
-            wf.setframerate(sample_rate)
-            wf.writeframes(audio_data.tobytes())
-        audio_path = f.name
-
-        try:
-            logger.info("Starting transcription")
-            start_time = time.time()
-            text = transcriber.transcribe_file(audio_path, language=language)
-            elapsed = time.time() - start_time
-            logger.info("Transcription complete in %.2fs: %s", elapsed, text[:100])
-            return text.strip()
-        except Exception as e:
-            logger.exception("Transcription failed")
-            raise
-        finally:
-            os.remove(audio_path)
+def transcribe_audio(audio_path: str, transcriber, language) -> str | None:
+    try:
+        logger.info("Starting transcription from %s", audio_path)
+        start_time = time.time()
+        text = transcriber.transcribe_file(audio_path, language=language)
+        elapsed = time.time() - start_time
+        logger.info("Transcription complete in %.2fs: %s", elapsed, text[:100])
+        return text.strip()
+    except Exception as e:
+        logger.exception("Transcription failed")
+        raise
+    finally:
+        os.remove(audio_path)
 
 
 def run_stdout_mode(args, config_mgr, transcriber, language, duration):
@@ -165,12 +148,10 @@ def run_stdout_mode(args, config_mgr, transcriber, language, duration):
 
                 now = time.time()
                 if now - last_level_time >= LEVEL_INTERVAL:
-                    if recorder.frames:
-                        latest = recorder.frames[-1]
-                        rms = compute_rms(latest)
+                    if recorder.frame_count:
                         level_count += 1
-                        logger.debug("LEVEL[%d]: %.4f", level_count, rms)
-                        print(f"LEVEL:{rms:.4f}", flush=True)
+                        logger.debug("LEVEL[%d]: %.4f", level_count, recorder.smoothed_level)
+                        print(f"LEVEL:{recorder.smoothed_level:.4f}", flush=True)
                     last_level_time = now
 
                 time.sleep(0.02)
@@ -182,12 +163,12 @@ def run_stdout_mode(args, config_mgr, transcriber, language, duration):
             recorder.stop()
             logger.info(
                 "Audio stream stopped, collected %d frames, %d level readings",
-                len(recorder.frames),
+                recorder.frame_count,
                 level_count,
             )
 
     try:
-        text = transcribe_audio(recorder.frames, SAMPLE_RATE, transcriber, language)
+        text = transcribe_audio(recorder.filepath, transcriber, language)
         if text:
             print(f"TEXT:{text}", flush=True)
         else:
@@ -363,12 +344,12 @@ def main():
         finally:
             recorder.stop()
 
-    if not recorder.frames:
+    if recorder.frame_count == 0:
         print("ERROR:No audio recorded")
         sys.exit(1)
 
     try:
-        text = transcribe_audio(recorder.frames, SAMPLE_RATE, transcriber, language)
+        text = transcribe_audio(recorder.filepath, transcriber, language)
     except Exception as e:
         logger.exception("Transcription failed: %s", e)
         print(f"ERROR:Transcription failed: {e}")

@@ -1,11 +1,12 @@
 """Audio recording and level metering utilities."""
 
 import math
+import os
 import re
-import collections
 import subprocess
 import logging
-from typing import Deque
+import tempfile
+import wave
 
 import numpy as np
 import sounddevice as sd
@@ -14,7 +15,6 @@ logger = logging.getLogger(__name__)
 
 SAMPLE_RATE = 16000
 BLOCK_SIZE = 2048
-MAX_RECORDED_FRAMES_LEN = int(SAMPLE_RATE * 5)
 
 METER_WIDTH = 50
 GREY = "\033[90m"
@@ -26,16 +26,26 @@ BLOCK = "\u2588"
 
 
 class AudioRecorder:
-    """Manages audio recording with frame collection and level smoothing."""
+    """Records audio directly to a WAV file with level smoothing."""
 
     def __init__(self, device: int | None = None, smooth_factor: float = 0.7):
         self.device = device
         self.smooth_factor = smooth_factor
-        self.frames: Deque[np.ndarray] = collections.deque(maxlen=MAX_RECORDED_FRAMES_LEN)
         self.smoothed_level: float = 0.0
+        self.frame_count: int = 0
+        self.filepath: str | None = None
         self._stream: sd.InputStream | None = None
+        self._wav: wave.Wave_write | None = None
 
     def start(self):
+        fd, self.filepath = tempfile.mkstemp(suffix=".wav")
+        fh = os.fdopen(fd, "wb")
+        self._wav = wave.open(fh, "wb")
+        self._wav.setnchannels(1)
+        self._wav.setsampwidth(2)
+        self._wav.setframerate(SAMPLE_RATE)
+        self.frame_count = 0
+
         self._stream = sd.InputStream(
             samplerate=SAMPLE_RATE,
             channels=1,
@@ -51,21 +61,20 @@ class AudioRecorder:
             self._stream.stop()
             self._stream.close()
             self._stream = None
+        if self._wav:
+            self._wav.close()
+            self._wav = None
+        return self.filepath
 
     def _callback(self, indata: np.ndarray, frames: int, time_info, status):
-        self.frames.append(indata.copy())
+        self._wav.writeframes(indata.tobytes())
+        self.frame_count += 1
         float_data = indata[:, 0].astype(np.float32) / 32768.0
         rms = math.sqrt(np.mean(float_data**2))
         self.smoothed_level = (
             self.smooth_factor * self.smoothed_level
             + (1 - self.smooth_factor) * rms
         )
-
-
-def compute_rms(indata: np.ndarray) -> float:
-    samples = indata[:, 0].astype(np.float64)
-    rms = math.sqrt(np.mean(samples**2))
-    return min(rms / 32768.0, 1.0)
 
 
 def format_level_bar(level: float, elapsed: float) -> str:
