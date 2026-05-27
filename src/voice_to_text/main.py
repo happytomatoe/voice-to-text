@@ -243,6 +243,11 @@ def main():
         help="Path to log file (default: /tmp/voice-to-text.log or config value)",
     )
 
+    # Same general args on record_parser so they work under "record" subcommand
+    record_parser.add_argument("--language", type=str, help=argparse.SUPPRESS)
+    record_parser.add_argument("--device", type=int, help=argparse.SUPPRESS)
+    record_parser.add_argument("--log-file", type=str, help=argparse.SUPPRESS)
+
     args = parser.parse_args()
 
     if args.command is None:
