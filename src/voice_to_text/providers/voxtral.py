@@ -50,7 +50,7 @@ class VoxtralProvider(TranscriptionProvider):
                     detail = f": {e.response.json()}"
                 except ValueError:
                     detail = f": {e.response.text}"
-            raise RuntimeError(f"Voxtral API request failed: {e}{detail}")
+            raise RuntimeError(f"Voxtral API request failed: {e}{detail}") from e
         except Exception as e:
             logger.exception("Voxtral transcription failed")
             raise RuntimeError(f"Voxtral transcription failed: {e}")

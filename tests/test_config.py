@@ -4,6 +4,7 @@ import tempfile
 import os
 
 from voice_to_text.config import ConfigManager
+from voice_to_text.providers import get_provider
 
 @pytest.fixture
 def groq_config():
@@ -33,7 +34,6 @@ def test_provider_instantiation(groq_config):
     provider_name = config_mgr.get_selected_provider()
     provider_config = config_mgr.get_provider_config(provider_name)
 
-    from voice_to_text.providers import get_provider
     try:
         provider = get_provider(provider_name, provider_config)
         assert provider.name == provider_name
