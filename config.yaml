@@ -25,7 +25,7 @@ audio:
   block_size: 2048
   smooth_factor: 0.7
   speaker:
-    decrease_volume: 0  # 0-100: % to decrease speaker volume when recording (0=no change, 100=mute)
+    decrease_volume: 50  # 0-100: % to decrease speaker volume when recording (0=no change, 100=mute)
 
 logging:
   file: "/tmp/voice-to-text.log"

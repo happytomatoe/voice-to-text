@@ -32,7 +32,7 @@
       <description>Prevent the system from automatically going to sleep while a recording session is active</description>
     </key>
     <key name="decrease-speaker-volume" type="i">
-      <default>0</default>
+      <default>50</default>
       <range min="0" max="100"/>
       <summary>Decrease speaker volume during recording</summary>
       <description>Percentage to decrease speaker output volume when recording (0=no change, 100=mute)</description>
