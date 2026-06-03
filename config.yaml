@@ -30,3 +30,7 @@ audio:
 logging:
   file: "/tmp/voice-to-text.log"
   level: "info"
+
+usage_tracking:
+  enabled: true
+  db_path: "~/.local/share/voice-to-text/usage.db"

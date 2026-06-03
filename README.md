@@ -6,10 +6,12 @@ Convert speech to text for free by using free APIs on Linux
 
 Cloud:
 
-- Voxtral
-- Groq
-  Local
-- Parakeet
+- **Voxtral** (Mistral) — ASR model. Free tier (Experiment): 2 req/min, 1B tokens/month. Paid: $0.001/min (Mini) / $0.004/min (Small).
+- **Groq** — Whisper on LPU hardware. Free tier: 20 req/min, 2,000 req/day for whisper models. Paid: $0.04/hr (v3 Turbo) / $0.111/hr (v3 Large).
+
+Local:
+
+- **Parakeet** (NVIDIA) — Runs locally via Docker. No API limits. Free.
 
 This repo contains gnome extension and python application
 

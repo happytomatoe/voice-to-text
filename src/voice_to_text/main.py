@@ -16,9 +16,11 @@ import sounddevice as sd
 import yaml
 from dotenv import load_dotenv
 
-from voice_to_text import source_hash
+from voice_to_text import default_db_path, source_hash
 from voice_to_text.providers import get_provider
 from voice_to_text.config import ConfigManager
+from voice_to_text.usage_db import UsageDB
+from voice_to_text.stats_reporter import show_stats
 from voice_to_text.audio import (
     AudioRecorder,
     SpeakerVolumeManager,
@@ -98,14 +100,14 @@ def setup_interactive():
         print(f"Failed to save configuration: {e}")
 
 
-def transcribe_audio(audio_path: str, transcriber, language) -> str | None:
+def transcribe_audio(audio_path: str, transcriber, language) -> tuple[str | None, float]:
     try:
         logger.info("Starting transcription from %s", audio_path)
         start_time = time.time()
         text = transcriber.transcribe_file(audio_path, language=language)
         elapsed = time.time() - start_time
         logger.info("Transcription complete in %.2fs: %s", elapsed, text[:100])
-        return text.strip()
+        return text.strip(), elapsed
     except Exception as e:
         logger.exception("Transcription failed")
         raise
@@ -113,7 +115,33 @@ def transcribe_audio(audio_path: str, transcriber, language) -> str | None:
         os.remove(audio_path)
 
 
-def run_stdout_mode(args, config_mgr, transcriber, language, duration):
+def _get_model_name(transcriber) -> str | None:
+    return getattr(transcriber, "model", None) or getattr(transcriber, "model_name", None)
+
+
+def _record_usage(
+    usage_db: UsageDB | None,
+    text: str,
+    provider: str,
+    transcriber,
+    language: str,
+    recording_duration: float,
+    api_response_time: float,
+):
+    if usage_db is None:
+        return
+    usage_db.record_session(
+        provider=provider,
+        model=_get_model_name(transcriber),
+        language=language,
+        recording_duration_seconds=recording_duration,
+        api_response_time_seconds=api_response_time,
+        word_count=len(text.split()),
+        character_count=len(text),
+    )
+
+
+def run_stdout_mode(args, config_mgr, usage_db, transcriber, language, duration):
     LEVEL_INTERVAL = 0.1
 
     logger.info(
@@ -167,12 +195,23 @@ def run_stdout_mode(args, config_mgr, transcriber, language, duration):
                 level_count,
             )
 
+    recording_duration = time.time() - start_time
+
     if recorder.frame_count == 0:
         print("ERROR:No audio recorded", flush=True)
         sys.exit(1)
 
     try:
-        text = transcribe_audio(recorder.filepath, transcriber, language)
+        text, api_response_time = transcribe_audio(recorder.filepath, transcriber, language)
+        _record_usage(
+            usage_db,
+            text=text,
+            provider=transcriber.name,
+            transcriber=transcriber,
+            language=language,
+            recording_duration=recording_duration,
+            api_response_time=api_response_time,
+        )
         if text:
             print(f"TEXT:{text}", flush=True)
         else:
@@ -219,6 +258,40 @@ def main():
 
     subparsers.add_parser("devices", help="List available audio input devices")
     subparsers.add_parser("setup", help="Interactive setup to configure provider")
+
+    stats_parser = subparsers.add_parser("stats", help="Show usage statistics")
+    stats_parser.add_argument(
+        "--daily", action="store_true", help="Show daily breakdown"
+    )
+    stats_parser.add_argument(
+        "--weekly", action="store_true", help="Show weekly breakdown"
+    )
+    stats_parser.add_argument(
+        "--monthly", action="store_true", help="Show monthly breakdown"
+    )
+    stats_parser.add_argument(
+        "--by-provider",
+        action="store_true",
+        help="Show breakdown by provider",
+    )
+    stats_parser.add_argument(
+        "--json", action="store_true", help="Output as JSON"
+    )
+    stats_parser.add_argument(
+        "--since",
+        type=str,
+        help="Start date (YYYY-MM-DD) for stats period",
+    )
+    stats_parser.add_argument(
+        "--until",
+        type=str,
+        help="End date (YYYY-MM-DD) for stats period",
+    )
+    stats_parser.add_argument(
+        "--db-path",
+        type=str,
+        help="Path to usage database",
+    )
 
     record_parser = subparsers.add_parser("record", help="Record and transcribe audio")
     _add_record_args(record_parser)
@@ -288,7 +361,31 @@ def main():
         setup_interactive()
         return
 
+    if args.command == "stats":
+        usage_tracking_config = config_mgr.get_usage_tracking_config()
+        db_path = args.db_path or usage_tracking_config.get("db_path")
+        if db_path:
+            db_path = str(Path(db_path).expanduser())
+        else:
+            db_path = str(default_db_path())
+        usage_db = UsageDB(db_path)
+        print(show_stats(usage_db, args))
+        usage_db.close()
+        return
+
     load_dotenv()
+
+    usage_tracking_config = config_mgr.get_usage_tracking_config()
+    if usage_tracking_config.get("enabled", True):
+        db_path = usage_tracking_config.get("db_path")
+        if db_path:
+            db_path = str(Path(db_path).expanduser())
+        else:
+            db_path = str(default_db_path())
+        usage_db = UsageDB(db_path)
+        logger.info("Usage tracking enabled, db: %s", db_path)
+    else:
+        usage_db = None
 
     provider_override = args.provider
     language_override = args.language
@@ -309,7 +406,7 @@ def main():
     output_mode = args.output
 
     if output_mode == "stdout":
-        run_stdout_mode(args, config_mgr, transcriber, language, duration)
+        run_stdout_mode(args, config_mgr, usage_db, transcriber, language, duration)
         return
 
     print("Recording... (press ESC or Q to cancel, ENTER to continue)")
@@ -353,12 +450,14 @@ def main():
         finally:
             recorder.stop()
 
+    recording_duration = time.time() - start_time
+
     if recorder.frame_count == 0:
         print("ERROR:No audio recorded")
         sys.exit(1)
 
     try:
-        text = transcribe_audio(recorder.filepath, transcriber, language)
+        text, api_response_time = transcribe_audio(recorder.filepath, transcriber, language)
     except Exception as e:
         logger.exception("Transcription failed: %s", e)
         print(f"ERROR:Transcription failed: {e}")
@@ -368,6 +467,16 @@ def main():
         logger.warning("No speech detected")
         print("ERROR:No speech detected")
         sys.exit(1)
+
+    _record_usage(
+        usage_db,
+        text=text,
+        provider=transcriber.name,
+        transcriber=transcriber,
+        language=language,
+        recording_duration=recording_duration,
+        api_response_time=api_response_time,
+    )
 
     if copy_to_clipboard(text):
         logger.info("Copied to clipboard: %s", text[:50])
