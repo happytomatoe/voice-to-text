@@ -214,82 +214,121 @@ def transcribe_audio(audio_path: str, transcriber, language) -> str | None:
         os.remove(audio_path)
 
 
-def run_benchmark(args, config_mgr):
-    from voice_to_text.providers import get_provider
+class _LogCollector(logging.Handler):
+    """Captures log messages in a list during benchmark."""
 
+    def __init__(self):
+        super().__init__()
+        self.records = []
+
+    def emit(self, record):
+        self.records.append(self.format(record))
+
+
+def run_benchmark(args, config_mgr):
     ALL_PROVIDERS = ["deepgram", "groq", "voxtral", "parakeet"]
 
     if args.audio_file:
         audio_path = args.audio_file
-        print(f"Using audio file: {audio_path}")
     else:
         duration = args.duration
-        print(f"Recording for {duration}s...")
         recorder = AudioRecorder(device=args.device)
         recorder.start()
         time.sleep(duration)
         recorder.stop()
         audio_path = recorder.filepath
-        frame_count = recorder.frame_count
-        print(f"Recorded {frame_count} frames ({duration}s)")
 
     provider_names = [p.strip() for p in args.providers.split(",")] if args.providers else ALL_PROVIDERS
     providers = []
     for name in provider_names:
         if name not in ALL_PROVIDERS:
-            print(f"  {name}: SKIP (unknown provider)")
             continue
         try:
             provider_config = config_mgr.get_provider_config(name)
             p = get_provider(name, provider_config)
             providers.append(p)
-        except (ValueError, Exception) as e:
-            print(f"  {name}: SKIP ({e})")
+        except (ValueError, Exception):
+            pass
 
     if not providers:
         print("No providers available to benchmark.")
         return
 
+    collector = _LogCollector()
+    collector.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s"))
+    log_root = logging.getLogger()
+    log_root.addHandler(collector)
+    prev_level = log_root.level
+    log_root.setLevel(logging.INFO)
+
     num_runs = args.runs
-    print(f"\nBenchmarking {len(providers)} provider(s), {num_runs} run(s) each...")
     results = {}
 
     for provider in providers:
-        times = []
-        print(f"\n  {provider.name}:")
+        runs = []
         for i in range(num_runs):
             try:
                 start = time.time()
                 text = provider.transcribe_file(audio_path)
                 elapsed = time.time() - start
-                times.append(elapsed)
-                print(f"    Run {i+1}: {elapsed:.2f}s  \"{text[:60]}\"")
+                runs.append({"elapsed": elapsed, "text": text, "ok": True})
             except Exception as e:
-                print(f"    Run {i+1}: FAILED ({e})")
-        if times:
-            avg = sum(times) / len(times)
+                runs.append({"elapsed": 0.0, "text": f"FAILED: {e}", "ok": False})
+        ok_runs = [r for r in runs if r["ok"]]
+        if ok_runs:
+            times = [r["elapsed"] for r in ok_runs]
             results[provider.name] = {
-                "avg": avg, "min": min(times), "max": max(times), "times": times
+                "avg": sum(times) / len(times),
+                "min": min(times),
+                "max": max(times),
+                "runs": runs,
             }
 
-    if results:
-        fastest = min(results.items(), key=lambda x: x[1]["avg"])[0]
-        print()
-        print(f"{'='*66}")
-        print(f"{'Provider':<15} {'Avg (s)':<12} {'Min (s)':<12} {'Max (s)':<12}  {'+/-%':<10}")
-        print(f"{'-'*15} {'-'*12} {'-'*12} {'-'*12}  {'-'*10}")
-        sorted_results = sorted(results.items(), key=lambda x: x[1]["avg"])
-        base_avg = sorted_results[0][1]["avg"]
-        for name, s in sorted_results:
-            pct = ((s["avg"] - base_avg) / base_avg) * 100 if base_avg > 0 else 0
-            marker = " <- fastest" if name == fastest else ""
-            spread = (s["max"] - s["min"]) / s["avg"] * 100 if s["avg"] > 0 else 0
-            print(f"{name:<15} {s['avg']:<12.2f} {s['min']:<12.2f} {s['max']:<12.2f}  {'+' if pct > 0 else ''}{pct:<8.1f}%{marker}")
-        print(f"{'='*66}")
-        print(f"Fastest: {fastest} ({sorted_results[0][1]['avg']:.2f}s avg)")
+    log_root.removeHandler(collector)
+    log_root.setLevel(prev_level)
 
     if not args.audio_file and audio_path and Path(audio_path).exists():
         os.remove(audio_path)
+
+    sep = "=" * 66
+    sorted_results = sorted(results.items(), key=lambda x: x[1]["avg"]) if results else []
+
+    # Section 1: raw logs
+    print(sep)
+    print("RAW LOGS")
+    print(sep)
+    for line in collector.records:
+        print(f"  {line}")
+
+    # Section 2: timing table
+    if sorted_results:
+        fastest = sorted_results[0][0]
+        base_avg = sorted_results[0][1]["avg"]
+        print(f"\n{sep}")
+        print("TIMING")
+        print(sep)
+        print(f"  {'Provider':<15} {'Avg (s)':<12} {'Min (s)':<12} {'Max (s)':<12}  {'+/-%':<10}")
+        print(f"  {'-'*15} {'-'*12} {'-'*12} {'-'*12}  {'-'*10}")
+        for name, s in sorted_results:
+            pct = ((s["avg"] - base_avg) / base_avg) * 100 if base_avg > 0 else 0
+            marker = " <- fastest" if name == fastest else ""
+            print(f"  {name:<15} {s['avg']:<12.2f} {s['min']:<12.2f} {s['max']:<12.2f}  {'+' if pct > 0 else ''}{pct:<8.1f}%{marker}")
+        print(sep)
+        print(f"  Fastest: {fastest} ({sorted_results[0][1]['avg']:.2f}s avg)")
+
+    # Section 3: full text
+    has_text = any(r["text"] for s in results.values() for r in s["runs"])
+    if has_text:
+        print(f"\n{sep}")
+        print("TEXT")
+        print(sep)
+        for name, s in sorted_results:
+            for i, run in enumerate(s["runs"], 1):
+                elapsed_str = f"{run['elapsed']:.2f}s" if run["ok"] else "FAILED"
+                print(f"  {name} [{i}/{num_runs}]  {elapsed_str}")
+                for line in run["text"].splitlines():
+                    print(f"    {line}")
+                print()
 
 
 def run_stdout_mode(args, config_mgr, transcriber, language, duration):
