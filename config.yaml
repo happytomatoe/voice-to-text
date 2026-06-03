@@ -3,10 +3,14 @@
 
 # Provider selection
 transcription:
-  provider: "parakeet" # "groq", "voxtral", or "parakeet"
+  provider: "parakeet" # "deepgram", "groq", "voxtral", or "parakeet"
   language: "en"
 
 # Provider-specific configurations
+deepgram:
+  api_key_env: "DEEPGRAM_API_KEY"
+  model: "nova-3"
+
 groq:
   api_key_env: "GROQ_API_KEY"
 

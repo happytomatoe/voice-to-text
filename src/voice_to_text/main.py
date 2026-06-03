@@ -10,6 +10,7 @@ import subprocess
 import sys
 import os
 import logging
+import getpass
 from pathlib import Path
 
 import sounddevice as sd
@@ -61,6 +62,106 @@ def copy_to_clipboard(text: str):
     return False
 
 
+PROVIDER_ENV_VARS = {
+    "deepgram": "DEEPGRAM_API_KEY",
+    "groq": "GROQ_API_KEY",
+    "voxtral": "VOXTRAL_API_KEY",
+}
+
+
+def detect_shell_rc() -> Path | None:
+    shell = os.environ.get("SHELL", "")
+    home = Path.home()
+    if "fish" in shell:
+        return home / ".config" / "fish" / "config.fish"
+    elif "zsh" in shell:
+        return home / ".zshrc"
+    elif "bash" in shell:
+        return home / ".bashrc"
+    return None
+
+
+def setup_key_interactive():
+    import subprocess as _subprocess
+
+    print("voice-to-text API key setup")
+    print("=" * 60)
+
+    api_providers = [
+        (name, PROVIDER_ENV_VARS[name])
+        for name in PROVIDER_ENV_VARS
+    ]
+    print("Select a provider to configure:")
+    for i, (name, env_var) in enumerate(api_providers, 1):
+        print(f"  {i}. {name} ({env_var})")
+
+    choice = input("\nEnter number: ").strip()
+    try:
+        idx = int(choice) - 1
+        if idx < 0 or idx >= len(api_providers):
+            print("Invalid choice.")
+            return
+    except ValueError:
+        print("Invalid choice.")
+        return
+
+    provider_name, env_var = api_providers[idx]
+
+    api_key = getpass.getpass(f"Enter {provider_name} API key: ")
+    if not api_key:
+        print("No key entered. Aborting.")
+        return
+
+    try:
+        _subprocess.run(
+            [
+                "secret-tool",
+                "store",
+                "--label",
+                f"Voice-to-Text {provider_name} API Key",
+                "application",
+                "voice-to-text",
+                "provider",
+                provider_name,
+            ],
+            input=api_key.encode(),
+            check=True,
+            capture_output=True,
+        )
+    except FileNotFoundError:
+        print("ERROR: `secret-tool` not found. Install libsecret-tools or similar.")
+        return
+    except _subprocess.CalledProcessError as e:
+        print(f"ERROR: Failed to store secret: {e.stderr.decode().strip()}")
+        return
+
+    print(f"API key stored securely via secret-tool.")
+
+    rc_path = detect_shell_rc()
+    if rc_path is None:
+        print("WARNING: Unknown shell. Key stored but no environment variable configured.")
+        print(f"Add this manually:\n  export {env_var}=$(secret-tool lookup application voice-to-text provider {provider_name})")
+        return
+
+    lookup_cmd = f"secret-tool lookup application voice-to-text provider {provider_name}"
+    if "fish" in os.environ.get("SHELL", ""):
+        export_line = f"set -x {env_var} ({lookup_cmd})"
+    else:
+        export_line = f"export {env_var}=$({lookup_cmd})"
+
+    rc_path.parent.mkdir(parents=True, exist_ok=True)
+    existing = rc_path.read_text().splitlines() if rc_path.exists() else []
+    already_present = any(env_var in line and "secret-tool lookup" in line for line in existing)
+
+    if already_present:
+        print(f"Environment variable already configured in {rc_path}.")
+    else:
+        with rc_path.open("a") as f:
+            f.write(f"\n# Voice-to-Text: {provider_name} API key\n{export_line}\n")
+        print(f"Added to {rc_path}.")
+        print(f"Restart your shell or run:\n  source {rc_path}")
+
+
 def setup_interactive():
     print("groq-voice setup")
     print("=" * 60)
@@ -110,6 +211,84 @@ def transcribe_audio(audio_path: str, transcriber, language) -> str | None:
         logger.exception("Transcription failed")
         raise
     finally:
+        os.remove(audio_path)
+
+
+def run_benchmark(args, config_mgr):
+    from voice_to_text.providers import get_provider
+
+    ALL_PROVIDERS = ["deepgram", "groq", "voxtral", "parakeet"]
+
+    if args.audio_file:
+        audio_path = args.audio_file
+        print(f"Using audio file: {audio_path}")
+    else:
+        duration = args.duration
+        print(f"Recording for {duration}s...")
+        recorder = AudioRecorder(device=args.device)
+        recorder.start()
+        time.sleep(duration)
+        recorder.stop()
+        audio_path = recorder.filepath
+        frame_count = recorder.frame_count
+        print(f"Recorded {frame_count} frames ({duration}s)")
+
+    provider_names = [p.strip() for p in args.providers.split(",")] if args.providers else ALL_PROVIDERS
+    providers = []
+    for name in provider_names:
+        if name not in ALL_PROVIDERS:
+            print(f"  {name}: SKIP (unknown provider)")
+            continue
+        try:
+            provider_config = config_mgr.get_provider_config(name)
+            p = get_provider(name, provider_config)
+            providers.append(p)
+        except (ValueError, Exception) as e:
+            print(f"  {name}: SKIP ({e})")
+
+    if not providers:
+        print("No providers available to benchmark.")
+        return
+
+    num_runs = args.runs
+    print(f"\nBenchmarking {len(providers)} provider(s), {num_runs} run(s) each...")
+    results = {}
+
+    for provider in providers:
+        times = []
+        print(f"\n  {provider.name}:")
+        for i in range(num_runs):
+            try:
+                start = time.time()
+                text = provider.transcribe_file(audio_path)
+                elapsed = time.time() - start
+                times.append(elapsed)
+                print(f"    Run {i+1}: {elapsed:.2f}s  \"{text[:60]}\"")
+            except Exception as e:
+                print(f"    Run {i+1}: FAILED ({e})")
+        if times:
+            avg = sum(times) / len(times)
+            results[provider.name] = {
+                "avg": avg, "min": min(times), "max": max(times), "times": times
+            }
+
+    if results:
+        fastest = min(results.items(), key=lambda x: x[1]["avg"])[0]
+        print()
+        print(f"{'='*66}")
+        print(f"{'Provider':<15} {'Avg (s)':<12} {'Min (s)':<12} {'Max (s)':<12}  {'+/-%':<10}")
+        print(f"{'-'*15} {'-'*12} {'-'*12} {'-'*12}  {'-'*10}")
+        sorted_results = sorted(results.items(), key=lambda x: x[1]["avg"])
+        base_avg = sorted_results[0][1]["avg"]
+        for name, s in sorted_results:
+            pct = ((s["avg"] - base_avg) / base_avg) * 100 if base_avg > 0 else 0
+            marker = " <- fastest" if name == fastest else ""
+            spread = (s["max"] - s["min"]) / s["avg"] * 100 if s["avg"] > 0 else 0
+            print(f"{name:<15} {s['avg']:<12.2f} {s['min']:<12.2f} {s['max']:<12.2f}  {'+' if pct > 0 else ''}{pct:<8.1f}%{marker}")
+        print(f"{'='*66}")
+        print(f"Fastest: {fastest} ({sorted_results[0][1]['avg']:.2f}s avg)")
+
+    if not args.audio_file and audio_path and Path(audio_path).exists():
         os.remove(audio_path)
 
 
@@ -193,7 +372,7 @@ def _add_record_args(parser_obj):
     parser_obj.add_argument(
         "--provider",
         type=str,
-        choices=["groq", "voxtral", "parakeet"],
+        choices=["deepgram", "groq", "voxtral", "parakeet"],
         help="Transcription provider to use",
     )
     parser_obj.add_argument(
@@ -219,9 +398,29 @@ def main():
 
     subparsers.add_parser("devices", help="List available audio input devices")
     subparsers.add_parser("setup", help="Interactive setup to configure provider")
+    subparsers.add_parser("setup-key", help="Securely store an API key and configure it for your shell")
 
     record_parser = subparsers.add_parser("record", help="Record and transcribe audio")
     _add_record_args(record_parser)
+
+    bench_parser = subparsers.add_parser("benchmark", help="Benchmark provider transcription speed (3 runs each, reports avg)")
+    bench_parser.add_argument(
+        "--duration", type=float, default=10.0, help="Recording duration in seconds (default: 10)"
+    )
+    bench_parser.add_argument(
+        "--audio-file", type=str, help="Use existing audio file instead of recording"
+    )
+    bench_parser.add_argument(
+        "--runs", type=int, default=3, help="Number of transcription runs per provider (default: 3)"
+    )
+    bench_parser.add_argument(
+        "--device", type=int, help="Audio input device index"
+    )
+    bench_parser.add_argument(
+        "--providers",
+        type=str,
+        help="Comma-separated providers to test (default: all configured)",
+    )
 
     # Record args also on main parser so they work without "record" subcommand
     _add_record_args(parser)
@@ -288,7 +487,15 @@ def main():
         setup_interactive()
         return
 
+    if args.command == "setup-key":
+        setup_key_interactive()
+        return
+
     load_dotenv()
+
+    if args.command == "benchmark":
+        run_benchmark(args, config_mgr)
+        return
 
     provider_override = args.provider
     language_override = args.language
