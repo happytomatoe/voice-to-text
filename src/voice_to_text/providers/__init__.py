@@ -1,12 +1,14 @@
 """Transcription provider factory and registry."""
 from typing import Dict, Any, Type
 from .base import TranscriptionProvider
+from .deepgram import DeepgramProvider
 from .groq import GroqProvider
 from .voxtral import VoxtralProvider
 from .parakeet import ParakeetProvider
 
 # Provider registry
 _PROVIDERS: Dict[str, Type[TranscriptionProvider]] = {
+    "deepgram": DeepgramProvider,
     "groq": GroqProvider,
     "voxtral": VoxtralProvider,
     "parakeet": ParakeetProvider,
