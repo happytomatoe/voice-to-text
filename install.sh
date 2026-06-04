@@ -40,9 +40,15 @@ echo "Fetching latest release tag..."
 LATEST_TAG=$(
   git ls-remote --tags --sort=v:refname https://github.com/happytomatoe/voice-to-text | tail -n 1 | awk -F'/' '{print $NF}'
 )
+if [ -z "$LATEST_TAG" ]; then
+  echo "WARNING: No releases found for $REPO; falling back to source checkout for the GNOME extension."
+  HAS_RELEASE=0
+else
+  HAS_RELEASE=1
+fi
 
 if command -v uv &>/dev/null; then
-  if [ -z "$LATEST_TAG" ] || [ "$LATEST_TAG" = "null" ]; then
+  if [ "$HAS_RELEASE" -eq 0 ]; then
     echo "ERROR: No releases found for $REPO."
     echo "Create a release first: https://github.com/$REPO/releases/new"
     exit 1
@@ -69,10 +75,8 @@ echo ""
 echo "--- Installing GNOME extension ---"
 
 echo "Fetching latest release..."
-RELEASE_URL="https://github.com/happytomatoe/voice-to-text/releases/download/$LATEST_TAG/voice-to-text@happytomatoe.com.shell-extension.zip"
-if [ -z "$RELEASE_URL" ] || [ "$RELEASE_URL" = "null" ]; then
-  echo "ERROR: Could not find extension ZIP in latest release."
-  echo "Falling back to installing from source..."
+if [ "$HAS_RELEASE" -eq 0 ]; then
+  echo "Falling back to installing the extension from source..."
   rm -rf "$INSTALL_DIR"
   mkdir -p "$INSTALL_DIR/schemas"
   TMPDIR=$(mktemp -d)
@@ -82,6 +86,7 @@ if [ -z "$RELEASE_URL" ] || [ "$RELEASE_URL" = "null" ]; then
   glib-compile-schemas "$INSTALL_DIR/schemas/"
   rm -rf "$TMPDIR"
 else
+  RELEASE_URL="https://github.com/happytomatoe/voice-to-text/releases/download/$LATEST_TAG/voice-to-text@happytomatoe.com.shell-extension.zip"
   echo "Downloading: $RELEASE_URL"
   cd /tmp
   curl -LO "$RELEASE_URL"

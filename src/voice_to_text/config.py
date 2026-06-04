@@ -13,6 +13,7 @@ class ConfigManager:
     """Manage application configuration with provider support."""
 
     def __init__(self, config_path: str | None = None):
+        self._explicit_config_path = config_path is not None
         # User config path (persistent)
         self.user_config_path = str(
             Path.home() / ".config" / "voice-to-text" / "config.yaml"
@@ -52,14 +53,16 @@ class ConfigManager:
             return {}
 
     def save(self) -> bool:
-        """Save config to a persistent location. If current path is inside a temp
-        directory (e.g. PyInstaller bundle), migrate to user config path."""
+        """Save config to a persistent location. If the path was auto-discovered
+        (i.e. not explicitly provided) and is not the user config dir, redirect
+        writes to the user config path so we never overwrite a bundled/dev
+        config. An explicitly provided path is always respected."""
         target = self.config_path
-        if "_MEI" in target or "/tmp/" in target:
+        if not self._explicit_config_path and target != self.user_config_path:
             target = self.user_config_path
             self.config_path = target
-        Path(target).parent.mkdir(parents=True, exist_ok=True)
         try:
+            Path(target).parent.mkdir(parents=True, exist_ok=True)
             with open(target, "w") as f:
                 yaml.dump(self.config, f)
             return True

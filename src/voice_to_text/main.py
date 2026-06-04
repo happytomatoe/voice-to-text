@@ -14,7 +14,6 @@ import getpass
 from pathlib import Path
 
 import sounddevice as sd
-import yaml
 from dotenv import load_dotenv
 
 from voice_to_text import source_hash
@@ -91,23 +90,37 @@ def setup_key_interactive():
         (name, PROVIDER_ENV_VARS[name])
         for name in PROVIDER_ENV_VARS
     ]
-    print("Select a provider to configure:")
-    for i, (name, env_var) in enumerate(api_providers, 1):
-        print(f"  {i}. {name} ({env_var})")
 
-    choice = input("\nEnter number: ").strip()
-    try:
-        idx = int(choice) - 1
-        if idx < 0 or idx >= len(api_providers):
+    env_provider = os.environ.get("VOICE_TO_TEXT_PROVIDER", "").strip().lower()
+    if env_provider in PROVIDER_ENV_VARS:
+        provider_name, env_var = env_provider, PROVIDER_ENV_VARS[env_provider]
+    else:
+        if not sys.stdin.isatty():
+            print("ERROR: Non-interactive run and VOICE_TO_TEXT_PROVIDER is unset or invalid.")
+            print(f"Set it to one of: {', '.join(PROVIDER_ENV_VARS)}")
+            return
+        print("Select a provider to configure:")
+        for i, (name, env_var) in enumerate(api_providers, 1):
+            print(f"  {i}. {name} ({env_var})")
+
+        choice = input("\nEnter number: ").strip()
+        try:
+            idx = int(choice) - 1
+            if idx < 0 or idx >= len(api_providers):
+                print("Invalid choice.")
+                return
+        except ValueError:
             print("Invalid choice.")
             return
-    except ValueError:
-        print("Invalid choice.")
-        return
 
-    provider_name, env_var = api_providers[idx]
+        provider_name, env_var = api_providers[idx]
 
-    api_key = getpass.getpass(f"Enter {provider_name} API key: ")
+    api_key = os.environ.get("VOICE_TO_TEXT_API_KEY", "").strip()
+    if not api_key:
+        if not sys.stdin.isatty():
+            print("ERROR: Non-interactive run and VOICE_TO_TEXT_API_KEY is unset.")
+            return
+        api_key = getpass.getpass(f"Enter {provider_name} API key: ")
     if not api_key:
         print("No key entered. Aborting.")
         return
@@ -136,6 +149,13 @@ def setup_key_interactive():
         return
 
     print(f"API key stored securely via secret-tool.")
+
+    config_mgr = load_config()
+    config_mgr.config.setdefault("transcription", {})["provider"] = provider_name
+    if not config_mgr.save():
+        print(f"WARNING: Failed to persist provider '{provider_name}' to {config_mgr.config_path}.")
+    else:
+        print(f"Default provider set to '{provider_name}'.")
 
     rc_path = detect_shell_rc()
     if rc_path is None:
@@ -177,26 +197,31 @@ def setup_interactive():
     print(f"Config path: {config_mgr.config_path}")
     print()
 
-    choice = input("Enter your choice (1-2): ").strip()
-
-    if choice == "1":
-        provider = "voxtral"
-    elif choice == "2":
-        provider = "groq"
+    env_provider = os.environ.get("VOICE_TO_TEXT_PROVIDER", "").strip().lower()
+    if env_provider in ("voxtral", "groq"):
+        provider = env_provider
     else:
-        print("Invalid choice. Keeping current provider.")
-        return
+        if not sys.stdin.isatty():
+            print("ERROR: Non-interactive run and VOICE_TO_TEXT_PROVIDER is unset or invalid.")
+            print("Set it to one of: voxtral, groq")
+            return
+        choice = input("Enter your choice (1-2): ").strip()
+        if choice == "1":
+            provider = "voxtral"
+        elif choice == "2":
+            provider = "groq"
+        else:
+            print("Invalid choice. Keeping current provider.")
+            return
 
     config_mgr.config.setdefault("transcription", {})["provider"] = provider
 
-    try:
-        with open(config_mgr.config_path, "w") as f:
-            yaml.dump(config_mgr.config, f)
+    if config_mgr.save():
         print(f"Provider set to: {provider}")
         print(f"Configuration saved to: {config_mgr.config_path}")
         print("Configuration saved successfully!")
-    except Exception as e:
-        print(f"Failed to save configuration: {e}")
+    else:
+        print(f"Failed to save configuration to: {config_mgr.config_path}")
 
 
 def transcribe_audio(audio_path: str, transcriber, language) -> str | None:
