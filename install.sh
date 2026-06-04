@@ -180,58 +180,58 @@ echo "Provider configured: $PROVIDER"
 
 # Create ydotool daemon
 
-# SOCKET_PATH="/run/user/$(id -u)/.ydotool_socket"
-# export YDOTOOL_SOCKET="$SOCKET_PATH"
-#
-# # 1. Check if the service is already running and the socket exists
-# if systemctl --user is-active --quiet ydotool.service && [ -S "$SOCKET_PATH" ]; then
-#   echo "ℹ️ ydotool service is already running. Testing typing..."
-#   echo ""
-#   echo "=== Installation complete ==="
-#   echo ""
-#   echo "Python app: voice-to-text"
-#   echo "GNOME extension: $EXT_UUID (hotkey: Super+W)"
-#   echo ""
-#   echo "Open a new terminal or run: source $PROFILE"
-#   echo "Then test with: voice-to-text"
-#   echo ""
-#   echo "Restart GNOME Shell (Alt+F2, r, Enter on X11) or log out/in on Wayland. Enable extension extension after relogin or reload"
-#
-#   exit 0
-# fi
-#
-# echo "🔄 ydotool is not running or socket is missing. Initializing configuration..."
-#
-# # 2. Create the user-level drop-in override directory
-# mkdir -p "$HOME/.config/systemd/user/ydotool.service.d"
-#
-# # 3. Inject the custom socket path configuration
-# cat <<EOF >"$HOME/.config/systemd/user/ydotool.service.d/socket-path.conf"
-# [Unit]
-# After=user-runtime-dir@%i.service
-# Requires=user-runtime-dir@%i.service
-#
-# [Service]
-# ExecStart=
-# ExecStart=/usr/bin/ydotoold --socket-path=$SOCKET_PATH --socket-perm=666
-# EOF
-#
-# # 4. Reload, enable, and start the service
-# systemctl --user daemon-reload
-# systemctl --user enable ydotool.service
-# systemctl --user restart ydotool.service
-# sleep 1
-#
-# # 5. Final verification check
-# if [ -S "$SOCKET_PATH" ]; then
-#   echo "✅ ydotoold started successfully. Socket at $SOCKET_PATH"
-#   ydotool type -- "voice-to-text fixed"
-# else
-#   echo "❌ Socket not found at $SOCKET_PATH"
-#   systemctl --user status ydotool.service --no-pager
-#   journalctl --user -u ydotool.service --no-pager -n 20
-#   exit 1
-# fi
+SOCKET_PATH="/run/user/$(id -u)/.ydotool_socket"
+export YDOTOOL_SOCKET="$SOCKET_PATH"
+
+# 1. Check if the service is already running and the socket exists
+if systemctl --user is-active --quiet ydotool.service && [ -S "$SOCKET_PATH" ]; then
+  echo "ℹ️ ydotool service is already running. Testing typing..."
+  echo ""
+  echo "=== Installation complete ==="
+  echo ""
+  echo "Python app: voice-to-text"
+  echo "GNOME extension: $EXT_UUID (hotkey: Super+W)"
+  echo ""
+  echo "Open a new terminal or run: source $PROFILE"
+  echo "Then test with: voice-to-text"
+  echo ""
+  echo "Restart GNOME Shell (Alt+F2, r, Enter on X11) or log out/in on Wayland. Enable extension extension after relogin or reload"
+
+  exit 0
+fi
+
+echo "🔄 ydotool is not running or socket is missing. Initializing configuration..."
+
+# 2. Create the user-level drop-in override directory
+mkdir -p "$HOME/.config/systemd/user/ydotool.service.d"
+
+# 3. Inject the custom socket path configuration
+cat <<EOF >"$HOME/.config/systemd/user/ydotool.service.d/socket-path.conf"
+[Unit]
+After=user-runtime-dir@%i.service
+Requires=user-runtime-dir@%i.service
+
+[Service]
+ExecStart=
+ExecStart=/usr/bin/ydotoold --socket-path=$SOCKET_PATH --socket-perm=666
+EOF
+
+# 4. Reload, enable, and start the service
+systemctl --user daemon-reload
+systemctl --user enable ydotool.service
+systemctl --user restart ydotool.service
+sleep 1
+
+# 5. Final verification check
+if [ -S "$SOCKET_PATH" ]; then
+  echo "✅ ydotoold started successfully. Socket at $SOCKET_PATH"
+  ydotool type -- "voice-to-text fixed"
+else
+  echo "❌ Socket not found at $SOCKET_PATH"
+  systemctl --user status ydotool.service --no-pager
+  journalctl --user -u ydotool.service --no-pager -n 20
+  exit 1
+fi
 echo ""
 echo "=== Installation complete ==="
 echo ""
