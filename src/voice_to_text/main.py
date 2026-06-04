@@ -18,6 +18,7 @@ import yaml
 from dotenv import load_dotenv
 
 from voice_to_text import source_hash
+from voice_to_text.bluetooth import activate_headset_mic
 from voice_to_text.providers import get_provider
 from voice_to_text.config import ConfigManager
 from voice_to_text.audio import (
@@ -87,13 +88,22 @@ def setup_key_interactive():
     print("voice-to-text API key setup")
     print("=" * 60)
 
+    PROVIDER_URLS = {
+        "deepgram": "https://console.deepgram.com/",
+        "groq": "https://console.groq.com/keys",
+        "voxtral": "https://console.mistral.ai/api-keys/",
+    }
+
     api_providers = [
         (name, PROVIDER_ENV_VARS[name])
         for name in PROVIDER_ENV_VARS
     ]
     print("Select a provider to configure:")
     for i, (name, env_var) in enumerate(api_providers, 1):
+        url = PROVIDER_URLS.get(name, "")
         print(f"  {i}. {name} ({env_var})")
+        if url:
+            print(f"     Sign up: {url}")
 
     choice = input("\nEnter number: ").strip()
     try:
@@ -144,32 +154,64 @@ def setup_key_interactive():
         return
 
     lookup_cmd = f"secret-tool lookup application voice-to-text provider {provider_name}"
-    if "fish" in os.environ.get("SHELL", ""):
-        export_line = f"set -x {env_var} ({lookup_cmd})"
-    else:
-        export_line = f"export {env_var}=$({lookup_cmd})"
+    fish_line = f"set -x {env_var} ({lookup_cmd})"
+    posix_line = f"export {env_var}=$({lookup_cmd})"
 
-    rc_path.parent.mkdir(parents=True, exist_ok=True)
-    existing = rc_path.read_text().splitlines() if rc_path.exists() else []
-    already_present = any(env_var in line and "secret-tool lookup" in line for line in existing)
+    def _shell_line(shell: str) -> str:
+        return fish_line if "fish" in shell else posix_line
 
-    if already_present:
-        print(f"Environment variable already configured in {rc_path}.")
+    def _append_to_file(path: Path, export_line: str | None = None) -> bool:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        existing = path.read_text().splitlines() if path.exists() else []
+        already = any(env_var in line and "secret-tool lookup" in line for line in existing)
+        if not already:
+            line = export_line or posix_line
+            with path.open("a") as f:
+                f.write(f"\n# Voice-to-Text: {provider_name} API key\n{line}\n")
+            return True
+        return False
+
+    def _rc_shell(path: Path) -> str:
+        name = path.name
+        if "fish" in name:
+            return "fish"
+        if "zsh" in name:
+            return "zsh"
+        return "bash"
+
+    written = []
+    if rc_path:
+        if _append_to_file(rc_path, _shell_line(_rc_shell(rc_path))):
+            written.append(str(rc_path))
+
+    bashrc_path = Path.home() / ".bashrc"
+    if bashrc_path.exists() and bashrc_path != rc_path:
+        if _append_to_file(bashrc_path, posix_line):
+            written.append(str(bashrc_path))
+
+    profile_path = Path.home() / ".profile"
+    if profile_path != rc_path and profile_path != bashrc_path and _append_to_file(profile_path, posix_line):
+        written.append(str(profile_path))
+
+    if written:
+        for path in written:
+            print(f"Added to {path}.")
     else:
-        with rc_path.open("a") as f:
-            f.write(f"\n# Voice-to-Text: {provider_name} API key\n{export_line}\n")
-        print(f"Added to {rc_path}.")
-        print(f"Restart your shell or run:\n  source {rc_path}")
+        print(f"Environment variable already configured.")
+
+    os.environ[env_var] = api_key
+    print(f"Environment variable set in current shell session.")
+
+    print()
+    change = input("Would you like to set this as the default provider? (y/N): ").strip().lower()
+    if change in ("y", "yes"):
+        config_mgr = ConfigManager()
+        set_provider(config_mgr, provider_name)
 
 
 def setup_interactive():
-    print("groq-voice setup")
+    print("voice-to-text setup")
     print("=" * 60)
-    print("Choose your transcription provider:")
-    print()
-    print("1. Voxtral (default)  - Uses Voxtral API for transcription")
-    print("2. Groq - Uses Groq API for transcription")
-    print()
 
     config_mgr = load_config()
     current_provider = config_mgr.get_selected_provider()
@@ -177,26 +219,63 @@ def setup_interactive():
     print(f"Config path: {config_mgr.config_path}")
     print()
 
-    choice = input("Enter your choice (1-2): ").strip()
+    set_provider(config_mgr)
 
-    if choice == "1":
-        provider = "voxtral"
-    elif choice == "2":
-        provider = "groq"
-    else:
-        print("Invalid choice. Keeping current provider.")
-        return
+
+def set_provider(config_mgr, provider: str | None = None) -> bool:
+    """Set the default transcription provider in config. If provider is None, prompt interactively."""
+    ALL_PROVIDERS = ["deepgram", "groq", "voxtral", "parakeet"]
+
+    if provider is None:
+        print("Choose your transcription provider:")
+        print()
+        for i, name in enumerate(ALL_PROVIDERS, 1):
+            print(f"  {i}. {name}")
+        print()
+
+        current = config_mgr.get_selected_provider()
+        print(f"Current provider: {current}")
+        print()
+
+        choice = input("Enter choice (1-4): ").strip()
+        try:
+            idx = int(choice) - 1
+            if idx < 0 or idx >= len(ALL_PROVIDERS):
+                print("Invalid choice. Keeping current provider.")
+                return False
+            provider = ALL_PROVIDERS[idx]
+        except ValueError:
+            print("Invalid choice. Keeping current provider.")
+            return False
+    elif provider not in ALL_PROVIDERS:
+        print(f"Unknown provider '{provider}'. Choose from: {', '.join(ALL_PROVIDERS)}")
+        return False
 
     config_mgr.config.setdefault("transcription", {})["provider"] = provider
-
-    try:
-        with open(config_mgr.config_path, "w") as f:
-            yaml.dump(config_mgr.config, f)
-        print(f"Provider set to: {provider}")
+    if config_mgr.save():
+        print(f"Default provider set to: {provider}")
         print(f"Configuration saved to: {config_mgr.config_path}")
-        print("Configuration saved successfully!")
+        return True
+    else:
+        print("Failed to save configuration.")
+        return False
+
+
+def maybe_activate_bt_mic(config_mgr, device_override: int | None) -> None:
+    """Switch BT headset to HSP/HFP and make its mic the default source.
+
+    Skipped when the user explicitly passed ``--device`` (they are being
+    specific), or when ``audio.bluetooth_mic`` is false in config.
+    """
+    if device_override is not None:
+        return
+    audio_cfg = config_mgr.get_audio_config() or {}
+    if not audio_cfg.get("bluetooth_mic", True):
+        return
+    try:
+        activate_headset_mic()
     except Exception as e:
-        print(f"Failed to save configuration: {e}")
+        logger.debug("BT headset activation failed: %s", e)
 
 
 def transcribe_audio(audio_path: str, transcriber, language) -> str | None:
@@ -516,11 +595,14 @@ def main():
     output_mode = args.output
 
     if output_mode == "stdout":
+        maybe_activate_bt_mic(config_mgr, args.device)
         run_stdout_mode(args, config_mgr, transcriber, language, duration)
         return
 
     print("Recording... (press ESC or Q to cancel, ENTER to continue)")
     print("-" * 60)
+
+    maybe_activate_bt_mic(config_mgr, args.device)
 
     decrease_pct = (
         args.decrease_speaker_volume

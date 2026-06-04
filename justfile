@@ -1,8 +1,8 @@
 default:
     @just --list
 
-run:
-    PYTHONPATH=src .venv/bin/python -m voice_to_text.main
+run *args:
+    PYTHONPATH=src .venv/bin/python -m voice_to_text.main {{args}}
 
 install: build-binary
     uv tool uninstall voice-to-text 2>/dev/null || true
