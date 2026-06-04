@@ -293,9 +293,18 @@ def transcribe_audio(audio_path: str, transcriber, language) -> str | None:
         os.remove(audio_path)
 
 
-def run_benchmark(args, config_mgr):
-    from voice_to_text.providers import get_provider
+class _LogCollector(logging.Handler):
+    """Captures log messages in a list during benchmark."""
 
+    def __init__(self):
+        super().__init__()
+        self.records = []
+
+    def emit(self, record):
+        self.records.append(self.format(record))
+
+
+def run_benchmark(args, config_mgr):
     ALL_PROVIDERS = ["deepgram", "groq", "voxtral", "parakeet"]
 
     if args.audio_file:
@@ -329,49 +338,82 @@ def run_benchmark(args, config_mgr):
         print("No providers available to benchmark.")
         return
 
+    collector = _LogCollector()
+    collector.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s"))
+    log_root = logging.getLogger()
+    log_root.addHandler(collector)
+    prev_level = log_root.level
+    log_root.setLevel(logging.INFO)
+
     num_runs = args.runs
     print(f"\nBenchmarking {len(providers)} provider(s), {num_runs} run(s) each...")
     results = {}
 
     for provider in providers:
-        times = []
+        runs = []
         print(f"\n  {provider.name}:")
         for i in range(num_runs):
             try:
                 start = time.time()
                 text = provider.transcribe_file(audio_path)
                 elapsed = time.time() - start
-                times.append(elapsed)
+                runs.append({"elapsed": elapsed, "text": text, "ok": True})
                 print(f"    Run {i+1}: {elapsed:.2f}s  \"{text[:60]}\"")
             except Exception as e:
+                runs.append({"elapsed": 0.0, "text": f"FAILED: {e}", "ok": False})
                 print(f"    Run {i+1}: FAILED ({e})")
-        if times:
-            avg = sum(times) / len(times)
+        ok_runs = [r for r in runs if r["ok"]]
+        if ok_runs:
+            times = [r["elapsed"] for r in ok_runs]
             results[provider.name] = {
-                "avg": avg, "min": min(times), "max": max(times), "times": times
+                "avg": sum(times) / len(times),
+                "min": min(times),
+                "max": max(times),
+                "runs": runs,
             }
-
-    if results:
-        fastest = min(results.items(), key=lambda x: x[1]["avg"])[0]
-        print()
-        print(f"{'='*66}")
-        print(f"{'Provider':<15} {'Avg (s)':<12} {'Min (s)':<12} {'Max (s)':<12}  {'+/-%':<10}")
-        print(f"{'-'*15} {'-'*12} {'-'*12} {'-'*12}  {'-'*10}")
-        sorted_results = sorted(results.items(), key=lambda x: x[1]["avg"])
-        base_avg = sorted_results[0][1]["avg"]
-        for name, s in sorted_results:
-            pct = ((s["avg"] - base_avg) / base_avg) * 100 if base_avg > 0 else 0
-            marker = " <- fastest" if name == fastest else ""
-            spread = (s["max"] - s["min"]) / s["avg"] * 100 if s["avg"] > 0 else 0
-            print(f"{name:<15} {s['avg']:<12.2f} {s['min']:<12.2f} {s['max']:<12.2f}  {'+' if pct > 0 else ''}{pct:<8.1f}%{marker}")
-        print(f"{'='*66}")
-        print(f"Fastest: {fastest} ({sorted_results[0][1]['avg']:.2f}s avg)")
 
     if not args.audio_file and audio_path and Path(audio_path).exists():
         os.remove(audio_path)
 
+    log_root.removeHandler(collector)
+    log_root.setLevel(prev_level)
 
-def run_stdout_mode(args, config_mgr, transcriber, language, duration):
+    sep = "=" * 66
+    sorted_results = sorted(results.items(), key=lambda x: x[1]["avg"]) if results else []
+
+    print(sep)
+    print("RAW LOGS")
+    print(sep)
+    for line in collector.records:
+        print(f"  {line}")
+
+    if sorted_results:
+        fastest = sorted_results[0][0]
+        base_avg = sorted_results[0][1]["avg"]
+        print(f"\n{sep}")
+        print("TIMING")
+        print(sep)
+        print(f"  {'Provider':<15} {'Avg (s)':<12} {'Min (s)':<12} {'Max (s)':<12}  {'+/-%':<10}")
+        print(f"  {'-'*15} {'-'*12} {'-'*12} {'-'*12}  {'-'*10}")
+        for name, s in sorted_results:
+            pct = ((s["avg"] - base_avg) / base_avg) * 100 if base_avg > 0 else 0
+            marker = " <- fastest" if name == fastest else ""
+            print(f"  {name:<15} {s['avg']:<12.2f} {s['min']:<12.2f} {s['max']:<12.2f}  {'+' if pct > 0 else ''}{pct:<8.1f}%{marker}")
+        print(sep)
+        print(f"  Fastest: {fastest} ({sorted_results[0][1]['avg']:.2f}s avg)")
+
+    has_text = any(r["text"] for s in results.values() for r in s["runs"])
+    if has_text:
+        print(f"\n{sep}")
+        print("TEXT")
+        print(sep)
+        for name, s in sorted_results:
+            for i, run in enumerate(s["runs"], 1):
+                elapsed_str = f"{run['elapsed']:.2f}s" if run["ok"] else "FAILED"
+                print(f"  {name} [{i}/{num_runs}]  {elapsed_str}")
+                for line in run["text"].splitlines():
+                    print(f"    {line}")
+                print()
     LEVEL_INTERVAL = 0.1
 
     logger.info(

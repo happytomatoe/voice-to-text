@@ -4,6 +4,19 @@ default:
 run *args:
     PYTHONPATH=src .venv/bin/python -m voice_to_text.main {{args}}
 
+# Benchmark: record 10s of audio, test all providers 3x each
+benchmark:
+    PYTHONPATH=src .venv/bin/python -m voice_to_text.main benchmark --duration 10
+
+# Benchmark: generate synthetic audio then test providers (no microphone needed)
+benchmark-gen:
+    python scripts/generate_test_audio.py --duration 12 --output /tmp/vtt-bench.wav
+    PYTHONPATH=src .venv/bin/python -m voice_to_text.main benchmark --audio-file /tmp/vtt-bench.wav --runs 3
+
+# Benchmark: test specific providers with an audio file
+benchmark-file path runs="3":
+    PYTHONPATH=src .venv/bin/python -m voice_to_text.main benchmark --audio-file {{path}} --runs {{runs}}
+
 install: build-binary
     uv tool uninstall voice-to-text 2>/dev/null || true
     rm -f ~/.local/bin/voice-to-text
