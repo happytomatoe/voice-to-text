@@ -71,11 +71,18 @@ export class Recorder {
     if (this._proc) {
       const pid = this._proc;
       this._proc = null;
+
+      if (this._childWatchId) {
+        GLib.Source.remove(this._childWatchId);
+        this._childWatchId = null;
+      }
+
       Gio.Subprocess.new(["kill", "-INT", String(pid)], 0).wait_async(
         null,
         null,
       );
     }
+    this._cancellable?.cancel();
   }
 
   _readOutput() {

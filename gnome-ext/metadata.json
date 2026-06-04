@@ -1,6 +1,6 @@
 {
   "name": "Voice to Text",
-  "description": "Global hotkey voice transcription with top-bar audio visualizer",
+  "description": "Global hotkey voice transcription with a top-bar audio visualizer. The transcribed text is typed at the cursor, with an option to copy it to the clipboard instead.",
   "uuid": "voice-to-text@happytomatoe.com",
   "shell-version": ["45", "46", "47", "48", "49", "50"],
   "version": 2,

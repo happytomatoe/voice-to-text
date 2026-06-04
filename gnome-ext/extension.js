@@ -90,7 +90,6 @@ export default class VoiceToTextExtension extends Extension {
     }
 
     _toggle() {
-        console.log('VoiceToText: _toggle called');
         if (this._recording) {
             this._stop();
         } else {
@@ -99,15 +98,12 @@ export default class VoiceToTextExtension extends Extension {
     }
 
     _start() {
-        console.log('VoiceToText: _start called');
         if (this._recording) return;
 
         if (!this._binPath) {
-            console.log('VoiceToText: binary not found in PATH');
             this._showNotification('voice-to-text binary not found in PATH');
             return;
         }
-        console.log('VoiceToText: binary found at', this._binPath);
 
         this._indicator.setProcessing();
         this._recording = true;
@@ -152,45 +148,44 @@ export default class VoiceToTextExtension extends Extension {
     }
 
     _stop() {
-        console.log('VoiceToText: _stop called');
         if (!this._recording) return;
-        
+
         this._recorder?.stop();
         this._indicator?.setProcessing();
-        
+
         // Set a timeout to forcefully return to idle if the process doesn't exit
         // This prevents the spinner from hanging indefinitely
         const stopTimeoutSeconds = this._settings.get_int('stop-timeout-seconds');
-        console.log(`VoiceToText: setting stop timeout for ${stopTimeoutSeconds} seconds`);
-        
+
         if (this._stopTimeoutId) {
             GLib.source_remove(this._stopTimeoutId);
             this._stopTimeoutId = null;
         }
-        
+
         this._stopTimeoutId = GLib.timeout_add_seconds(
             GLib.PRIORITY_DEFAULT,
             stopTimeoutSeconds,
             () => {
-                console.log('VoiceToText: stop timeout reached, forcing idle state');
                 this._forceStop();
                 return GLib.SOURCE_REMOVE;
             }
         );
     }
-    
+
     _forceStop() {
         if (this._stopTimeoutId) {
             GLib.source_remove(this._stopTimeoutId);
             this._stopTimeoutId = null;
         }
-        
+
         if (this._recorder?._proc) {
-            console.log('VoiceToText: forcefully killing process');
+            // SIGKILL is used because the normal SIGINT path has already timed out;
+            // the process is unresponsive and must be terminated immediately to
+            // avoid leaking it as a zombie.
             const pid = this._recorder._proc;
             Gio.Subprocess.new(['kill', '-9', String(pid)], 0).wait_async(null, null);
         }
-        
+
         this._setIdle();
     }
 
@@ -206,7 +201,6 @@ export default class VoiceToTextExtension extends Extension {
                 4 // INHIBIT_SUSPEND
             );
             this._inhibitCookie = cookie;
-            console.log('VoiceToText: sleep inhibitor acquired, cookie=' + this._inhibitCookie);
         } catch (e) {
             console.error('VoiceToText: failed to inhibit sleep:', e.message);
         }
@@ -217,7 +211,6 @@ export default class VoiceToTextExtension extends Extension {
 
         try {
             this._sessionManager.UninhibitSync(this._inhibitCookie);
-            console.log('VoiceToText: sleep inhibitor released, cookie=' + this._inhibitCookie);
         } catch (e) {
             console.error('VoiceToText: failed to release sleep inhibitor:', e.message);
         }
@@ -249,10 +242,9 @@ export default class VoiceToTextExtension extends Extension {
 
     _registerHotkey() {
         this._unregisterHotkey();
-        
+
         try {
             registerHotkey('hotkey', this._settings, () => this._toggle());
-            console.log('VoiceToText: hotkey registered');
         } catch (e) {
             console.error('VoiceToText: failed to register hotkey:', e.message);
         }
@@ -260,15 +252,13 @@ export default class VoiceToTextExtension extends Extension {
 
     _unregisterHotkey() {
         try {
-unregisterHotkey('hotkey');
-            console.log('VoiceToText: hotkey unregistered');
+            unregisterHotkey('hotkey');
         } catch (e) {
             console.error('VoiceToText: failed to unregister hotkey:', e.message);
         }
     }
 
     _openPreferences() {
-        console.log('VoiceToText: opening preferences dialog');
         try {
             const launcher = new Gio.SubprocessLauncher();
             launcher.spawnv(['gnome-extensions', 'prefs', this.uuid]);
