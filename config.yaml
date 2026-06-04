@@ -3,7 +3,7 @@
 
 # Provider selection
 transcription:
-  provider: "voxtral" # "deepgram", "groq", or "voxtral"
+  provider: "parakeet" # "deepgram", "groq", "voxtral", or "parakeet"
   language: "en"
 
 # Provider-specific configurations
@@ -18,7 +18,6 @@ voxtral:
   api_key_env: "VOXTRAL_API_KEY"
   model: "voxtral-mini-latest"
 
-# Parakeet runs in a separate container; see parakeet-v2.sh
 parakeet:
   model: "nvidia/parakeet-tdt-0.6b-v3"
   http_endpoint: "http://localhost:5092"

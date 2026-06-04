@@ -224,7 +224,7 @@ def setup_interactive():
 
 def set_provider(config_mgr, provider: str | None = None) -> bool:
     """Set the default transcription provider in config. If provider is None, prompt interactively."""
-    ALL_PROVIDERS = ["deepgram", "groq", "voxtral"]
+    ALL_PROVIDERS = ["deepgram", "groq", "voxtral", "parakeet"]
 
     if provider is None:
         print("Choose your transcription provider:")
@@ -237,7 +237,7 @@ def set_provider(config_mgr, provider: str | None = None) -> bool:
         print(f"Current provider: {current}")
         print()
 
-        choice = input("Enter choice (1-3): ").strip()
+        choice = input("Enter choice (1-4): ").strip()
         try:
             idx = int(choice) - 1
             if idx < 0 or idx >= len(ALL_PROVIDERS):
@@ -296,7 +296,7 @@ def transcribe_audio(audio_path: str, transcriber, language) -> str | None:
 def run_benchmark(args, config_mgr):
     from voice_to_text.providers import get_provider
 
-    ALL_PROVIDERS = ["deepgram", "groq", "voxtral"]
+    ALL_PROVIDERS = ["deepgram", "groq", "voxtral", "parakeet"]
 
     if args.audio_file:
         audio_path = args.audio_file
@@ -451,7 +451,7 @@ def _add_record_args(parser_obj):
     parser_obj.add_argument(
         "--provider",
         type=str,
-        choices=["deepgram", "groq", "voxtral"],
+        choices=["deepgram", "groq", "voxtral", "parakeet"],
         help="Transcription provider to use",
     )
     parser_obj.add_argument(
