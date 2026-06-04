@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-set -euo pipefail
 
 REPO="happytomatoe/voice-to-text"
 EXT_UUID="voice-to-text@happytomatoe.com"
