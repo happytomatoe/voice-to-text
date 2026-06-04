@@ -152,30 +152,29 @@ fi
 SOCKET_PATH="/run/user/$(id -u)/.ydotool_socket"
 export YDOTOOL_SOCKET="$SOCKET_PATH"
 
-# 1. Check if the service is already running and the socket exists
-if systemctl --user is-active --quiet ydotool.service && [ -S "$SOCKET_PATH" ]; then
-  echo "ydotool service is already running."
+# 1. Check if the socket already exists
+if [ -S "$SOCKET_PATH" ]; then
+  echo "ydotool socket already present at $SOCKET_PATH."
 else
-  echo "ydotool is not running or socket is missing. Initializing configuration..."
+  echo "ydotool socket missing. Initializing configuration..."
 
-  # 2. Create the user-level drop-in override directory
-  mkdir -p "$HOME/.config/systemd/user/ydotool.service.d"
+  # 2. Create the system-level drop-in override directory
+  sudo mkdir -p /etc/systemd/system/ydotool.service.d
 
   # 3. Inject the custom socket path configuration
-  cat <<EOF >"$HOME/.config/systemd/user/ydotool.service.d/socket-path.conf"
+  sudo tee /etc/systemd/system/ydotool.service.d/socket-path.conf >/dev/null <<EOF
 [Unit]
-After=user-runtime-dir@%i.service
-Requires=user-runtime-dir@%i.service
+After=user-runtime-dir@$(id -u).service
+Requires=user-runtime-dir@$(id -u).service
 
 [Service]
 ExecStart=
 ExecStart=/usr/bin/ydotoold --socket-path=$SOCKET_PATH --socket-perm=666
 EOF
 
-  # 4. Reload, enable, and start the service
-  systemctl --user daemon-reload
-  systemctl --user enable ydotool.service
-  systemctl --user restart ydotool.service
+  # 4. Reload and restart the service
+  sudo systemctl daemon-reload
+  sudo systemctl restart ydotool.service
   sleep 1
 
   # 5. Final verification check
@@ -184,8 +183,7 @@ EOF
     ydotool type -- "voice-to-text fixed"
   else
     echo "ERROR: Socket not found at $SOCKET_PATH"
-    systemctl --user status ydotool.service --no-pager
-    journalctl --user -u ydotool.service --no-pager -n 20
+    sudo journalctl -u ydotool.service --no-pager -n 20
     exit 1
   fi
 fi
