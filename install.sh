@@ -180,8 +180,8 @@ echo "Provider configured: $PROVIDER"
 
 # Create ydotool daemon
 
-UID="${SUDO_UID:-$(id -u)}"
-SOCKET_PATH="/run/user/$UID/.ydotool_socket"
+RUN_UID="${SUDO_UID:-$(id -u)}"
+SOCKET_PATH="/run/user/$RUN_UID/.ydotool_socket"
 export YDOTOOL_SOCKET="$SOCKET_PATH"
 
 # 1. Check if the service is already running and the socket exists
@@ -209,8 +209,8 @@ sudo mkdir -p /etc/systemd/system/ydotool.service.d
 # 3. Inject the custom socket path configuration
 sudo tee /etc/systemd/system/ydotool.service.d/socket-path.conf > /dev/null <<EOF
 [Unit]
-After=user-runtime-dir@$UID.service
-Requires=user-runtime-dir@$UID.service
+After=user-runtime-dir@$RUN_UID.service
+Requires=user-runtime-dir@$RUN_UID.service
 
 [Service]
 ExecStart=
