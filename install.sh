@@ -1,11 +1,8 @@
 #!/usr/bin/env bash
-
+set -x
 REPO="happytomatoe/voice-to-text"
 EXT_UUID="voice-to-text@happytomatoe.com"
 INSTALL_DIR="$HOME/.local/share/gnome-shell/extensions/$EXT_UUID"
-
-echo "=== voice-to-text installer ==="
-echo ""
 
 # --- Detect OS ---
 if command -v dnf &>/dev/null; then
@@ -54,6 +51,7 @@ if command -v uv &>/dev/null; then
   echo "Installing version $LATEST_TAG..."
   uv tool install "git+https://github.com/$REPO.git@$LATEST_TAG" --force
   echo "Python application installed."
+  VOICE_TO_TEXT_CMD="uv tool run voice-to-text"
 else
   echo "uv not found. Installing standalone binary..."
   LATEST_URL="https://github.com/$REPO/releases/latest/download/voice-to-text"
@@ -63,6 +61,7 @@ else
   mv /tmp/voice-to-text "$HOME/.local/bin/voice-to-text"
   echo "Binary installed to $HOME/.local/bin/voice-to-text"
   echo "Make sure $HOME/.local/bin is in your PATH."
+  VOICE_TO_TEXT_CMD="$HOME/.local/bin/voice-to-text"
 fi
 
 # --- Install GNOME extension ---
@@ -91,73 +90,35 @@ else
   rm -f /tmp/$filename
 fi
 
-# --- Configure provider and API key ---
+# --- Configure API key ---
 echo ""
-echo "--- Configuration ---"
-
-# Detect shell profile
-if [ -f "$HOME/.zprofile" ]; then
-  PROFILE="$HOME/.zprofile"
-elif [ -f "$HOME/.bash_profile" ]; then
-  PROFILE="$HOME/.bash_profile"
-elif [ -f "$HOME/.profile" ]; then
-  PROFILE="$HOME/.profile"
-else
-  PROFILE="$HOME/.profile"
-  touch "$PROFILE"
-fi
-
-echo "Shell profile: $PROFILE"
+echo "--- API Key Configuration ---"
+echo "Setting up API key..."
+$VOICE_TO_TEXT_CMD setup-key
 echo ""
+echo "API key configured."
 
-# Choose provider
-echo "Choose transcription provider:"
-echo "  1) Groq (fast, free tier)"
-echo "  2) Voxtral (slightly better quality)"
-echo ""
-read -rp "Select [1/2] (default: 1): " PROVIDER_CHOICE
-case "$PROVIDER_CHOICE" in
-2)
-  PROVIDER="voxtral"
-  API_KEY_ENV="VOXTRAL_API_KEY"
-  ;;
-*)
-  PROVIDER="groq"
-  API_KEY_ENV="GROQ_API_KEY"
-  ;;
-esac
-
-echo "Selected provider: $PROVIDER"
-echo ""
-
-# Get API key
-echo "Enter your $API_KEY_ENV: "
-
-secret-tool store --label="$API_KEY_ENV" service $API_KEY_ENV account $USER
-export API_KEY=$(secret-tool lookup service $API_KEY_ENV account $USER)
-if [ -z "$API_KEY" ]; then
-  echo "WARNING: No API key provided. You must set $API_KEY_ENV before using the app."
-else
-  # Remove old key entries if they exist
-  if grep -q "export $API_KEY_ENV=" "$PROFILE" 2>/dev/null; then
-    sed -i "/export $API_KEY_ENV=/d" "$PROFILE"
-  fi
-  # Append new key
-  echo "" >>"$PROFILE"
-  echo "# voice-to-text API key" >>"$PROFILE"
-  echo "export $API_KEY_ENV=\$(secret-tool lookup service '$API_KEY_ENV' account \$USER)" >>"$PROFILE"
-  echo "API key saved to $PROFILE"
-  # Export for current session
-  export "$API_KEY_ENV"="$API_KEY"
-fi
-
-# Configure provider in config
+# Install default config (only if user has none)
 CONFIG_DIR="$HOME/.config/voice-to-text"
 mkdir -p "$CONFIG_DIR"
-cat >"$CONFIG_DIR/config.yaml" <<EOF
+CONFIG_FILE="$CONFIG_DIR/config.yaml"
+if [ -f "$CONFIG_FILE" ]; then
+  echo "Existing config found at $CONFIG_FILE; leaving it unchanged."
+  echo "Run 'voice-to-text setup' to change the default provider."
+else
+  cat >"$CONFIG_FILE" <<'EOF'
+# groq-voice configuration
+# Multi-provider transcription system
+
+# Provider selection
 transcription:
-  provider: "$PROVIDER"
+  provider: "voxtral" # "deepgram", "groq", "voxtral", or "parakeet"
   language: "en"
+
+# Provider-specific configurations
+deepgram:
+  api_key_env: "DEEPGRAM_API_KEY"
+  model: "nova-3"
 
 groq:
   api_key_env: "GROQ_API_KEY"
@@ -166,79 +127,76 @@ voxtral:
   api_key_env: "VOXTRAL_API_KEY"
   model: "voxtral-mini-latest"
 
+parakeet:
+  model: "nvidia/parakeet-tdt-0.6b-v3"
+  http_endpoint: "http://localhost:5092"
+  timeout_seconds: 30
+
 audio:
   sample_rate: 16000
   channels: 1
   block_size: 2048
   smooth_factor: 0.7
+  speaker:
+    decrease_volume: 50
 
 logging:
-  file: "/tmp/groq_voice.log"
+  file: "/tmp/voice-to-text.log"
   level: "info"
 EOF
-echo "Provider configured: $PROVIDER"
+  echo "Default config installed at $CONFIG_FILE."
+  echo "Run 'voice-to-text setup' to change the default provider."
+fi
 
-# Create ydotool daemon
+# --- Configure ydotool daemon ---
+SOCKET_PATH="/run/user/$(id -u)/.ydotool_socket"
+export YDOTOOL_SOCKET="$SOCKET_PATH"
 
-# SOCKET_PATH="/run/user/$(id -u)/.ydotool_socket"
-# export YDOTOOL_SOCKET="$SOCKET_PATH"
-#
-# # 1. Check if the service is already running and the socket exists
-# if systemctl --user is-active --quiet ydotool.service && [ -S "$SOCKET_PATH" ]; then
-#   echo "ℹ️ ydotool service is already running. Testing typing..."
-#   echo ""
-#   echo "=== Installation complete ==="
-#   echo ""
-#   echo "Python app: voice-to-text"
-#   echo "GNOME extension: $EXT_UUID (hotkey: Super+W)"
-#   echo ""
-#   echo "Open a new terminal or run: source $PROFILE"
-#   echo "Then test with: voice-to-text"
-#   echo ""
-#   echo "Restart GNOME Shell (Alt+F2, r, Enter on X11) or log out/in on Wayland. Enable extension extension after relogin or reload"
-#
-#   exit 0
-# fi
-#
-# echo "🔄 ydotool is not running or socket is missing. Initializing configuration..."
-#
-# # 2. Create the user-level drop-in override directory
-# mkdir -p "$HOME/.config/systemd/user/ydotool.service.d"
-#
-# # 3. Inject the custom socket path configuration
-# cat <<EOF >"$HOME/.config/systemd/user/ydotool.service.d/socket-path.conf"
-# [Unit]
-# After=user-runtime-dir@%i.service
-# Requires=user-runtime-dir@%i.service
-#
-# [Service]
-# ExecStart=
-# ExecStart=/usr/bin/ydotoold --socket-path=$SOCKET_PATH --socket-perm=666
-# EOF
-#
-# # 4. Reload, enable, and start the service
-# systemctl --user daemon-reload
-# systemctl --user enable ydotool.service
-# systemctl --user restart ydotool.service
-# sleep 1
-#
-# # 5. Final verification check
-# if [ -S "$SOCKET_PATH" ]; then
-#   echo "✅ ydotoold started successfully. Socket at $SOCKET_PATH"
-#   ydotool type -- "voice-to-text fixed"
-# else
-#   echo "❌ Socket not found at $SOCKET_PATH"
-#   systemctl --user status ydotool.service --no-pager
-#   journalctl --user -u ydotool.service --no-pager -n 20
-#   exit 1
-# fi
+# 1. Check if the service is already running and the socket exists
+if systemctl --user is-active --quiet ydotool.service && [ -S "$SOCKET_PATH" ]; then
+  echo "ydotool service is already running."
+else
+  echo "ydotool is not running or socket is missing. Initializing configuration..."
+
+  # 2. Create the user-level drop-in override directory
+  mkdir -p "$HOME/.config/systemd/user/ydotool.service.d"
+
+  # 3. Inject the custom socket path configuration
+  cat <<EOF >"$HOME/.config/systemd/user/ydotool.service.d/socket-path.conf"
+[Unit]
+After=user-runtime-dir@%i.service
+Requires=user-runtime-dir@%i.service
+
+[Service]
+ExecStart=
+ExecStart=/usr/bin/ydotoold --socket-path=$SOCKET_PATH --socket-perm=666
+EOF
+
+  # 4. Reload, enable, and start the service
+  systemctl --user daemon-reload
+  systemctl --user enable ydotool.service
+  systemctl --user restart ydotool.service
+  sleep 1
+
+  # 5. Final verification check
+  if [ -S "$SOCKET_PATH" ]; then
+    echo "ydotoold started successfully. Socket at $SOCKET_PATH"
+    ydotool type -- "voice-to-text fixed"
+  else
+    echo "ERROR: Socket not found at $SOCKET_PATH"
+    systemctl --user status ydotool.service --no-pager
+    journalctl --user -u ydotool.service --no-pager -n 20
+    exit 1
+  fi
+fi
+
 echo ""
 echo "=== Installation complete ==="
 echo ""
 echo "Python app: voice-to-text"
 echo "GNOME extension: $EXT_UUID (hotkey: Super+W)"
 echo ""
-echo "Open a new terminal or run: source $PROFILE"
+echo "Restart your shell or open a new terminal."
 echo "Then test with: voice-to-text"
 echo ""
-echo "Restart GNOME Shell (Alt+F2, r, Enter on X11) or log out/in on Wayland. Enable extension extension after relogin or reload"
+echo "Restart GNOME Shell (Alt+F2, r, Enter on X11) or log out/in on Wayland."

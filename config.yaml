@@ -3,7 +3,7 @@
 
 # Provider selection
 transcription:
-  provider: "parakeet" # "deepgram", "groq", "voxtral", or "parakeet"
+  provider: "voxtral" # "deepgram", "groq", "voxtral", or "parakeet"
   language: "en"
 
 # Provider-specific configurations

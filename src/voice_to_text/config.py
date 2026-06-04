@@ -13,13 +13,16 @@ class ConfigManager:
     """Manage application configuration with provider support."""
 
     def __init__(self, config_path: str | None = None):
+        # User config path (persistent)
+        self.user_config_path = str(
+            Path.home() / ".config" / "voice-to-text" / "config.yaml"
+        )
+
         # Look for config in multiple locations
         default_paths = [
+            self.user_config_path,  # User config (persistent)
             str(Path(__file__).parent.parent / "config.yaml"),  # Development
             str(Path(__file__).parent / "config.yaml"),  # Alternative dev location
-            str(
-                Path.home() / ".config" / "voice-to-text" / "config.yaml"
-            ),  # User config
             str(Path(__file__).parent.parent.parent / "config.yaml"),  # Root project
         ]
 
@@ -32,10 +35,7 @@ class ConfigManager:
                     self.config_path = path
                     break
             else:
-                # Default to project root config.yaml
-                self.config_path = str(
-                    Path(__file__).parent.parent.parent / "config.yaml"
-                )
+                self.config_path = self.user_config_path
 
         self.config = self._load_config()
 
@@ -50,6 +50,21 @@ class ConfigManager:
         except yaml.YAMLError as e:
             logger.error("Failed to parse config: %s", e)
             return {}
+
+    def save(self) -> bool:
+        """Save config to a persistent location. If current path is inside a temp
+        directory (e.g. PyInstaller bundle), migrate to user config path."""
+        target = self.config_path
+        if "_MEI" in target or "/tmp/" in target:
+            target = self.user_config_path
+            self.config_path = target
+        Path(target).parent.mkdir(parents=True, exist_ok=True)
+        try:
+            with open(target, "w") as f:
+                yaml.dump(self.config, f)
+            return True
+        except Exception:
+            return False
 
     def get_provider_config(self, provider_name: str) -> Dict[str, Any]:
         """Get configuration for specific provider."""
