@@ -3,7 +3,7 @@
 
 # Provider selection
 transcription:
-  provider: "parakeet" # "deepgram", "groq", "voxtral", or "parakeet"
+  provider: "voxtral" # "deepgram", "groq", or "voxtral"
   language: "en"
 
 # Provider-specific configurations
@@ -18,6 +18,7 @@ voxtral:
   api_key_env: "VOXTRAL_API_KEY"
   model: "voxtral-mini-latest"
 
+# Parakeet runs in a separate container; see parakeet-v2.sh
 parakeet:
   model: "nvidia/parakeet-tdt-0.6b-v3"
   http_endpoint: "http://localhost:5092"
@@ -28,6 +29,10 @@ audio:
   channels: 1
   block_size: 2048
   smooth_factor: 0.7
+  # Auto-switch a connected Bluetooth headset to HSP/HFP and make its mic the
+  # default source before recording. Set to false if you manage this yourself
+  # (e.g. via WirePlumber or a udev rule) or don't use a BT headset.
+  bluetooth_mic: true
   speaker:
     decrease_volume: 50  # 0-100: % to decrease speaker volume when recording (0=no change, 100=mute)
 
