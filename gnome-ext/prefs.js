@@ -108,6 +108,22 @@ export default class VoiceToTextPrefs extends ExtensionPreferences {
     providerRow.add_suffix(providerCombo);
     group.add(providerRow);
 
+    // Transcription mode setting
+    const modeRow = new Adw.ActionRow({
+      title: _("Transcription Mode"),
+      subtitle: _("Batch: single-pass transcription; Hybrid: streaming + batch for faster results"),
+    });
+
+    const modeCombo = new Gtk.ComboBoxText();
+    modeCombo.append("batch", _("Batch"));
+    modeCombo.append("hybrid", _("Hybrid (Streaming + Batch)"));
+    modeCombo.set_active_id(settings.get_string("mode"));
+    modeCombo.connect("changed", () => {
+      settings.set_string("mode", modeCombo.get_active_id());
+    });
+    modeRow.add_suffix(modeCombo);
+    group.add(modeRow);
+
     // Output method setting
     const outputMethodRow = new Adw.ActionRow({
       title: _("Output Method"),

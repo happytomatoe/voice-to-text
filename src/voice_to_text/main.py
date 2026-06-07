@@ -18,7 +18,8 @@ import yaml
 from dotenv import load_dotenv
 
 from voice_to_text import source_hash
-from voice_to_text.providers import get_provider
+from voice_to_text.providers import get_provider, get_batch_provider, get_streaming_provider
+from voice_to_text.hybrid import HybridTranscriber
 from voice_to_text.config import ConfigManager
 from voice_to_text.audio import (
     AudioRecorder,
@@ -215,8 +216,6 @@ def transcribe_audio(audio_path: str, transcriber, language) -> str | None:
 
 
 def run_benchmark(args, config_mgr):
-    from voice_to_text.providers import get_provider
-
     ALL_PROVIDERS = ["deepgram", "groq", "voxtral", "parakeet"]
 
     if args.audio_file:
@@ -292,11 +291,11 @@ def run_benchmark(args, config_mgr):
         os.remove(audio_path)
 
 
-def run_stdout_mode(args, config_mgr, transcriber, language, duration):
+def run_stdout_mode(args, config_mgr, transcriber, language, duration, hybrid=None):
     LEVEL_INTERVAL = 0.1
 
     logger.info(
-        "run_stdout_mode started, duration=%s, device=%s", duration, args.device
+        "run_stdout_mode started, duration=%s, device=%s, hybrid=%s", duration, args.device, hybrid is not None
     )
 
     stop_requested = False
@@ -320,7 +319,12 @@ def run_stdout_mode(args, config_mgr, transcriber, language, duration):
         start_time = time.time()
         last_level_time = time.time()
         level_count = 0
+        displayed_text = ""
         try:
+            # Start streaming if hybrid mode
+            if hybrid:
+                hybrid.start_stream(language)
+            
             while not stop_requested:
                 if duration > 0 and (time.time() - start_time) > duration:
                     break
@@ -351,7 +355,11 @@ def run_stdout_mode(args, config_mgr, transcriber, language, duration):
         sys.exit(1)
 
     try:
-        text = transcribe_audio(recorder.filepath, transcriber, language)
+        if hybrid:
+            # For hybrid mode, get final text from batch provider
+            text = hybrid.on_recording_stop(recorder.filepath, language)
+        else:
+            text = transcribe_audio(recorder.filepath, transcriber, language)
         if text:
             print(f"TEXT:{text}", flush=True)
         else:
@@ -389,6 +397,12 @@ def _add_record_args(parser_obj):
         choices=range(0, 101),
         metavar="{0-100}",
         help="Decrease speaker volume by this %% during recording (0=no change, 100=mute)",
+    )
+    parser_obj.add_argument(
+        "--mode",
+        type=str,
+        choices=["batch", "hybrid"],
+        help="Transcription mode: 'batch' (default) or 'hybrid' (streaming + batch)",
     )
 
 
@@ -499,15 +513,35 @@ def main():
 
     provider_override = args.provider
     language_override = args.language
+    mode_override = args.mode
+    selected_mode = mode_override or config_mgr.config.get("transcription", {}).get("mode", "batch")
     selected_provider = provider_override or config_mgr.get_selected_provider()
     provider_config = config_mgr.get_provider_config(selected_provider)
 
-    try:
-        transcriber = get_provider(selected_provider, provider_config)
-    except ValueError as e:
-        logger.error("Provider initialization failed: %s", e)
-        print(f"ERROR:Provider initialization failed: {e}", file=sys.stdout, flush=True)
-        sys.exit(1)
+    # For hybrid mode, get both streaming and batch providers
+    hybrid = None
+    transcriber = None
+    if selected_mode == "hybrid":
+        streaming_name = config_mgr.config.get("transcription", {}).get("hybrid", {}).get("streaming_provider", "deepgram")
+        batch_name = config_mgr.config.get("transcription", {}).get("hybrid", {}).get("batch_provider", "voxtral")
+        streaming_config = config_mgr.get_provider_config(streaming_name)
+        batch_config = config_mgr.get_provider_config(batch_name)
+        
+        try:
+            streaming_provider = get_streaming_provider(streaming_name, streaming_config)
+            batch_provider = get_batch_provider(batch_name, batch_config)
+            hybrid = HybridTranscriber(streaming_provider, batch_provider)
+        except ValueError as e:
+            logger.error("Hybrid provider initialization failed: %s", e)
+            print(f"ERROR:Hybrid provider initialization failed: {e}", file=sys.stdout, flush=True)
+            sys.exit(1)
+    else:
+        try:
+            transcriber = get_provider(selected_provider, provider_config)
+        except ValueError as e:
+            logger.error("Provider initialization failed: %s", e)
+            print(f"ERROR:Provider initialization failed: {e}", file=sys.stdout, flush=True)
+            sys.exit(1)
 
     language = language_override or config_mgr.config.get("transcription", {}).get("language", "en")
     audio_config = config_mgr.config.get("audio", {})
@@ -516,7 +550,7 @@ def main():
     output_mode = args.output
 
     if output_mode == "stdout":
-        run_stdout_mode(args, config_mgr, transcriber, language, duration)
+        run_stdout_mode(args, config_mgr, transcriber, language, duration, hybrid=hybrid)
         return
 
     print("Recording... (press ESC or Q to cancel, ENTER to continue)")
@@ -565,7 +599,10 @@ def main():
         sys.exit(1)
 
     try:
-        text = transcribe_audio(recorder.filepath, transcriber, language)
+        if hybrid:
+            text = hybrid.on_recording_stop(recorder.filepath, language)
+        else:
+            text = transcribe_audio(recorder.filepath, transcriber, language)
     except Exception as e:
         logger.exception("Transcription failed: %s", e)
         print(f"ERROR:Transcription failed: {e}")

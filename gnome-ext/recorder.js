@@ -19,12 +19,14 @@ export class Recorder {
   start() {
     const provider = this._settings.get_string('provider');
     const language = this._settings.get_string('language');
+    const mode = this._settings.get_string('mode');
     const decreaseSpeakerVolume = this._settings.get_int('decrease-speaker-volume');
     const argv = [
       this._appPath,
       '--output', 'stdout',
       '--provider', provider,
       '--language', language,
+      '--mode', mode,
     ];
     if (decreaseSpeakerVolume > 0) {
       argv.push('--decrease-speaker-volume', String(decreaseSpeakerVolume));

@@ -7,34 +7,53 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-class TranscriptionProvider(ABC):
-    """Abstract base class for transcription providers."""
+class BatchProvider(ABC):
+    """Provider that transcribes complete audio files."""
 
     @abstractmethod
     def __init__(self, config: Dict[str, Any]):
-        """Initialize provider with configuration.
-
-        Args:
-            config: Provider-specific configuration
-        """
         pass
 
     @abstractmethod
     def transcribe_file(self, audio_path: str, language: str = "en") -> str:
-        """Transcribe audio file (batch processing).
-
-        Args:
-            audio_path: Path to audio file
-            language: Language code
-
-        Returns:
-            Transcribed text
-        """
+        """Transcribe audio file (batch processing)."""
         pass
 
     @property
     @abstractmethod
     def name(self) -> str:
-        """Provider name identifier."""
+        pass
+
+
+class StreamingProvider(ABC):
+    """Provider that transcribes audio in real-time via streaming."""
+
+    @abstractmethod
+    def __init__(self, config: Dict[str, Any]):
+        pass
+
+    @abstractmethod
+    def start_stream(self, language: str = "en") -> None:
+        """Initialize a streaming session."""
+        pass
+
+    @abstractmethod
+    def send_audio(self, audio_chunk: bytes) -> None:
+        """Send an audio chunk for processing."""
+        pass
+
+    @abstractmethod
+    def get_partial_result(self) -> str | None:
+        """Get latest partial transcript (may change)."""
+        pass
+
+    @abstractmethod
+    def finalize_stream(self) -> str:
+        """End stream and return final transcript."""
+        pass
+
+    @property
+    @abstractmethod
+    def name(self) -> str:
         pass
 

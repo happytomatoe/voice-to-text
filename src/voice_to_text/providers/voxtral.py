@@ -4,12 +4,12 @@ import requests
 import logging
 from typing import Dict, Any
 import os
-from .base import TranscriptionProvider
+from .base import BatchProvider
 
 logger = logging.getLogger(__name__)
 
 
-class VoxtralProvider(TranscriptionProvider):
+class VoxtralProvider(BatchProvider):
     """Voxtral batch file transcription provider."""
 
     def __init__(self, config: Dict[str, Any]):

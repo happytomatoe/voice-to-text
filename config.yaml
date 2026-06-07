@@ -3,8 +3,13 @@
 
 # Provider selection
 transcription:
-  provider: "parakeet" # "deepgram", "groq", "voxtral", or "parakeet"
+  mode: "batch"           # "batch" or "hybrid"
+  provider: "parakeet"   # For batch mode: "deepgram", "groq", "voxtral", or "parakeet"
   language: "en"
+  hybrid:
+    streaming_provider: "deepgram"
+    batch_provider: "voxtral"
+    language: "en"
 
 # Provider-specific configurations
 deepgram:

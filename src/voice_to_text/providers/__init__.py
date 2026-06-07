@@ -1,37 +1,36 @@
 """Transcription provider factory and registry."""
 from typing import Dict, Any, Type
-from .base import TranscriptionProvider
-from .deepgram import DeepgramProvider
+from .base import BatchProvider, StreamingProvider
 from .groq import GroqProvider
+from .deepgram import DeepgramProvider
 from .voxtral import VoxtralProvider
 from .parakeet import ParakeetProvider
 
-# Provider registry
-_PROVIDERS: Dict[str, Type[TranscriptionProvider]] = {
-    "deepgram": DeepgramProvider,
+_BATCH_PROVIDERS = {
     "groq": GroqProvider,
+    "deepgram": DeepgramProvider,
     "voxtral": VoxtralProvider,
     "parakeet": ParakeetProvider,
 }
 
-def get_provider(provider_name: str, config: Dict[str, Any]) -> TranscriptionProvider:
-    """Get transcription provider instance.
-    
-    Args:
-        provider_name: Name of provider to use
-        config: Provider-specific configuration
-        
-    Returns:
-        Configured provider instance
-        
-    Raises:
-        ValueError: If provider not found
-    """
-    if provider_name not in _PROVIDERS:
-        raise ValueError(f"Provider '{provider_name}' not found. Available: {list(_PROVIDERS.keys())}")
-    
-    return _PROVIDERS[provider_name](config)
+_STREAMING_PROVIDERS = {
+    "groq": GroqProvider,
+    "deepgram": DeepgramProvider,
+}
 
-def register_provider(name: str, provider_class: Type[TranscriptionProvider]):
-    """Register a new transcription provider."""
-    _PROVIDERS[name] = provider_class
+def get_batch_provider(name: str, config: Dict[str, Any]) -> BatchProvider:
+    """Get batch provider instance."""
+    if name not in _BATCH_PROVIDERS:
+        raise ValueError(f"Batch provider '{name}' not found. Available: {list(_BATCH_PROVIDERS.keys())}")
+    return _BATCH_PROVIDERS[name](config)
+
+def get_streaming_provider(name: str, config: Dict[str, Any]) -> StreamingProvider:
+    """Get streaming provider instance."""
+    if name not in _STREAMING_PROVIDERS:
+        raise ValueError(f"Streaming provider '{name}' not found. Available: {list(_STREAMING_PROVIDERS.keys())}")
+    return _STREAMING_PROVIDERS[name](config)
+
+# Legacy compatibility
+def get_provider(provider_name: str, config: Dict[str, Any]) -> BatchProvider:
+    """Get transcription provider instance (legacy compatibility)."""
+    return get_batch_provider(provider_name, config)

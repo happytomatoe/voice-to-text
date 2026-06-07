@@ -37,5 +37,10 @@
       <summary>Decrease speaker volume during recording</summary>
       <description>Percentage to decrease speaker output volume when recording (0=no change, 100=mute)</description>
     </key>
+    <key name="mode" type="s">
+      <default>"batch"</default>
+      <summary>Transcription mode (batch or hybrid)</summary>
+      <description>batch: traditional single-pass transcription; hybrid: streaming + batch for faster results</description>
+    </key>
   </schema>
 </schemalist>

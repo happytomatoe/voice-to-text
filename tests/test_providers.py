@@ -1,7 +1,7 @@
 """Tests for transcription providers."""
 import pytest
 
-from voice_to_text.providers import get_provider, TranscriptionProvider
+from voice_to_text.providers import get_provider, BatchProvider
 from voice_to_text.providers.groq import GroqProvider
 
 class TestProviderFactory:
