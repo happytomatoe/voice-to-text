@@ -102,7 +102,7 @@ gnome-ext-dev: reinstall gnome-ext-install
     gnome-extensions enable "$UUID" 2>/dev/null || true
     GNOME_VERSION=$(gnome-shell --version | awk '{print int($3)}')
     if [ "$GNOME_VERSION" -ge 49 ]; then
-      dbus-run-session -- gnome-shell --wayland --devkit > /tmp/gnome-shell-nested.log 2>&1
+      dbus-run-session -- gnome-shell --wayland --devkit  2>&1 | tee /tmp/gnome-shell-nested.log
     else
       MUTTER_DEBUG_NESTED=1 dbus-run-session -- gnome-shell --wayland --nested > /tmp/gnome-shell-nested.log 2>&1
     fi
