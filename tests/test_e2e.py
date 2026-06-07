@@ -79,6 +79,37 @@ class TestModeArgument:
         )
         assert 'hybrid' in result.stdout
 
+    def test_mode_streaming(self):
+        result = subprocess.run(
+            ['python', '-m', 'voice_to_text.main', '--help'],
+            capture_output=True,
+            text=True,
+            timeout=10
+        )
+        assert 'streaming' in result.stdout
+
+
+class TestRecordHelp:
+    """Test record subcommand help."""
+
+    def test_record_help_has_streaming_provider(self):
+        result = subprocess.run(
+            ['python', '-m', 'voice_to_text.main', 'record', '--help'],
+            capture_output=True,
+            text=True,
+            timeout=10
+        )
+        assert '--streaming-provider' in result.stdout
+
+    def test_record_help_has_batch_provider(self):
+        result = subprocess.run(
+            ['python', '-m', 'voice_to_text.main', 'record', '--help'],
+            capture_output=True,
+            text=True,
+            timeout=10
+        )
+        assert '--batch-provider' in result.stdout
+
 
 class TestProviderImports:
     """Test that all providers can be imported."""

@@ -92,7 +92,7 @@ export default class VoiceToTextPrefs extends ExtensionPreferences {
     );
     group.add(stopTimeoutRow);
 
-    // Provider setting
+    // Provider setting (batch mode only)
     const providerRow = new Adw.ActionRow({
       title: _("Transcription Provider"),
     });
@@ -111,18 +111,64 @@ export default class VoiceToTextPrefs extends ExtensionPreferences {
     // Transcription mode setting
     const modeRow = new Adw.ActionRow({
       title: _("Transcription Mode"),
-      subtitle: _("Batch: single-pass transcription; Hybrid: streaming + batch for faster results"),
+      subtitle: _("Batch: single-pass; Hybrid: streaming + batch; Streaming: streaming only (test)"),
     });
 
     const modeCombo = new Gtk.ComboBoxText();
     modeCombo.append("batch", _("Batch"));
     modeCombo.append("hybrid", _("Hybrid (Streaming + Batch)"));
+    modeCombo.append("streaming", _("Streaming (Test)"));
     modeCombo.set_active_id(settings.get_string("mode"));
-    modeCombo.connect("changed", () => {
-      settings.set_string("mode", modeCombo.get_active_id());
-    });
     modeRow.add_suffix(modeCombo);
     group.add(modeRow);
+
+    // Streaming provider setting (hybrid/streaming modes)
+    const streamingProviderRow = new Adw.ActionRow({
+      title: _("Streaming Provider"),
+      subtitle: _("Provider for real-time streaming during recording"),
+    });
+
+    const streamingProviderCombo = new Gtk.ComboBoxText();
+    streamingProviderCombo.append("deepgram", "Deepgram");
+    streamingProviderCombo.append("groq", "Groq");
+    streamingProviderCombo.set_active_id(settings.get_string("streaming-provider"));
+    streamingProviderCombo.connect("changed", () => {
+      settings.set_string("streaming-provider", streamingProviderCombo.get_active_id());
+    });
+    streamingProviderRow.add_suffix(streamingProviderCombo);
+    group.add(streamingProviderRow);
+
+    // Batch provider setting (hybrid mode only)
+    const batchProviderRow = new Adw.ActionRow({
+      title: _("Batch Provider"),
+      subtitle: _("Provider for final batch transcription after recording"),
+    });
+
+    const batchProviderCombo = new Gtk.ComboBoxText();
+    batchProviderCombo.append("deepgram", "Deepgram");
+    batchProviderCombo.append("groq", "Groq");
+    batchProviderCombo.append("voxtral", "Voxtral");
+    batchProviderCombo.append("parakeet", "Parakeet");
+    batchProviderCombo.set_active_id(settings.get_string("batch-provider"));
+    batchProviderCombo.connect("changed", () => {
+      settings.set_string("batch-provider", batchProviderCombo.get_active_id());
+    });
+    batchProviderRow.add_suffix(batchProviderCombo);
+    group.add(batchProviderRow);
+
+    // Show/hide provider rows based on mode
+    const updateProviderVisibility = () => {
+      const mode = settings.get_string("mode");
+      providerRow.visible = mode === "batch";
+      streamingProviderRow.visible = mode !== "batch";
+      batchProviderRow.visible = mode === "hybrid";
+    };
+    updateProviderVisibility();
+
+    modeCombo.connect("changed", () => {
+      settings.set_string("mode", modeCombo.get_active_id());
+      updateProviderVisibility();
+    });
 
     // Output method setting
     const outputMethodRow = new Adw.ActionRow({

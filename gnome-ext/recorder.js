@@ -12,6 +12,7 @@ export class Recorder {
     this._cancellable = null;
     this.onTranscription = null;
     this.onAudioLevel = null;
+    this.onStreamingText = null;
     this.onError = null;
     this.onProcessExit = null;
   }
@@ -28,6 +29,12 @@ export class Recorder {
       '--language', language,
       '--mode', mode,
     ];
+    if (mode === 'hybrid') {
+      const streamingProvider = this._settings.get_string('streaming-provider');
+      const batchProvider = this._settings.get_string('batch-provider');
+      argv.push('--streaming-provider', streamingProvider);
+      argv.push('--batch-provider', batchProvider);
+    }
     if (decreaseSpeakerVolume > 0) {
       argv.push('--decrease-speaker-volume', String(decreaseSpeakerVolume));
     }
@@ -99,6 +106,8 @@ export class Recorder {
           if (!Number.isNaN(level)) {
             this.onAudioLevel?.(level);
           }
+        } else if (line.startsWith("STREAM:")) {
+          this.onStreamingText?.(line.slice(7).trim());
         } else if (line.startsWith("TEXT:")) {
           this.onTranscription?.(line.slice(5).trim());
         } else if (line.startsWith("ERROR:")) {

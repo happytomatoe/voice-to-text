@@ -417,11 +417,15 @@ def run_benchmark(args, config_mgr):
                 print()
 
 
-def run_stdout_mode(args, config_mgr, transcriber, language, duration, hybrid=None):
+def run_stdout_mode(args, config_mgr, transcriber, language, duration, hybrid=None, mode="batch"):
+    import threading
+
     LEVEL_INTERVAL = 0.1
+    use_streaming = mode in ("hybrid", "streaming")
 
     logger.info(
-        "run_stdout_mode started, duration=%s, device=%s, hybrid=%s", duration, args.device, hybrid is not None
+        "run_stdout_mode started, duration=%s, device=%s, hybrid=%s, mode=%s",
+        duration, args.device, hybrid is not None, mode,
     )
 
     stop_requested = False
@@ -440,6 +444,15 @@ def run_stdout_mode(args, config_mgr, transcriber, language, duration, hybrid=No
 
     recorder = AudioRecorder(device=args.device)
 
+    audio_chunks: list[bytes] = []
+    chunk_lock = threading.Lock()
+
+    if hybrid:
+        def _on_audio_data(data: bytes):
+            with chunk_lock:
+                audio_chunks.append(data)
+        recorder.on_audio_data = _on_audio_data
+
     with SpeakerVolumeManager.with_decrease(decrease_pct):
         recorder.start()
         start_time = time.time()
@@ -448,7 +461,7 @@ def run_stdout_mode(args, config_mgr, transcriber, language, duration, hybrid=No
         try:
             if hybrid:
                 hybrid.start_stream(language)
-            
+
             while not stop_requested:
                 if duration > 0 and (time.time() - start_time) > duration:
                     break
@@ -460,6 +473,15 @@ def run_stdout_mode(args, config_mgr, transcriber, language, duration, hybrid=No
                         logger.debug("LEVEL[%d]: %.4f", level_count, recorder.smoothed_level)
                         print(f"LEVEL:{recorder.smoothed_level:.4f}", flush=True)
                     last_level_time = now
+
+                if hybrid:
+                    with chunk_lock:
+                        chunks = audio_chunks[:]
+                        audio_chunks.clear()
+                    for chunk in chunks:
+                        partial = hybrid.on_audio_chunk(chunk)
+                        if partial:
+                            print(f"STREAM:{partial}", flush=True)
 
                 time.sleep(0.02)
         except Exception as e:
@@ -479,7 +501,9 @@ def run_stdout_mode(args, config_mgr, transcriber, language, duration, hybrid=No
         sys.exit(1)
 
     try:
-        if hybrid:
+        if mode == "streaming" and hybrid:
+            text = hybrid.streaming.finalize_stream()
+        elif hybrid:
             text = hybrid.on_recording_stop(recorder.filepath, language)
         else:
             text = transcribe_audio(recorder.filepath, transcriber, language)
@@ -524,8 +548,20 @@ def _add_record_args(parser_obj):
     parser_obj.add_argument(
         "--mode",
         type=str,
-        choices=["batch", "hybrid"],
-        help="Transcription mode: 'batch' (default) or 'hybrid' (streaming + batch)",
+        choices=["batch", "hybrid", "streaming"],
+        help="Transcription mode: 'batch' (default), 'hybrid' (streaming + batch), or 'streaming' (test)",
+    )
+    parser_obj.add_argument(
+        "--streaming-provider",
+        type=str,
+        choices=["deepgram", "groq"],
+        help="Streaming provider for hybrid mode (overrides config)",
+    )
+    parser_obj.add_argument(
+        "--batch-provider",
+        type=str,
+        choices=["deepgram", "groq", "voxtral", "parakeet"],
+        help="Batch provider for hybrid mode (overrides config)",
     )
 
 
@@ -644,8 +680,9 @@ def main():
     hybrid = None
     transcriber = None
     if selected_mode == "hybrid":
-        streaming_name = config_mgr.config.get("transcription", {}).get("hybrid", {}).get("streaming_provider", "deepgram")
-        batch_name = config_mgr.config.get("transcription", {}).get("hybrid", {}).get("batch_provider", "voxtral")
+        hybrid_cfg = config_mgr.config.get("transcription", {}).get("hybrid", {})
+        streaming_name = getattr(args, "streaming_provider", None) or hybrid_cfg.get("streaming_provider", "deepgram")
+        batch_name = getattr(args, "batch_provider", None) or hybrid_cfg.get("batch_provider", "voxtral")
         streaming_config = config_mgr.get_provider_config(streaming_name)
         batch_config = config_mgr.get_provider_config(batch_name)
         
@@ -656,6 +693,18 @@ def main():
         except ValueError as e:
             logger.error("Hybrid provider initialization failed: %s", e)
             print(f"ERROR:Hybrid provider initialization failed: {e}", file=sys.stdout, flush=True)
+            sys.exit(1)
+    elif selected_mode == "streaming":
+        hybrid_cfg = config_mgr.config.get("transcription", {}).get("hybrid", {})
+        streaming_name = getattr(args, "streaming_provider", None) or hybrid_cfg.get("streaming_provider", "deepgram")
+        streaming_config = config_mgr.get_provider_config(streaming_name)
+        
+        try:
+            streaming_provider = get_streaming_provider(streaming_name, streaming_config)
+            hybrid = HybridTranscriber(streaming_provider, streaming_provider)
+        except ValueError as e:
+            logger.error("Streaming provider initialization failed: %s", e)
+            print(f"ERROR:Streaming provider initialization failed: {e}", file=sys.stdout, flush=True)
             sys.exit(1)
     else:
         try:
@@ -673,7 +722,7 @@ def main():
 
     if output_mode == "stdout":
         maybe_activate_bt_mic(config_mgr, args.device)
-        run_stdout_mode(args, config_mgr, transcriber, language, duration, hybrid=hybrid)
+        run_stdout_mode(args, config_mgr, transcriber, language, duration, hybrid=hybrid, mode=selected_mode)
         return
 
     print("Recording... (press ESC or Q to cancel, ENTER to continue)")

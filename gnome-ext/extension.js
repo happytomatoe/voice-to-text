@@ -140,6 +140,11 @@ export default class VoiceToTextExtension extends Extension {
                 this._setIdle();
             });
         };
+        this._recorder.onStreamingText = (text) => {
+            if (text) {
+                this._showNotification(text);
+            }
+        };
         this._recorder.onError = (msg) => {
             this._showNotification('Transcription failed: ' + msg);
             this._setIdle();

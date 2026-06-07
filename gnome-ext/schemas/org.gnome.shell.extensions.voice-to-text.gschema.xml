@@ -39,8 +39,18 @@
     </key>
     <key name="mode" type="s">
       <default>"batch"</default>
-      <summary>Transcription mode (batch or hybrid)</summary>
-      <description>batch: traditional single-pass transcription; hybrid: streaming + batch for faster results</description>
+      <summary>Transcription mode (batch, hybrid, or streaming)</summary>
+      <description>batch: single-pass transcription; hybrid: streaming + batch; streaming: streaming only (test)</description>
+    </key>
+    <key name="streaming-provider" type="s">
+      <default>"deepgram"</default>
+      <summary>Streaming provider for hybrid mode</summary>
+      <description>Provider used for real-time streaming during recording in hybrid mode</description>
+    </key>
+    <key name="batch-provider" type="s">
+      <default>"voxtral"</default>
+      <summary>Batch provider for hybrid mode</summary>
+      <description>Provider used for final batch transcription in hybrid mode</description>
     </key>
   </schema>
 </schemalist>

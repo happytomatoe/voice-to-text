@@ -36,6 +36,7 @@ class AudioRecorder:
         self.filepath: str | None = None
         self._stream: sd.InputStream | None = None
         self._wav: wave.Wave_write | None = None
+        self.on_audio_data: callable | None = None
 
     def start(self):
         sample_rate = SAMPLE_RATE
@@ -72,7 +73,8 @@ class AudioRecorder:
         return self.filepath
 
     def _callback(self, indata: np.ndarray, frames: int, time_info, status):
-        self._wav.writeframes(indata.tobytes())
+        raw = indata.tobytes()
+        self._wav.writeframes(raw)
         self.frame_count += 1
         float_data = indata[:, 0].astype(np.float32) / 32768.0
         rms = math.sqrt(np.mean(float_data**2))
@@ -80,6 +82,8 @@ class AudioRecorder:
             self.smooth_factor * self.smoothed_level
             + (1 - self.smooth_factor) * rms
         )
+        if self.on_audio_data is not None:
+            self.on_audio_data(raw)
 
 
 def format_level_bar(level: float, elapsed: float) -> str:
