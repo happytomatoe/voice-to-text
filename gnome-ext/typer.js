@@ -45,17 +45,12 @@ export function typeTextIncremental(text) {
         return;
     }
 
-    if (text.startsWith(oldText)) {
-        const diff = text.slice(oldText.length);
-        if (diff.length > 0) {
-            _lastTyped = text;
-            _ydotoolType(diff);
-        }
-        return;
+    // Streaming partials can change completely (not just append).
+    // Replace entire text: Select All -> Delete -> Type new
+    if (text !== oldText) {
+        _lastTyped = text;
+        _ydotoolReplace(text);
     }
-
-    _lastTyped = text;
-    _ydotoolReplace(oldText, text);
 }
 
 function _ydotoolType(text) {
@@ -68,14 +63,11 @@ function _ydotoolType(text) {
     }
 }
 
-function _ydotoolReplace(oldText, newText) {
-    const bsEvents = [];
-    for (let i = 0; i < oldText.length; i++) {
-        bsEvents.push('14:1', '14:0');
-    }
+function _ydotoolReplace(text) {
+    // Select all (Ctrl+A), Delete, then type new text
     try {
         GLib.spawn_command_line_sync(
-            `ydotool key ${bsEvents.join(' ')} && ydotool type --key-delay=0 --key-hold=0 -- ${GLib.shell_quote(newText)}`
+            `ydotool key 37:1 38:1 38:0 37:0 && ydotool type --key-delay=0 --key-hold=0 -- ${GLib.shell_quote(text)}`
         );
     } catch (e) {
         console.error(`VoiceToText: ydotool replace failed: ${e.message}`);
