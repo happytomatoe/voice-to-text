@@ -18,6 +18,7 @@ import yaml
 from dotenv import load_dotenv
 
 from voice_to_text import source_hash
+from voice_to_text.bluetooth import activate_headset_mic
 from voice_to_text.providers import get_provider, get_batch_provider, get_streaming_provider
 from voice_to_text.hybrid import HybridTranscriber
 from voice_to_text.config import ConfigManager
@@ -88,13 +89,22 @@ def setup_key_interactive():
     print("voice-to-text API key setup")
     print("=" * 60)
 
+    PROVIDER_URLS = {
+        "deepgram": "https://console.deepgram.com/",
+        "groq": "https://console.groq.com/keys",
+        "voxtral": "https://console.mistral.ai/api-keys/",
+    }
+
     api_providers = [
         (name, PROVIDER_ENV_VARS[name])
         for name in PROVIDER_ENV_VARS
     ]
     print("Select a provider to configure:")
     for i, (name, env_var) in enumerate(api_providers, 1):
+        url = PROVIDER_URLS.get(name, "")
         print(f"  {i}. {name} ({env_var})")
+        if url:
+            print(f"     Sign up: {url}")
 
     choice = input("\nEnter number: ").strip()
     try:
@@ -145,32 +155,64 @@ def setup_key_interactive():
         return
 
     lookup_cmd = f"secret-tool lookup application voice-to-text provider {provider_name}"
-    if "fish" in os.environ.get("SHELL", ""):
-        export_line = f"set -x {env_var} ({lookup_cmd})"
-    else:
-        export_line = f"export {env_var}=$({lookup_cmd})"
+    fish_line = f"set -x {env_var} ({lookup_cmd})"
+    posix_line = f"export {env_var}=$({lookup_cmd})"
 
-    rc_path.parent.mkdir(parents=True, exist_ok=True)
-    existing = rc_path.read_text().splitlines() if rc_path.exists() else []
-    already_present = any(env_var in line and "secret-tool lookup" in line for line in existing)
+    def _shell_line(shell: str) -> str:
+        return fish_line if "fish" in shell else posix_line
 
-    if already_present:
-        print(f"Environment variable already configured in {rc_path}.")
+    def _append_to_file(path: Path, export_line: str | None = None) -> bool:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        existing = path.read_text().splitlines() if path.exists() else []
+        already = any(env_var in line and "secret-tool lookup" in line for line in existing)
+        if not already:
+            line = export_line or posix_line
+            with path.open("a") as f:
+                f.write(f"\n# Voice-to-Text: {provider_name} API key\n{line}\n")
+            return True
+        return False
+
+    def _rc_shell(path: Path) -> str:
+        name = path.name
+        if "fish" in name:
+            return "fish"
+        if "zsh" in name:
+            return "zsh"
+        return "bash"
+
+    written = []
+    if rc_path:
+        if _append_to_file(rc_path, _shell_line(_rc_shell(rc_path))):
+            written.append(str(rc_path))
+
+    bashrc_path = Path.home() / ".bashrc"
+    if bashrc_path.exists() and bashrc_path != rc_path:
+        if _append_to_file(bashrc_path, posix_line):
+            written.append(str(bashrc_path))
+
+    profile_path = Path.home() / ".profile"
+    if profile_path != rc_path and profile_path != bashrc_path and _append_to_file(profile_path, posix_line):
+        written.append(str(profile_path))
+
+    if written:
+        for path in written:
+            print(f"Added to {path}.")
     else:
-        with rc_path.open("a") as f:
-            f.write(f"\n# Voice-to-Text: {provider_name} API key\n{export_line}\n")
-        print(f"Added to {rc_path}.")
-        print(f"Restart your shell or run:\n  source {rc_path}")
+        print(f"Environment variable already configured.")
+
+    os.environ[env_var] = api_key
+    print(f"Environment variable set in current shell session.")
+
+    print()
+    change = input("Would you like to set this as the default provider? (y/N): ").strip().lower()
+    if change in ("y", "yes"):
+        config_mgr = ConfigManager()
+        set_provider(config_mgr, provider_name)
 
 
 def setup_interactive():
-    print("groq-voice setup")
+    print("voice-to-text setup")
     print("=" * 60)
-    print("Choose your transcription provider:")
-    print()
-    print("1. Voxtral (default)  - Uses Voxtral API for transcription")
-    print("2. Groq - Uses Groq API for transcription")
-    print()
 
     config_mgr = load_config()
     current_provider = config_mgr.get_selected_provider()
@@ -178,26 +220,63 @@ def setup_interactive():
     print(f"Config path: {config_mgr.config_path}")
     print()
 
-    choice = input("Enter your choice (1-2): ").strip()
+    set_provider(config_mgr)
 
-    if choice == "1":
-        provider = "voxtral"
-    elif choice == "2":
-        provider = "groq"
-    else:
-        print("Invalid choice. Keeping current provider.")
-        return
+
+def set_provider(config_mgr, provider: str | None = None) -> bool:
+    """Set the default transcription provider in config. If provider is None, prompt interactively."""
+    ALL_PROVIDERS = ["deepgram", "groq", "voxtral", "parakeet"]
+
+    if provider is None:
+        print("Choose your transcription provider:")
+        print()
+        for i, name in enumerate(ALL_PROVIDERS, 1):
+            print(f"  {i}. {name}")
+        print()
+
+        current = config_mgr.get_selected_provider()
+        print(f"Current provider: {current}")
+        print()
+
+        choice = input("Enter choice (1-4): ").strip()
+        try:
+            idx = int(choice) - 1
+            if idx < 0 or idx >= len(ALL_PROVIDERS):
+                print("Invalid choice. Keeping current provider.")
+                return False
+            provider = ALL_PROVIDERS[idx]
+        except ValueError:
+            print("Invalid choice. Keeping current provider.")
+            return False
+    elif provider not in ALL_PROVIDERS:
+        print(f"Unknown provider '{provider}'. Choose from: {', '.join(ALL_PROVIDERS)}")
+        return False
 
     config_mgr.config.setdefault("transcription", {})["provider"] = provider
-
-    try:
-        with open(config_mgr.config_path, "w") as f:
-            yaml.dump(config_mgr.config, f)
-        print(f"Provider set to: {provider}")
+    if config_mgr.save():
+        print(f"Default provider set to: {provider}")
         print(f"Configuration saved to: {config_mgr.config_path}")
-        print("Configuration saved successfully!")
+        return True
+    else:
+        print("Failed to save configuration.")
+        return False
+
+
+def maybe_activate_bt_mic(config_mgr, device_override: int | None) -> None:
+    """Switch BT headset to HSP/HFP and make its mic the default source.
+
+    Skipped when the user explicitly passed ``--device`` (they are being
+    specific), or when ``audio.bluetooth_mic`` is false in config.
+    """
+    if device_override is not None:
+        return
+    audio_cfg = config_mgr.get_audio_config() or {}
+    if not audio_cfg.get("bluetooth_mic", True):
+        return
+    try:
+        activate_headset_mic()
     except Exception as e:
-        print(f"Failed to save configuration: {e}")
+        logger.debug("BT headset activation failed: %s", e)
 
 
 def transcribe_audio(audio_path: str, transcriber, language) -> str | None:
@@ -213,6 +292,17 @@ def transcribe_audio(audio_path: str, transcriber, language) -> str | None:
         raise
     finally:
         os.remove(audio_path)
+
+
+class _LogCollector(logging.Handler):
+    """Captures log messages in a list during benchmark."""
+
+    def __init__(self):
+        super().__init__()
+        self.records = []
+
+    def emit(self, record):
+        self.records.append(self.format(record))
 
 
 def run_benchmark(args, config_mgr):
@@ -249,46 +339,82 @@ def run_benchmark(args, config_mgr):
         print("No providers available to benchmark.")
         return
 
+    collector = _LogCollector()
+    collector.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s"))
+    log_root = logging.getLogger()
+    log_root.addHandler(collector)
+    prev_level = log_root.level
+    log_root.setLevel(logging.INFO)
+
     num_runs = args.runs
     print(f"\nBenchmarking {len(providers)} provider(s), {num_runs} run(s) each...")
     results = {}
 
     for provider in providers:
-        times = []
+        runs = []
         print(f"\n  {provider.name}:")
         for i in range(num_runs):
             try:
                 start = time.time()
                 text = provider.transcribe_file(audio_path)
                 elapsed = time.time() - start
-                times.append(elapsed)
+                runs.append({"elapsed": elapsed, "text": text, "ok": True})
                 print(f"    Run {i+1}: {elapsed:.2f}s  \"{text[:60]}\"")
             except Exception as e:
+                runs.append({"elapsed": 0.0, "text": f"FAILED: {e}", "ok": False})
                 print(f"    Run {i+1}: FAILED ({e})")
-        if times:
-            avg = sum(times) / len(times)
+        ok_runs = [r for r in runs if r["ok"]]
+        if ok_runs:
+            times = [r["elapsed"] for r in ok_runs]
             results[provider.name] = {
-                "avg": avg, "min": min(times), "max": max(times), "times": times
+                "avg": sum(times) / len(times),
+                "min": min(times),
+                "max": max(times),
+                "runs": runs,
             }
-
-    if results:
-        fastest = min(results.items(), key=lambda x: x[1]["avg"])[0]
-        print()
-        print(f"{'='*66}")
-        print(f"{'Provider':<15} {'Avg (s)':<12} {'Min (s)':<12} {'Max (s)':<12}  {'+/-%':<10}")
-        print(f"{'-'*15} {'-'*12} {'-'*12} {'-'*12}  {'-'*10}")
-        sorted_results = sorted(results.items(), key=lambda x: x[1]["avg"])
-        base_avg = sorted_results[0][1]["avg"]
-        for name, s in sorted_results:
-            pct = ((s["avg"] - base_avg) / base_avg) * 100 if base_avg > 0 else 0
-            marker = " <- fastest" if name == fastest else ""
-            spread = (s["max"] - s["min"]) / s["avg"] * 100 if s["avg"] > 0 else 0
-            print(f"{name:<15} {s['avg']:<12.2f} {s['min']:<12.2f} {s['max']:<12.2f}  {'+' if pct > 0 else ''}{pct:<8.1f}%{marker}")
-        print(f"{'='*66}")
-        print(f"Fastest: {fastest} ({sorted_results[0][1]['avg']:.2f}s avg)")
 
     if not args.audio_file and audio_path and Path(audio_path).exists():
         os.remove(audio_path)
+
+    log_root.removeHandler(collector)
+    log_root.setLevel(prev_level)
+
+    sep = "=" * 66
+    sorted_results = sorted(results.items(), key=lambda x: x[1]["avg"]) if results else []
+
+    print(sep)
+    print("RAW LOGS")
+    print(sep)
+    for line in collector.records:
+        print(f"  {line}")
+
+    if sorted_results:
+        fastest = sorted_results[0][0]
+        base_avg = sorted_results[0][1]["avg"]
+        print(f"\n{sep}")
+        print("TIMING")
+        print(sep)
+        print(f"  {'Provider':<15} {'Avg (s)':<12} {'Min (s)':<12} {'Max (s)':<12}  {'+/-%':<10}")
+        print(f"  {'-'*15} {'-'*12} {'-'*12} {'-'*12}  {'-'*10}")
+        for name, s in sorted_results:
+            pct = ((s["avg"] - base_avg) / base_avg) * 100 if base_avg > 0 else 0
+            marker = " <- fastest" if name == fastest else ""
+            print(f"  {name:<15} {s['avg']:<12.2f} {s['min']:<12.2f} {s['max']:<12.2f}  {'+' if pct > 0 else ''}{pct:<8.1f}%{marker}")
+        print(sep)
+        print(f"  Fastest: {fastest} ({sorted_results[0][1]['avg']:.2f}s avg)")
+
+    has_text = any(r["text"] for s in results.values() for r in s["runs"])
+    if has_text:
+        print(f"\n{sep}")
+        print("TEXT")
+        print(sep)
+        for name, s in sorted_results:
+            for i, run in enumerate(s["runs"], 1):
+                elapsed_str = f"{run['elapsed']:.2f}s" if run["ok"] else "FAILED"
+                print(f"  {name} [{i}/{num_runs}]  {elapsed_str}")
+                for line in run["text"].splitlines():
+                    print(f"    {line}")
+                print()
 
 
 def run_stdout_mode(args, config_mgr, transcriber, language, duration, hybrid=None):
@@ -319,9 +445,7 @@ def run_stdout_mode(args, config_mgr, transcriber, language, duration, hybrid=No
         start_time = time.time()
         last_level_time = time.time()
         level_count = 0
-        displayed_text = ""
         try:
-            # Start streaming if hybrid mode
             if hybrid:
                 hybrid.start_stream(language)
             
@@ -356,7 +480,6 @@ def run_stdout_mode(args, config_mgr, transcriber, language, duration, hybrid=No
 
     try:
         if hybrid:
-            # For hybrid mode, get final text from batch provider
             text = hybrid.on_recording_stop(recorder.filepath, language)
         else:
             text = transcribe_audio(recorder.filepath, transcriber, language)
@@ -518,7 +641,6 @@ def main():
     selected_provider = provider_override or config_mgr.get_selected_provider()
     provider_config = config_mgr.get_provider_config(selected_provider)
 
-    # For hybrid mode, get both streaming and batch providers
     hybrid = None
     transcriber = None
     if selected_mode == "hybrid":
@@ -550,11 +672,14 @@ def main():
     output_mode = args.output
 
     if output_mode == "stdout":
+        maybe_activate_bt_mic(config_mgr, args.device)
         run_stdout_mode(args, config_mgr, transcriber, language, duration, hybrid=hybrid)
         return
 
     print("Recording... (press ESC or Q to cancel, ENTER to continue)")
     print("-" * 60)
+
+    maybe_activate_bt_mic(config_mgr, args.device)
 
     decrease_pct = (
         args.decrease_speaker_volume
