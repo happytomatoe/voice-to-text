@@ -1,7 +1,10 @@
 """Hybrid transcriber combining streaming and batch providers."""
 
+import logging
 from typing import Optional
 from .providers.base import BatchProvider, StreamingProvider
+
+logger = logging.getLogger(__name__)
 
 
 class HybridTranscriber:
@@ -12,20 +15,29 @@ class HybridTranscriber:
         self.batch = batch
         self.partial_text = ""
 
-    def start_stream(self, language: str = "en") -> None:
+    def start_stream(self, language: str = "en", sample_rate: int = 16000) -> None:
         """Start the streaming session."""
-        self.streaming.start_stream(language)
+        self.streaming.start_stream(language, sample_rate=sample_rate)
         self.partial_text = ""
 
     def on_audio_chunk(self, chunk: bytes) -> str:
         """Called during recording. Returns live text for display."""
-        self.streaming.send_audio(chunk)
-        self.partial_text = self.streaming.get_partial_result() or self.partial_text
+        try:
+            self.streaming.send_audio(chunk)
+            result = self.streaming.get_partial_result()
+            if result:
+                self.partial_text = result
+                logger.info("Streaming partial: %s", result[:50])
+        except Exception as e:
+            logger.warning("Streaming connection lost, continuing without live text: %s", e)
         return self.partial_text
 
     def on_recording_stop(self, audio_path: str, language: str) -> str:
         """Called when recording stops. Returns accurate batch text."""
-        self.streaming.finalize_stream()
+        try:
+            self.streaming.finalize_stream()
+        except Exception as e:
+            logger.warning("Error finalizing stream: %s", e)
         try:
             return self.batch.transcribe_file(audio_path, language=language)
         except Exception:

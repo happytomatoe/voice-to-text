@@ -34,6 +34,7 @@ class AudioRecorder:
         self.smoothed_level: float = 0.0
         self.frame_count: int = 0
         self.filepath: str | None = None
+        self.sample_rate: int = SAMPLE_RATE
         self._stream: sd.InputStream | None = None
         self._wav: wave.Wave_write | None = None
         self.on_audio_data: callable | None = None
@@ -43,6 +44,7 @@ class AudioRecorder:
         if self.device is not None:
             device_info = sd.query_devices(self.device)
             sample_rate = int(device_info["default_samplerate"])
+        self.sample_rate = sample_rate
 
         fd, self.filepath = tempfile.mkstemp(suffix=".wav")
         fh = os.fdopen(fd, "wb")

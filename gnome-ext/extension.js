@@ -4,7 +4,7 @@ import {Extension} from 'resource:///org/gnome/shell/extensions/extension.js';
 import {VoiceIndicator} from './indicator.js';
 import {Recorder} from './recorder.js';
 import {registerHotkey, unregisterHotkey} from './hotkey.js';
-import {typeText, copyToClipboard} from './typer.js';
+import {typeText, typeTextIncremental, resetTypedState, copyToClipboard} from './typer.js';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import * as MessageTray from 'resource:///org/gnome/shell/ui/messageTray.js';
 import {gettext as _} from 'resource:///org/gnome/shell/extensions/extension.js';
@@ -109,6 +109,7 @@ export default class VoiceToTextExtension extends Extension {
         }
         console.log('VoiceToText: binary found at', this._binPath);
 
+        resetTypedState();
         this._indicator.setProcessing();
         this._recording = true;
 
@@ -128,24 +129,16 @@ export default class VoiceToTextExtension extends Extension {
                 this._setIdle();
                 return;
             }
-            typeText(text, (ok) => {
-                if (!ok) {
-                    if (outputMethod === 'type-fallback-clipboard') {
-                        copyToClipboard(text);
-                        this._showNotification('ydotool failed — text copied to clipboard instead');
-                    } else {
-                        this._showNotification('ydotool failed to type text');
-                    }
-                }
-                this._setIdle();
-            });
+            typeTextIncremental(text);
+            this._setIdle();
         };
         this._recorder.onStreamingText = (text) => {
             if (text) {
-                this._showNotification(text);
+                typeTextIncremental(text);
             }
         };
         this._recorder.onError = (msg) => {
+            console.log('VoiceToText: error:', msg);
             this._showNotification('Transcription failed: ' + msg);
             this._setIdle();
         };

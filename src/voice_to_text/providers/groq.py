@@ -41,7 +41,7 @@ class GroqProvider(BatchProvider, StreamingProvider):
             logger.exception("Groq transcription API call failed")
             raise
 
-    def start_stream(self, language: str = "en") -> None:
+    def start_stream(self, language: str = "en", sample_rate: int = 16000) -> None:
         """Initialize a streaming session via WebSocket."""
         ws_url = "wss://api.groq.com/openai/v1/audio/transcriptions"
         headers = {"Authorization": f"Bearer {self.api_key}"}
@@ -55,8 +55,13 @@ class GroqProvider(BatchProvider, StreamingProvider):
         """Send an audio chunk over WebSocket."""
         if self._ws is None:
             raise RuntimeError("Stream not started. Call start_stream() first.")
-        self._ws.send(audio_chunk, opcode=websocket.ABNF.OPCODE_BINARY)
-        self._process_messages()
+        try:
+            self._ws.send(audio_chunk, opcode=websocket.ABNF.OPCODE_BINARY)
+            self._process_messages()
+        except Exception as e:
+            logger.warning("Error sending audio to Groq stream: %s", e)
+            self._ws = None
+            raise RuntimeError("Streaming connection lost") from e
 
     def get_partial_result(self) -> Optional[str]:
         """Get latest partial transcript."""
@@ -104,6 +109,7 @@ class GroqProvider(BatchProvider, StreamingProvider):
             pass
         except Exception as e:
             logger.warning("Error processing Groq messages: %s", e)
+            self._ws = None
 
     @property
     def name(self) -> str:

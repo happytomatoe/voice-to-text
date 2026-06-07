@@ -460,7 +460,7 @@ def run_stdout_mode(args, config_mgr, transcriber, language, duration, hybrid=No
         level_count = 0
         try:
             if hybrid:
-                hybrid.start_stream(language)
+                hybrid.start_stream(language, sample_rate=recorder.sample_rate)
 
             while not stop_requested:
                 if duration > 0 and (time.time() - start_time) > duration:

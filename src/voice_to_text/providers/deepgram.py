@@ -68,23 +68,34 @@ class DeepgramProvider(BatchProvider, StreamingProvider):
             logger.exception("Deepgram transcription failed")
             raise RuntimeError(f"Deepgram transcription failed: {e}")
 
-    def start_stream(self, language: str = "en") -> None:
+    def start_stream(self, language: str = "en", sample_rate: int = 16000) -> None:
         """Initialize a streaming session via WebSocket."""
-        ws_url = f"wss://api.deepgram.com/v1/listen"
-        params = {"model": self.model, "language": language}
+        ws_url = (
+            f"wss://api.deepgram.com/v1/listen"
+            f"?model={self.model}"
+            f"&language={language}"
+            f"&encoding=linear16"
+            f"&sample_rate={sample_rate}"
+            f"&interim_results=true"
+        )
         headers = {"Authorization": f"Token {self.api_key}"}
-        
+
         self._ws = websocket.WebSocket()
         self._ws.connect(ws_url, header=headers)
         self._partial_result = None
-        logger.info("Deepgram stream started")
+        logger.info("Deepgram stream started (sample_rate=%d)", sample_rate)
 
     def send_audio(self, audio_chunk: bytes) -> None:
         """Send an audio chunk over WebSocket."""
         if self._ws is None:
             raise RuntimeError("Stream not started. Call start_stream() first.")
-        self._ws.send(audio_chunk, opcode=websocket.ABNF.OPCODE_BINARY)
-        self._process_messages()
+        try:
+            self._ws.send(audio_chunk, opcode=websocket.ABNF.OPCODE_BINARY)
+            self._process_messages()
+        except Exception as e:
+            logger.warning("Error sending audio to Deepgram stream: %s", e)
+            self._ws = None
+            raise RuntimeError("Streaming connection lost") from e
 
     def get_partial_result(self) -> Optional[str]:
         """Get latest partial transcript."""
@@ -125,13 +136,14 @@ class DeepgramProvider(BatchProvider, StreamingProvider):
                         )
                         if transcript:
                             self._partial_result = transcript
-                            logger.debug("Partial result: %s", transcript[:50])
+                            logger.info("Partial result: %s", transcript[:50])
                     elif data.get("type") == "Error":
                         logger.error("Deepgram stream error: %s", data.get("message"))
         except websocket.WebSocketTimeoutException:
             pass
         except Exception as e:
             logger.warning("Error processing Deepgram messages: %s", e)
+            self._ws = None
 
     @property
     def name(self) -> str:

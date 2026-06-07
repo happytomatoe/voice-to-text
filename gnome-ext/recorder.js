@@ -107,11 +107,16 @@ export class Recorder {
             this.onAudioLevel?.(level);
           }
         } else if (line.startsWith("STREAM:")) {
-          this.onStreamingText?.(line.slice(7).trim());
+          const text = line.slice(7).trim();
+          console.log('VoiceToText: received STREAM:', text);
+          this.onStreamingText?.(text);
         } else if (line.startsWith("TEXT:")) {
-          this.onTranscription?.(line.slice(5).trim());
+          const text = line.slice(5).trim();
+          console.log('VoiceToText: received TEXT:', text);
+          this.onTranscription?.(text);
         } else if (line.startsWith("ERROR:")) {
           const errorMsg = line.slice(6).trim();
+          console.log('VoiceToText: received ERROR:', errorMsg);
           this.stop();
           this.onError?.(errorMsg);
           return;

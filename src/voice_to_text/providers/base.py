@@ -33,7 +33,7 @@ class StreamingProvider(ABC):
         pass
 
     @abstractmethod
-    def start_stream(self, language: str = "en") -> None:
+    def start_stream(self, language: str = "en", sample_rate: int = 16000) -> None:
         """Initialize a streaming session."""
         pass
 
