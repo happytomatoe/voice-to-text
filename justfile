@@ -104,7 +104,7 @@ gnome-ext-dev: reinstall gnome-ext-install
     if [ "$GNOME_VERSION" -ge 49 ]; then
       dbus-run-session -- gnome-shell --wayland --devkit  2>&1 | tee /tmp/gnome-shell-nested.log
     else
-      MUTTER_DEBUG_NESTED=1 dbus-run-session -- gnome-shell --wayland --nested > /tmp/gnome-shell-nested.log 2>&1
+      MUTTER_DEBUG_NESTED=1 dbus-run-session -- gnome-shell --wayland --nested 2>&1 | tee /tmp/gnome-shell-nested.log
     fi
 # Install extension files directly (no nested shell)
 gnome-ext-install:

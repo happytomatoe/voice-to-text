@@ -4,6 +4,7 @@ import argparse
 import select
 import signal
 import termios
+import threading
 import time
 import tty
 import subprocess
@@ -418,7 +419,6 @@ def run_benchmark(args, config_mgr):
 
 
 def run_stdout_mode(args, config_mgr, transcriber, language, duration, hybrid=None, mode="batch"):
-    import threading
 
     LEVEL_INTERVAL = 0.1
     use_streaming = mode in ("hybrid", "streaming")
@@ -524,6 +524,12 @@ def run_stdout_mode(args, config_mgr, transcriber, language, duration, hybrid=No
         logger.exception("Transcription in stdout mode failed: %s", e)
         print(f"ERROR:{e}", flush=True)
         sys.exit(1)
+    finally:
+        if recorder.filepath and os.path.exists(recorder.filepath):
+            try:
+                os.unlink(recorder.filepath)
+            except OSError:
+                logger.debug("Could not remove temp file %s", recorder.filepath)
 
 
 def _add_record_args(parser_obj):
@@ -712,6 +718,9 @@ def main():
             print(f"ERROR:Hybrid provider initialization failed: {e}", file=sys.stdout, flush=True)
             sys.exit(1)
     elif selected_mode == "streaming":
+        if args.output != "stdout":
+            print("ERROR:streaming mode requires --output stdout", file=sys.stdout, flush=True)
+            sys.exit(1)
         hybrid_cfg = config_mgr.config.get("transcription", {}).get("hybrid", {})
         streaming_name = getattr(args, "streaming_provider", None) or hybrid_cfg.get("streaming_provider", "deepgram")
         streaming_config = config_mgr.get_provider_config(streaming_name)

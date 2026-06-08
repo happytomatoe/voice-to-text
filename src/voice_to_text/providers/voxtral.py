@@ -165,7 +165,6 @@ class VoxtralProvider(BatchProvider, StreamingProvider):
         self._closed = True
 
         if self._stream_task is not None:
-            self._stream_task.cancel()
             try:
                 self._stream_task.result(timeout=5.0)
             except Exception:

@@ -58,7 +58,7 @@ class DeepgramProvider(BatchProvider, WebSocketStreamingProvider):
 
     def start_stream(self, language: str = "en", sample_rate: int = 16000) -> None:
         ws_url = (
-            f"wss://api.deepgram.com/v1/listen"
+            f"{self.api_url.replace('https://', 'wss://').replace('http://', 'ws://')}/v1/listen"
             f"?model={self.model}"
             f"&language={language}"
             f"&encoding=linear16"

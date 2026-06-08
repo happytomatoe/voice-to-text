@@ -13,7 +13,6 @@ export function getLastTyped() {
 }
 
 export function typeText(text, onDone = () => {}) {
-    _lastTyped = text;
     try {
         const argv = [
             'ydotool', 'type',
@@ -24,7 +23,9 @@ export function typeText(text, onDone = () => {}) {
         proc.init(null);
         proc.wait_check_async(null, (proc, res) => {
             try {
-                onDone(proc.wait_check_finish(res));
+                proc.wait_check_finish(res);
+                _lastTyped = text;
+                onDone(true);
             } catch (e) {
                 console.error(`VoiceToText: ydotool failed: ${e.message}`);
                 onDone(false);
@@ -51,17 +52,16 @@ export function typeTextIncremental(text) {
     const backspaceCount = oldText.length - commonLen;
     const newSuffix = text.slice(commonLen);
 
-    _lastTyped = text;
     console.log('VoiceToText: typeTextIncremental:', {
         backspaceCount,
         newSuffix: newSuffix.slice(0, 60),
     });
-    _ydotoolDiffType(backspaceCount, newSuffix);
+    _ydotoolDiffType(backspaceCount, newSuffix, text);
 }
 
 // Diff-based typing: backspace the changed suffix, then type only what's new.
 // Based on the nerd-dictation algorithm (ideasman42/nerd-dictation).
-function _ydotoolDiffType(backspaceCount, newSuffix) {
+function _ydotoolDiffType(backspaceCount, newSuffix, newText) {
     try {
         if (backspaceCount > 0) {
             // KEY_BACKSPACE = evdev keycode 14
@@ -75,6 +75,7 @@ function _ydotoolDiffType(backspaceCount, newSuffix) {
                 `ydotool type --key-delay=0 --key-hold=0 -- ${GLib.shell_quote(newSuffix)}`
             );
         }
+        _lastTyped = newText;
     } catch (e) {
         console.error(`VoiceToText: ydotool diff type failed: ${e.message}`);
     }

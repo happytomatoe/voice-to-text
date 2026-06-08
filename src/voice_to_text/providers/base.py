@@ -124,6 +124,25 @@ class WebSocketStreamingProvider(StreamingProvider):
 
         try:
             self._ws.send(json.dumps({"type": "CloseStream"}))
+            self._ws.settimeout(2.0)
+            while True:
+                try:
+                    msg = self._ws.recv()
+                    if isinstance(msg, str):
+                        data = json.loads(msg)
+                        msg_type = data.get("type", "")
+                        if msg_type == "Results":
+                            channel = data.get("channel", {})
+                            alternatives = channel.get("alternatives", [{}])
+                            transcript = (
+                                alternatives[0].get("transcript", "")
+                                if alternatives
+                                else ""
+                            )
+                            if transcript:
+                                self._partial_result = transcript
+                except websocket.WebSocketTimeoutException:
+                    break
             self._ws.close()
         except Exception as e:
             logger.warning("Error closing %s stream: %s", self.name, e)

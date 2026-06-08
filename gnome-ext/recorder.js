@@ -29,10 +29,12 @@ export class Recorder {
       '--language', language,
       '--mode', mode,
     ];
-    if (mode === 'hybrid') {
+    if (mode === 'hybrid' || mode === 'streaming') {
       const streamingProvider = this._settings.get_string('streaming-provider');
-      const batchProvider = this._settings.get_string('batch-provider');
       argv.push('--streaming-provider', streamingProvider);
+    }
+    if (mode === 'hybrid') {
+      const batchProvider = this._settings.get_string('batch-provider');
       argv.push('--batch-provider', batchProvider);
     }
     if (decreaseSpeakerVolume > 0) {
@@ -108,7 +110,6 @@ export class Recorder {
           }
         } else if (line.startsWith("STREAM:")) {
           const text = line.slice(7).trim();
-          console.log('VoiceToText: received STREAM:', text);
           this.onStreamingText?.(text);
         } else if (line.startsWith("TEXT:")) {
           const text = line.slice(5).trim();

@@ -44,4 +44,5 @@ class HybridTranscriber:
         try:
             return self.batch.transcribe_file(audio_path, language=language)
         except Exception:
+            logger.warning("Batch transcription failed, falling back to streaming transcript")
             return self.partial_text

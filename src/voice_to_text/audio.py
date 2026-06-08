@@ -87,7 +87,10 @@ class AudioRecorder:
             + (1 - self.smooth_factor) * rms
         )
         if self.on_audio_data is not None:
-            self.on_audio_data(raw)
+            try:
+                self.on_audio_data(raw)
+            except Exception:
+                logger.exception("on_audio_data callback failed")
 
 
 def format_level_bar(level: float, elapsed: float) -> str:
