@@ -1,8 +1,20 @@
 import GLib from 'gi://GLib';
 import Gio from 'gi://Gio';
 import St from 'gi://St';
+import * as MessageTray from 'resource:///org/gnome/shell/ui/messageTray.js';
 
 let _lastTyped = '';
+
+function _showNotification(message) {
+    const systemSource = MessageTray.getSystemSource();
+    const notification = new MessageTray.Notification({
+        source: systemSource,
+        title: 'Voice to Text',
+        body: message,
+        iconName: 'audio-input-microphone-symbolic',
+    });
+    systemSource.addNotification(notification);
+}
 
 export function resetTypedState() {
     _lastTyped = '';
@@ -28,11 +40,13 @@ export function typeText(text, onDone = () => {}) {
                 onDone(true);
             } catch (e) {
                 console.error(`VoiceToText: ydotool failed: ${e.message}`);
+                _showNotification(`ydotool failed: ${e.message}`);
                 onDone(false);
             }
         });
     } catch (e) {
         console.error(`VoiceToText: failed to run ydotool: ${e.message}`);
+        _showNotification(`Failed to run ydotool: ${e.message}`);
         onDone(false);
     }
 }
@@ -78,6 +92,7 @@ function _ydotoolDiffType(backspaceCount, newSuffix, newText) {
         _lastTyped = newText;
     } catch (e) {
         console.error(`VoiceToText: ydotool diff type failed: ${e.message}`);
+        _showNotification(`ydotool diff type failed: ${e.message}`);
     }
 }
 
