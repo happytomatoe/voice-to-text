@@ -29,8 +29,3 @@ def get_streaming_provider(name: str, config: Dict[str, Any]) -> StreamingProvid
     if name not in _STREAMING_PROVIDERS:
         raise ValueError(f"Streaming provider '{name}' not found. Available: {list(_STREAMING_PROVIDERS.keys())}")
     return _STREAMING_PROVIDERS[name](config)  # type: ignore[return-value]
-
-# Legacy compatibility
-def get_provider(provider_name: str, config: Dict[str, Any]) -> BatchProvider:
-    """Get transcription provider instance (legacy compatibility)."""
-    return get_batch_provider(provider_name, config)

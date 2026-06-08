@@ -4,7 +4,7 @@ import tempfile
 import os
 
 from voice_to_text.config import ConfigManager
-from voice_to_text.providers import get_provider
+from voice_to_text.providers import get_batch_provider
 
 @pytest.fixture
 def groq_config():
@@ -35,10 +35,10 @@ def test_provider_instantiation(groq_config):
     provider_config = config_mgr.get_provider_config(provider_name)
 
     try:
-        provider = get_provider(provider_name, provider_config)
+        provider = get_batch_provider(provider_name, provider_config)
         assert provider.name == provider_name
     except ValueError as e:
-        assert "not set" in str(e)
+        assert "GROQ_API_KEY" in str(e)
 
 def test_speaker_config_defaults(groq_config):
     config_mgr = ConfigManager(groq_config)

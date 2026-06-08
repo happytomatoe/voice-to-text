@@ -19,7 +19,7 @@ from dotenv import load_dotenv
 
 from voice_to_text import source_hash
 from voice_to_text.bluetooth import activate_headset_mic
-from voice_to_text.providers import get_provider, get_batch_provider, get_streaming_provider
+from voice_to_text.providers import get_batch_provider, get_streaming_provider
 from voice_to_text.hybrid import HybridTranscriber
 from voice_to_text.config import ConfigManager
 from voice_to_text.audio import (
@@ -330,7 +330,7 @@ def run_benchmark(args, config_mgr):
             continue
         try:
             provider_config = config_mgr.get_provider_config(name)
-            p = get_provider(name, provider_config)
+            p = get_batch_provider(name, provider_config)
             providers.append(p)
         except (ValueError, Exception) as e:
             print(f"  {name}: SKIP ({e})")
@@ -501,6 +501,10 @@ def run_stdout_mode(args, config_mgr, transcriber, language, duration, hybrid=No
 
     if recorder.frame_count == 0:
         print("ERROR:No audio recorded", flush=True)
+        sys.exit(1)
+
+    if recorder.filepath is None:
+        print("ERROR:No audio file produced", flush=True)
         sys.exit(1)
 
     try:
@@ -714,14 +718,14 @@ def main():
         
         try:
             streaming_provider = get_streaming_provider(streaming_name, streaming_config)
-            hybrid = HybridTranscriber(streaming_provider, streaming_provider)
+            hybrid = HybridTranscriber(streaming_provider, streaming_provider)  # type: ignore[arg-type]
         except ValueError as e:
             logger.error("Streaming provider initialization failed: %s", e)
             print(f"ERROR:Streaming provider initialization failed: {e}", file=sys.stdout, flush=True)
             sys.exit(1)
     else:
         try:
-            transcriber = get_provider(selected_provider, provider_config)
+            transcriber = get_batch_provider(selected_provider, provider_config)
         except ValueError as e:
             logger.error("Provider initialization failed: %s", e)
             print(f"ERROR:Provider initialization failed: {e}", file=sys.stdout, flush=True)
@@ -783,6 +787,10 @@ def main():
 
     if recorder.frame_count == 0:
         print("ERROR:No audio recorded")
+        sys.exit(1)
+
+    if recorder.filepath is None:
+        print("ERROR:No audio file produced")
         sys.exit(1)
 
     try:

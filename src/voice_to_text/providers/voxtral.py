@@ -127,7 +127,7 @@ class VoxtralProvider(BatchProvider, StreamingProvider):
 
         async def audio_chunks():
             while not self._closed:
-                chunk = await self._audio_queue.get()
+                chunk = await self._audio_queue.get()  # type: ignore[union-attr]
                 yield chunk
 
         try:
@@ -148,7 +148,7 @@ class VoxtralProvider(BatchProvider, StreamingProvider):
             raise RuntimeError(f"Streaming connection lost: {exc}") from exc
         finally:
             if hasattr(rt, "close"):
-                rt.close()
+                rt.close()  # type: ignore[attr-defined]
             logger.info("Voxtral realtime stream closed")
 
     def send_audio(self, audio_chunk: bytes) -> None:

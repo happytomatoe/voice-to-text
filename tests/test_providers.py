@@ -1,19 +1,19 @@
 """Tests for transcription providers."""
 import pytest
 
-from voice_to_text.providers import get_provider, BatchProvider
+from voice_to_text.providers import get_batch_provider, BatchProvider
 from voice_to_text.providers.groq import GroqProvider
 
 class TestProviderFactory:
     def test_get_groq_provider(self):
         config = {'api_key': 'test_key', 'model': 'whisper-large-v3-turbo'}
-        provider = get_provider('groq', config)
+        provider = get_batch_provider('groq', config)
         assert isinstance(provider, GroqProvider)
         assert provider.name == 'groq'
     
     def test_invalid_provider(self):
         with pytest.raises(ValueError):
-            get_provider('invalid', {})
+            get_batch_provider('invalid', {})
 
 class TestGroqProvider:
     def test_initialization(self):

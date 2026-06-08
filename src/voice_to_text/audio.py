@@ -7,6 +7,7 @@ import subprocess
 import logging
 import tempfile
 import wave
+from typing import Callable
 
 import numpy as np
 import sounddevice as sd
@@ -37,7 +38,7 @@ class AudioRecorder:
         self.sample_rate: int = SAMPLE_RATE
         self._stream: sd.InputStream | None = None
         self._wav: wave.Wave_write | None = None
-        self.on_audio_data: callable | None = None
+        self.on_audio_data: Callable[[bytes], None] | None = None
 
     def start(self):
         sample_rate = SAMPLE_RATE
@@ -76,7 +77,8 @@ class AudioRecorder:
 
     def _callback(self, indata: np.ndarray, frames: int, time_info, status):
         raw = indata.tobytes()
-        self._wav.writeframes(raw)
+        if self._wav is not None:
+            self._wav.writeframes(raw)
         self.frame_count += 1
         float_data = indata[:, 0].astype(np.float32) / 32768.0
         rms = math.sqrt(np.mean(float_data**2))
