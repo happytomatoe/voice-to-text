@@ -22,12 +22,15 @@ class HybridTranscriber:
 
     def on_audio_chunk(self, chunk: bytes) -> str:
         """Called during recording. Returns live text for display."""
+        logger.debug("Hybrid.on_audio_chunk: %d bytes", len(chunk))
         try:
             self.streaming.send_audio(chunk)
             result = self.streaming.get_partial_result()
             if result:
                 self.partial_text = result
-                logger.info("Streaming partial: %s", result[:50])
+                logger.info("Streaming partial len=%d: %r", len(result), result)
+            else:
+                logger.debug("No partial result from streaming provider")
         except Exception as e:
             logger.warning("Streaming connection lost, continuing without live text: %s", e)
         return self.partial_text

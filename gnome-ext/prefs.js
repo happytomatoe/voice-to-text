@@ -111,13 +111,13 @@ export default class VoiceToTextPrefs extends ExtensionPreferences {
     // Transcription mode setting
     const modeRow = new Adw.ActionRow({
       title: _("Transcription Mode"),
-      subtitle: _("Batch: single-pass; Hybrid: streaming + batch; Streaming: streaming only (test)"),
+      subtitle: _("Batch: single-pass; Hybrid: streaming + batch; Streaming: streaming only"),
     });
 
     const modeCombo = new Gtk.ComboBoxText();
     modeCombo.append("batch", _("Batch"));
     modeCombo.append("hybrid", _("Hybrid (Streaming + Batch)"));
-    modeCombo.append("streaming", _("Streaming (Test)"));
+    modeCombo.append("streaming", _("Streaming"));
     modeCombo.set_active_id(settings.get_string("mode"));
     modeRow.add_suffix(modeCombo);
     group.add(modeRow);
@@ -131,6 +131,7 @@ export default class VoiceToTextPrefs extends ExtensionPreferences {
     const streamingProviderCombo = new Gtk.ComboBoxText();
     streamingProviderCombo.append("deepgram", "Deepgram");
     streamingProviderCombo.append("groq", "Groq");
+    streamingProviderCombo.append("voxtral_realtime", "Voxtral Realtime");
     streamingProviderCombo.set_active_id(settings.get_string("streaming-provider"));
     streamingProviderCombo.connect("changed", () => {
       settings.set_string("streaming-provider", streamingProviderCombo.get_active_id());

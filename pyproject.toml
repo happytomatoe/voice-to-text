@@ -12,6 +12,7 @@ dependencies = [
   "pyinstaller~=6.20.0",
   "requests~=2.33.1",
   "websocket-client~=1.8.0",
+  "mistralai[realtime]~=2.4",
 ]
 
 [project.scripts]

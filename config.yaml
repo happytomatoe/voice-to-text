@@ -4,10 +4,10 @@
 # Provider selection
 transcription:
   mode: "batch"           # "batch" or "hybrid"
-  provider: "parakeet"   # For batch mode: "deepgram", "groq", "voxtral", or "parakeet"
+  provider: "voxtral"   # For batch mode: "deepgram", "groq", "voxtral", or "parakeet"
   language: "en"
   hybrid:
-    streaming_provider: "deepgram"
+    streaming_provider: "voxtral_realtime"
     batch_provider: "voxtral"
     language: "en"
 
@@ -27,6 +27,11 @@ parakeet:
   model: "nvidia/parakeet-tdt-0.6b-v3"
   http_endpoint: "http://localhost:5092"
   timeout_seconds: 30
+
+voxtral_realtime:
+  api_key_env: "VOXTRAL_API_KEY"
+  realtime_model: "voxtral-mini-transcribe-realtime-2602"
+  target_delay_ms: 400
 
 audio:
   sample_rate: 16000

@@ -33,17 +33,17 @@ DEFAULT_LOG_FILE = Path("/tmp") / "voice-to-text.log"
 logger = logging.getLogger(__name__)
 
 
-def setup_logging(log_file: Path | None = None):
+def setup_logging(log_file: Path | None = None, level: int = logging.INFO):
     log_path = log_file if log_file else DEFAULT_LOG_FILE
     logging.basicConfig(
-        level=logging.INFO,
+        level=level,
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
         handlers=[
             logging.FileHandler(log_path),
             logging.StreamHandler(sys.stderr),
         ],
     )
-    logger.info("Logging initialized, log file: %s", log_path)
+    logger.info("Logging initialized, log file: %s, level: %s", log_path, logging.getLevelName(level))
 
 
 def load_config():
@@ -449,6 +449,7 @@ def run_stdout_mode(args, config_mgr, transcriber, language, duration, hybrid=No
 
     if hybrid:
         def _on_audio_data(data: bytes):
+            logger.debug("Received audio chunk: %d bytes", len(data))
             with chunk_lock:
                 audio_chunks.append(data)
         recorder.on_audio_data = _on_audio_data
@@ -478,9 +479,12 @@ def run_stdout_mode(args, config_mgr, transcriber, language, duration, hybrid=No
                     with chunk_lock:
                         chunks = audio_chunks[:]
                         audio_chunks.clear()
+                    logger.debug("Processing %d audio chunks", len(chunks))
                     for chunk in chunks:
+                        logger.debug("Sending chunk to hybrid: %d bytes", len(chunk))
                         partial = hybrid.on_audio_chunk(chunk)
                         if partial:
+                            logger.info("Streaming partial len=%d: %r", len(partial), partial)
                             print(f"STREAM:{partial}", flush=True)
 
                 time.sleep(0.02)
@@ -508,6 +512,7 @@ def run_stdout_mode(args, config_mgr, transcriber, language, duration, hybrid=No
         else:
             text = transcribe_audio(recorder.filepath, transcriber, language)
         if text:
+            logger.info("Final text len=%d: %r", len(text), text)
             print(f"TEXT:{text}", flush=True)
         else:
             print("ERROR:No speech detected", flush=True)
@@ -527,7 +532,7 @@ def _add_record_args(parser_obj):
     parser_obj.add_argument(
         "--provider",
         type=str,
-        choices=["deepgram", "groq", "voxtral", "parakeet"],
+        choices=["deepgram", "groq", "voxtral", "parakeet", "voxtral_realtime"],
         help="Transcription provider to use",
     )
     parser_obj.add_argument(
@@ -554,7 +559,7 @@ def _add_record_args(parser_obj):
     parser_obj.add_argument(
         "--streaming-provider",
         type=str,
-        choices=["deepgram", "groq"],
+        choices=["deepgram", "groq", "voxtral_realtime"],
         help="Streaming provider for hybrid mode (overrides config)",
     )
     parser_obj.add_argument(
@@ -636,9 +641,18 @@ def main():
 
     config_mgr = load_config()
     log_file_config = config_mgr.get_logging_config().get("file")
+    log_level_config = config_mgr.get_logging_config().get("level", "info").upper()
+    log_level = getattr(logging, log_level_config, logging.INFO)
+    
+    # Override to DEBUG for hybrid/streaming modes to help debug streaming issues
+    mode_override = args.mode
+    selected_mode = mode_override or config_mgr.config.get("transcription", {}).get("mode", "batch")
+    if selected_mode in ("hybrid", "streaming"):
+        log_level = logging.DEBUG
+        
     log_file_arg = Path(args.log_file) if args.log_file else None
     log_file = log_file_arg or (Path(log_file_config) if log_file_config else None)
-    setup_logging(log_file)
+    setup_logging(log_file, log_level)
 
     if args.command == "devices":
         print("Available audio input devices:")

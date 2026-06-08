@@ -39,38 +39,44 @@ export function typeText(text, onDone = () => {}) {
 export function typeTextIncremental(text) {
     const oldText = _lastTyped;
 
-    if (oldText.length === 0) {
-        _lastTyped = text;
-        _ydotoolType(text);
-        return;
+    if (text === oldText) return;
+
+    // Find common prefix between old and new text
+    let commonLen = 0;
+    const minLen = Math.min(oldText.length, text.length);
+    while (commonLen < minLen && oldText[commonLen] === text[commonLen]) {
+        commonLen++;
     }
 
-    // Streaming partials can change completely (not just append).
-    // Replace entire text: Select All -> Delete -> Type new
-    if (text !== oldText) {
-        _lastTyped = text;
-        _ydotoolReplace(text);
-    }
+    const backspaceCount = oldText.length - commonLen;
+    const newSuffix = text.slice(commonLen);
+
+    _lastTyped = text;
+    console.log('VoiceToText: typeTextIncremental:', {
+        backspaceCount,
+        newSuffix: newSuffix.slice(0, 60),
+    });
+    _ydotoolDiffType(backspaceCount, newSuffix);
 }
 
-function _ydotoolType(text) {
+// Diff-based typing: backspace the changed suffix, then type only what's new.
+// Based on the nerd-dictation algorithm (ideasman42/nerd-dictation).
+function _ydotoolDiffType(backspaceCount, newSuffix) {
     try {
-        const argv = ['ydotool', 'type', '--key-delay=0', '--key-hold=0', '--', text];
-        const proc = new Gio.Subprocess({ argv, flags: Gio.SubprocessFlags.NONE });
-        proc.init(null);
+        if (backspaceCount > 0) {
+            // KEY_BACKSPACE = evdev keycode 14
+            const backspaces = Array(backspaceCount).fill('14:1 14:0').join(' ');
+            GLib.spawn_command_line_sync(
+                `ydotool key --key-delay=3 -- ${backspaces}`
+            );
+        }
+        if (newSuffix.length > 0) {
+            GLib.spawn_command_line_sync(
+                `ydotool type --key-delay=0 --key-hold=0 -- ${GLib.shell_quote(newSuffix)}`
+            );
+        }
     } catch (e) {
-        console.error(`VoiceToText: ydotool type failed: ${e.message}`);
-    }
-}
-
-function _ydotoolReplace(text) {
-    // Select all (Ctrl+A), Delete, then type new text
-    try {
-        GLib.spawn_command_line_sync(
-            `ydotool key 37:1 38:1 38:0 37:0 && ydotool type --key-delay=0 --key-hold=0 -- ${GLib.shell_quote(text)}`
-        );
-    } catch (e) {
-        console.error(`VoiceToText: ydotool replace failed: ${e.message}`);
+        console.error(`VoiceToText: ydotool diff type failed: ${e.message}`);
     }
 }
 

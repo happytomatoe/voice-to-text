@@ -87,6 +87,7 @@ class DeepgramProvider(BatchProvider, StreamingProvider):
 
     def send_audio(self, audio_chunk: bytes) -> None:
         """Send an audio chunk over WebSocket."""
+        logger.debug("Deepgram send_audio: %d bytes", len(audio_chunk))
         if self._ws is None:
             raise RuntimeError("Stream not started. Call start_stream() first.")
         try:
@@ -126,18 +127,21 @@ class DeepgramProvider(BatchProvider, StreamingProvider):
             self._ws.settimeout(0.01)
             while True:
                 msg = self._ws.recv()
+                logger.debug("Deepgram received message type: %s", type(msg).__name__)
                 if isinstance(msg, str):
                     data = json.loads(msg)
-                    if data.get("type") == "Results":
-                        transcript = (
-                            data.get("channel", {})
-                            .get("alternatives", [{}])[0]
-                            .get("transcript", "")
-                        )
+                    msg_type = data.get("type", "unknown")
+                    logger.debug("Deepgram message type: %s, raw: %s", msg_type, msg[:200])
+                    if msg_type == "Results":
+                        channel = data.get("channel", {})
+                        alternatives = channel.get("alternatives", [{}])
+                        transcript = alternatives[0].get("transcript", "") if alternatives else ""
+                        is_final = data.get("is_final", False)
+                        logger.debug("Deepgram Results: is_final=%s, transcript=%r, channel_keys=%s", is_final, transcript, list(channel.keys()))
                         if transcript:
                             self._partial_result = transcript
-                            logger.info("Partial result: %s", transcript[:50])
-                    elif data.get("type") == "Error":
+                            logger.info("Partial result (final=%s): %s", is_final, transcript[:50])
+                    elif msg_type == "Error":
                         logger.error("Deepgram stream error: %s", data.get("message"))
         except websocket.WebSocketTimeoutException:
             pass

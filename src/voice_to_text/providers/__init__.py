@@ -5,6 +5,7 @@ from .groq import GroqProvider
 from .deepgram import DeepgramProvider
 from .voxtral import VoxtralProvider
 from .parakeet import ParakeetProvider
+from .voxtral_realtime import VoxtralRealtimeProvider
 
 _BATCH_PROVIDERS = {
     "groq": GroqProvider,
@@ -16,6 +17,7 @@ _BATCH_PROVIDERS = {
 _STREAMING_PROVIDERS = {
     "groq": GroqProvider,
     "deepgram": DeepgramProvider,
+    "voxtral_realtime": VoxtralRealtimeProvider,
 }
 
 def get_batch_provider(name: str, config: Dict[str, Any]) -> BatchProvider:
