@@ -154,13 +154,19 @@ class VoxtralProvider(BatchProvider, StreamingProvider):
                 rt.close()  # type: ignore[attr-defined]
             logger.info("Voxtral realtime stream closed")
 
+    def _enqueue_chunk(self, chunk: bytes) -> None:
+        """Enqueue an audio chunk; called in the event-loop thread."""
+        if self._audio_queue is None:
+            return
+        try:
+            self._audio_queue.put_nowait(chunk)
+        except asyncio.QueueFull:
+            logger.warning("Audio queue full, dropping chunk")
+
     def send_audio(self, audio_chunk: bytes) -> None:
         """Send an audio chunk for processing - queues it for the async stream."""
         if self._audio_queue is not None and self._loop is not None:
-            try:
-                self._loop.call_soon_threadsafe(self._audio_queue.put_nowait, audio_chunk)
-            except asyncio.QueueFull:
-                logger.warning("Audio queue full, dropping chunk")
+            self._loop.call_soon_threadsafe(self._enqueue_chunk, audio_chunk)
 
     def get_partial_result(self) -> str | None:
         """Get latest partial transcript."""
