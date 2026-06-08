@@ -65,15 +65,12 @@ export default class VoiceToTextExtension extends Extension {
             this._hotkeySignalId = null;
         }
 
-        if (this._stopTimeoutId) {
-            GLib.source_remove(this._stopTimeoutId);
-            this._stopTimeoutId = null;
-        }
+        this._clearStopTimeout();
 
         if (this._recorder) {
             this._recorder.onAudioLevel = null;
             this._recorder.onTranscription = null;
-            this._recorder.onTimeout = null;
+            this._recorder.onStreamingText = null;
             this._recorder.onError = null;
             this._recorder.stop();
             this._recorder = null;
@@ -162,10 +159,7 @@ export default class VoiceToTextExtension extends Extension {
         const stopTimeoutSeconds = this._settings.get_int('stop-timeout-seconds');
         console.log(`VoiceToText: setting stop timeout for ${stopTimeoutSeconds} seconds`);
         
-        if (this._stopTimeoutId) {
-            GLib.source_remove(this._stopTimeoutId);
-            this._stopTimeoutId = null;
-        }
+        this._clearStopTimeout();
         
         this._stopTimeoutId = GLib.timeout_add_seconds(
             GLib.PRIORITY_DEFAULT,
@@ -178,11 +172,15 @@ export default class VoiceToTextExtension extends Extension {
         );
     }
     
-    _forceStop() {
+    _clearStopTimeout() {
         if (this._stopTimeoutId) {
             GLib.source_remove(this._stopTimeoutId);
             this._stopTimeoutId = null;
         }
+    }
+
+    _forceStop() {
+        this._clearStopTimeout();
         
         if (this._recorder?._proc) {
             console.log('VoiceToText: forcefully killing process');
@@ -224,10 +222,7 @@ export default class VoiceToTextExtension extends Extension {
     }
 
     _setIdle() {
-        if (this._stopTimeoutId) {
-            GLib.source_remove(this._stopTimeoutId);
-            this._stopTimeoutId = null;
-        }
+        this._clearStopTimeout();
         
         this._releaseInhibitor();
         this._recording = false;

@@ -30,6 +30,8 @@ from voice_to_text.audio import (
 
 DEFAULT_LOG_FILE = Path("/tmp") / "voice-to-text.log"
 
+ALL_PROVIDERS = ["deepgram", "groq", "voxtral", "parakeet"]
+
 logger = logging.getLogger(__name__)
 
 
@@ -225,7 +227,6 @@ def setup_interactive():
 
 def set_provider(config_mgr, provider: str | None = None) -> bool:
     """Set the default transcription provider in config. If provider is None, prompt interactively."""
-    ALL_PROVIDERS = ["deepgram", "groq", "voxtral", "parakeet"]
 
     if provider is None:
         print("Choose your transcription provider:")
@@ -306,7 +307,6 @@ class _LogCollector(logging.Handler):
 
 
 def run_benchmark(args, config_mgr):
-    ALL_PROVIDERS = ["deepgram", "groq", "voxtral", "parakeet"]
 
     if args.audio_file:
         audio_path = args.audio_file
@@ -532,7 +532,7 @@ def _add_record_args(parser_obj):
     parser_obj.add_argument(
         "--provider",
         type=str,
-        choices=["deepgram", "groq", "voxtral", "parakeet", "voxtral_realtime"],
+        choices=["deepgram", "groq", "voxtral", "parakeet"],
         help="Transcription provider to use",
     )
     parser_obj.add_argument(
@@ -559,7 +559,7 @@ def _add_record_args(parser_obj):
     parser_obj.add_argument(
         "--streaming-provider",
         type=str,
-        choices=["deepgram", "groq", "voxtral_realtime"],
+        choices=["deepgram", "voxtral"],
         help="Streaming provider for hybrid mode (overrides config)",
     )
     parser_obj.add_argument(
