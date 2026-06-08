@@ -38,11 +38,13 @@ class HybridTranscriber:
     def on_recording_stop(self, audio_path: str, language: str) -> str:
         """Called when recording stops. Returns accurate batch text."""
         try:
-            self.streaming.finalize_stream()
+            finalized = self.streaming.finalize_stream()
+            if finalized:
+                self.partial_text = finalized
         except Exception as e:
             logger.warning("Error finalizing stream: %s", e)
         try:
             return self.batch.transcribe_file(audio_path, language=language)
-        except Exception:
-            logger.warning("Batch transcription failed, falling back to streaming transcript")
+        except Exception as e:
+            logger.warning("Batch transcription failed, falling back to streaming transcript: %s", e)
             return self.partial_text

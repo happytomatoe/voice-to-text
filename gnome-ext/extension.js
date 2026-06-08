@@ -130,7 +130,8 @@ export default class VoiceToTextExtension extends Extension {
             this._setIdle();
         };
         this._recorder.onStreamingText = (text) => {
-            if (text) {
+            const outputMethod = this._settings.get_string('output-method');
+            if (text && outputMethod !== 'clipboard') {
                 typeTextIncremental(text);
             }
         };

@@ -6,7 +6,17 @@ import tempfile
 import wave
 import struct
 
+from voice_to_text.providers import get_batch_provider, get_streaming_provider
+from voice_to_text.providers.base import BatchProvider, StreamingProvider
+from voice_to_text.providers.groq import GroqProvider
+from voice_to_text.providers.deepgram import DeepgramProvider
+from voice_to_text.providers.voxtral import VoxtralProvider
+from voice_to_text.providers.parakeet import ParakeetProvider
+from voice_to_text.hybrid import HybridTranscriber
+from voice_to_text.config import ConfigManager
 
+
+@pytest.fixture
 def create_test_wav(duration_ms=100, sample_rate=16000):
     """Create a minimal WAV file for testing."""
     with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as f:
@@ -20,7 +30,10 @@ def create_test_wav(duration_ms=100, sample_rate=16000):
         # Write silence
         wav.writeframes(struct.pack('<' + 'h' * num_samples, *([0] * num_samples)))
     
-    return wav_path
+    yield wav_path
+    
+    if os.path.exists(wav_path):
+        os.unlink(wav_path)
 
 
 class TestCLIHelp:
@@ -115,27 +128,16 @@ class TestProviderImports:
     """Test that all providers can be imported."""
     
     def test_import_batch_providers(self):
-        from voice_to_text.providers import get_batch_provider
-        from voice_to_text.providers.groq import GroqProvider
-        from voice_to_text.providers.deepgram import DeepgramProvider
-        from voice_to_text.providers.voxtral import VoxtralProvider
-        from voice_to_text.providers.parakeet import ParakeetProvider
-        
         assert GroqProvider is not None
         assert DeepgramProvider is not None
         assert VoxtralProvider is not None
         assert ParakeetProvider is not None
     
     def test_import_streaming_providers(self):
-        from voice_to_text.providers import get_streaming_provider
-        from voice_to_text.providers.groq import GroqProvider
-        from voice_to_text.providers.deepgram import DeepgramProvider
-        
         assert GroqProvider is not None
         assert DeepgramProvider is not None
     
     def test_import_hybrid_transcriber(self):
-        from voice_to_text.hybrid import HybridTranscriber
         assert HybridTranscriber is not None
 
 
@@ -143,24 +145,16 @@ class TestProviderABCs:
     """Test that providers implement correct ABCs."""
     
     def test_groq_is_batch_provider(self):
-        from voice_to_text.providers.base import BatchProvider
-        from voice_to_text.providers.groq import GroqProvider
         assert issubclass(GroqProvider, BatchProvider)
     
     def test_deepgram_is_batch_and_streaming(self):
-        from voice_to_text.providers.base import BatchProvider, StreamingProvider
-        from voice_to_text.providers.deepgram import DeepgramProvider
         assert issubclass(DeepgramProvider, BatchProvider)
         assert issubclass(DeepgramProvider, StreamingProvider)
     
     def test_voxtral_is_batch_provider(self):
-        from voice_to_text.providers.base import BatchProvider
-        from voice_to_text.providers.voxtral import VoxtralProvider
         assert issubclass(VoxtralProvider, BatchProvider)
     
     def test_parakeet_is_batch_provider(self):
-        from voice_to_text.providers.base import BatchProvider
-        from voice_to_text.providers.parakeet import ParakeetProvider
         assert issubclass(ParakeetProvider, BatchProvider)
 
 
@@ -168,10 +162,6 @@ class TestHybridTranscriber:
     """Test HybridTranscriber functionality."""
     
     def test_hybrid_transcriber_initialization(self):
-        from voice_to_text.hybrid import HybridTranscriber
-        from voice_to_text.providers.deepgram import DeepgramProvider
-        from voice_to_text.providers.voxtral import VoxtralProvider
-        
         # Mock configs
         deepgram_config = {'api_key': 'test_key'}
         voxtral_config = {'api_key': 'test_key'}
@@ -189,12 +179,10 @@ class TestConfigLoading:
     """Test configuration loading."""
     
     def test_config_loads(self):
-        from voice_to_text.config import ConfigManager
         config_mgr = ConfigManager()
         assert config_mgr.config is not None
     
     def test_config_has_hybrid_mode(self):
-        from voice_to_text.config import ConfigManager
         config_mgr = ConfigManager()
         mode = config_mgr.config.get('transcription', {}).get('mode', 'batch')
         assert mode in ['batch', 'hybrid']

@@ -1,10 +1,10 @@
 """Integration tests for multi-provider system."""
 import pytest
 
+from voice_to_text.providers import get_batch_provider
+
 def test_provider_factory():
     """Test provider factory works."""
-    from voice_to_text.providers import get_batch_provider
-
     config = {'api_key': 'test_key'}
     provider = get_batch_provider('groq', config)
     assert provider.name == 'groq'

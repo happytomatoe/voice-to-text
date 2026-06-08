@@ -10,6 +10,9 @@ from typing import Dict, Any
 
 from .base import BatchProvider, StreamingProvider, resolve_api_key
 
+from mistralai.client import Mistral
+from mistralai.extra.realtime import AudioFormat
+
 logger = logging.getLogger(__name__)
 
 
@@ -34,7 +37,7 @@ class VoxtralProvider(BatchProvider, StreamingProvider):
         self._target_delay_ms = config.get("target_delay_ms", 400)
 
         # Streaming state
-        self._audio_queue: asyncio.Queue[bytes] | None = None
+        self._audio_queue: asyncio.Queue[bytes | None] | None = None
         self._partial_result: str | None = None
         self._partial_tokens: list[str] = []
         self._stream_task: concurrent.futures.Future[None] | None = None
@@ -59,6 +62,7 @@ class VoxtralProvider(BatchProvider, StreamingProvider):
                     headers={"Authorization": f"Bearer {self.api_key}"},
                     files=files,
                     data=data,
+                    timeout=120,
                 )
             response.raise_for_status()
             result = response.json()
@@ -119,15 +123,14 @@ class VoxtralProvider(BatchProvider, StreamingProvider):
 
     async def _stream(self, language: str, sample_rate: int) -> None:
         """Run the Voxtral realtime streaming in the event loop thread."""
-        from mistralai.client import Mistral
-        from mistralai.extra.realtime import AudioFormat
-
         client = Mistral(api_key=self.api_key)
         rt = client.audio.realtime
 
         async def audio_chunks():
-            while not self._closed:
+            while True:
                 chunk = await self._audio_queue.get()  # type: ignore[union-attr]
+                if chunk is None:
+                    break
                 yield chunk
 
         try:
@@ -154,7 +157,10 @@ class VoxtralProvider(BatchProvider, StreamingProvider):
     def send_audio(self, audio_chunk: bytes) -> None:
         """Send an audio chunk for processing - queues it for the async stream."""
         if self._audio_queue is not None and self._loop is not None:
-            self._loop.call_soon_threadsafe(self._audio_queue.put_nowait, audio_chunk)
+            try:
+                self._loop.call_soon_threadsafe(self._audio_queue.put_nowait, audio_chunk)
+            except asyncio.QueueFull:
+                logger.warning("Audio queue full, dropping chunk")
 
     def get_partial_result(self) -> str | None:
         """Get latest partial transcript."""
@@ -163,12 +169,19 @@ class VoxtralProvider(BatchProvider, StreamingProvider):
     def finalize_stream(self) -> str:
         """End stream and return final transcript."""
         self._closed = True
+        if self._audio_queue is not None and self._loop is not None:
+            try:
+                asyncio.run_coroutine_threadsafe(
+                    self._audio_queue.put(None), self._loop
+                ).result(timeout=1.0)
+            except Exception:
+                logger.debug("Failed to signal stream shutdown", exc_info=True)
 
         if self._stream_task is not None:
             try:
                 self._stream_task.result(timeout=5.0)
             except Exception:
-                pass
+                logger.debug("Stream task did not exit cleanly", exc_info=True)
             self._stream_task = None
 
         result = self._partial_result or ""

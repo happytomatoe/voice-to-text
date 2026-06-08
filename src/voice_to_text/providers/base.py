@@ -100,6 +100,11 @@ class WebSocketStreamingProvider(StreamingProvider):
         self._partial_result = None
 
     def _connect_ws(self, ws_url: str, headers: Dict[str, str]) -> None:
+        if self._ws is not None:
+            try:
+                self._ws.close()
+            except Exception:
+                pass
         self._ws = websocket.WebSocket()
         self._ws.connect(ws_url, header=headers)
         self._partial_result = None
