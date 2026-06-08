@@ -45,6 +45,10 @@ Edit [`config.yaml`](./config.yaml) to customize if you are using python app or 
 - **clipboard**: Copies text to system clipboard using `xclip`/`xsel`
 - **output** - used by gnome extension
 
+## Attribution
+
+- The diff-based incremental typing algorithm in [`gnome-ext/typer.js`](./gnome-ext/typer.js) is inspired by [nerd-dictation](https://github.com/ideasman42/nerd-dictation)
+
 ## License
 
 MIT
