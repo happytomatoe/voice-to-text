@@ -130,8 +130,7 @@ export default class VoiceToTextPrefs extends ExtensionPreferences {
 
     const streamingProviderCombo = new Gtk.ComboBoxText();
     streamingProviderCombo.append("deepgram", "Deepgram");
-    streamingProviderCombo.append("groq", "Groq");
-    streamingProviderCombo.append("voxtral_realtime", "Voxtral Realtime");
+    streamingProviderCombo.append("voxtral", "Voxtral");
     streamingProviderCombo.set_active_id(settings.get_string("streaming-provider"));
     streamingProviderCombo.connect("changed", () => {
       settings.set_string("streaming-provider", streamingProviderCombo.get_active_id());

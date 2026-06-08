@@ -28,7 +28,7 @@ class HybridTranscriber:
             result = self.streaming.get_partial_result()
             if result:
                 self.partial_text = result
-                logger.info("Streaming partial len=%d: %r", len(result), result)
+                logger.debug("Streaming partial len=%d", len(result))
             else:
                 logger.debug("No partial result from streaming provider")
         except Exception as e:

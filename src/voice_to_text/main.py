@@ -484,7 +484,6 @@ def run_stdout_mode(args, config_mgr, transcriber, language, duration, hybrid=No
                         logger.debug("Sending chunk to hybrid: %d bytes", len(chunk))
                         partial = hybrid.on_audio_chunk(chunk)
                         if partial:
-                            logger.info("Streaming partial len=%d: %r", len(partial), partial)
                             print(f"STREAM:{partial}", flush=True)
 
                 time.sleep(0.02)

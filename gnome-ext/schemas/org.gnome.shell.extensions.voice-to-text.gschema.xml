@@ -43,9 +43,9 @@
       <description>batch: single-pass transcription; hybrid: streaming + batch; streaming: streaming only</description>
     </key>
     <key name="streaming-provider" type="s">
-      <default>"voxtral_realtime"</default>
+      <default>"voxtral"</default>
       <summary>Streaming provider for hybrid mode</summary>
-      <description>Provider used for real-time streaming during recording in hybrid mode (deepgram, groq, or voxtral_realtime)</description>
+      <description>Provider used for real-time streaming during recording in hybrid mode (deepgram or voxtral)</description>
     </key>
     <key name="batch-provider" type="s">
       <default>"voxtral"</default>

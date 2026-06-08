@@ -131,7 +131,6 @@ export default class VoiceToTextExtension extends Extension {
         };
         this._recorder.onStreamingText = (text) => {
             if (text) {
-                console.log('VoiceToText: onStreamingText received:', text);
                 typeTextIncremental(text);
             }
         };
