@@ -111,46 +111,14 @@ if [ -f "$CONFIG_FILE" ]; then
   echo "Existing config found at $CONFIG_FILE; leaving it unchanged."
   echo "Run 'voice-to-text setup' to change the default provider."
 else
-  cat >"$CONFIG_FILE" <<'EOF'
-# groq-voice configuration
-# Multi-provider transcription system
-
-# Provider selection
-transcription:
-  provider: "voxtral" # "deepgram", "groq", "voxtral", or "parakeet"
-  language: "en"
-
-# Provider-specific configurations
-deepgram:
-  api_key_env: "DEEPGRAM_API_KEY"
-  model: "nova-3"
-
-groq:
-  api_key_env: "GROQ_API_KEY"
-
-voxtral:
-  api_key_env: "VOXTRAL_API_KEY"
-  model: "voxtral-mini-latest"
-
-parakeet:
-  model: "nvidia/parakeet-tdt-0.6b-v3"
-  http_endpoint: "http://localhost:5092"
-  timeout_seconds: 30
-
-audio:
-  sample_rate: 16000
-  channels: 1
-  block_size: 2048
-  smooth_factor: 0.7
-  speaker:
-    decrease_volume: 50
-
-logging:
-  file: "/tmp/voice-to-text.log"
-  level: "info"
-EOF
-  echo "Default config installed at $CONFIG_FILE."
-  echo "Run 'voice-to-text setup' to change the default provider."
+  echo "Downloading default config..."
+  curl -L -o "$CONFIG_FILE" "https://raw.githubusercontent.com/$REPO/main/config.yaml"
+  if [ -f "$CONFIG_FILE" ]; then
+    echo "Default config installed at $CONFIG_FILE."
+    echo "Run 'voice-to-text setup' to change the default provider."
+  else
+    echo "WARNING: Failed to download default config."
+  fi
 fi
 
 # --- Configure ydotool daemon ---
