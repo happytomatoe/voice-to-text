@@ -105,6 +105,12 @@ def setup_key_interactive() -> bool:
     }
 
     api_providers = [(name, PROVIDER_ENV_VARS[name]) for name in PROVIDER_ENV_VARS]
+    print("Select a provider to configure:")
+    for i, (name, env_var) in enumerate(api_providers, 1):
+        url = provider_urls.get(name, "")
+        print(f"  {i}. {name} ({env_var})")
+        if url:
+            print(f"     Sign up: {url}")
 
     env_provider = os.environ.get("VOICE_TO_TEXT_PROVIDER", "").strip().lower()
     if env_provider in PROVIDER_ENV_VARS:
@@ -230,6 +236,8 @@ def setup_key_interactive() -> bool:
 
     os.environ[env_var] = api_key
     print("Environment variable set in current shell session.")
+
+    return True
 
     return True
 
@@ -464,6 +472,8 @@ def run_stdout_mode(args, config_mgr, transcriber, language, duration):
         stop_requested = True
 
     prev_sigint = signal.signal(signal.SIGINT, handle_sigint)
+
+    level_interval = 0.1
 
     level_interval = 0.1
 
