@@ -2,9 +2,10 @@
 
 import logging
 import os
-from typing import Dict, Any
+from typing import Any
 
 import requests
+
 from .base import TranscriptionProvider
 
 logger = logging.getLogger(__name__)
@@ -13,10 +14,8 @@ logger = logging.getLogger(__name__)
 class DeepgramProvider(TranscriptionProvider):
     """Deepgram Nova-3 batch file transcription provider."""
 
-    def __init__(self, config: Dict[str, Any]):
-        self.api_key = config.get("api_key") or os.getenv(
-            config.get("api_key_env", "DEEPGRAM_API_KEY")
-        )
+    def __init__(self, config: dict[str, Any]):
+        self.api_key = config.get("api_key") or os.getenv(config.get("api_key_env", "DEEPGRAM_API_KEY"))
         if not self.api_key:
             raise ValueError(f"{config.get('api_key_env', 'DEEPGRAM_API_KEY')} not set")
         self.model = config.get("model", "nova-3")

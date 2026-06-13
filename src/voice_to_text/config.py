@@ -1,10 +1,10 @@
 """Configuration management for groq-voice."""
 
-import os
-from pathlib import Path
-from typing import Dict, Any
-import yaml
 import logging
+from pathlib import Path
+from typing import Any
+
+import yaml
 
 logger = logging.getLogger(__name__)
 
@@ -15,9 +15,7 @@ class ConfigManager:
     def __init__(self, config_path: str | None = None):
         self._explicit_config_path = config_path is not None
         # User config path (persistent)
-        self.user_config_path = str(
-            Path.home() / ".config" / "voice-to-text" / "config.yaml"
-        )
+        self.user_config_path = str(Path.home() / ".config" / "voice-to-text" / "config.yaml")
 
         # Look for config in multiple locations
         default_paths = [
@@ -40,7 +38,7 @@ class ConfigManager:
 
         self.config = self._load_config()
 
-    def _load_config(self) -> Dict[str, Any]:
+    def _load_config(self) -> dict[str, Any]:
         """Load configuration from file."""
         try:
             with open(self.config_path) as f:
@@ -69,7 +67,7 @@ class ConfigManager:
         except Exception:
             return False
 
-    def get_provider_config(self, provider_name: str) -> Dict[str, Any]:
+    def get_provider_config(self, provider_name: str) -> dict[str, Any]:
         """Get configuration for specific provider."""
         provider_config = self.config.get(provider_name, {})
 
@@ -86,19 +84,19 @@ class ConfigManager:
         """Get the selected transcription provider."""
         return self.config.get("transcription", {}).get("provider", "voxtral")
 
-    def get_audio_config(self) -> Dict[str, Any]:
+    def get_audio_config(self) -> dict[str, Any]:
         """Get audio configuration."""
         return self.config.get("audio", {})
 
-    def get_output_config(self) -> Dict[str, Any]:
+    def get_output_config(self) -> dict[str, Any]:
         """Get output configuration."""
         return self.config.get("output", {})
 
-    def get_logging_config(self) -> Dict[str, Any]:
+    def get_logging_config(self) -> dict[str, Any]:
         """Get logging configuration."""
         return self.config.get("logging", {})
 
-    def get_speaker_config(self) -> Dict[str, Any]:
+    def get_speaker_config(self) -> dict[str, Any]:
         """Get speaker volume configuration."""
         audio_cfg = self.config.get("audio") or {}
         if not isinstance(audio_cfg, dict):

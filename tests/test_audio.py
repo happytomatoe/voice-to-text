@@ -1,11 +1,12 @@
 """Tests for audio recording and level metering."""
+
 import os
 import wave
 from unittest.mock import patch
 
 import numpy as np
 
-from voice_to_text.audio import AudioRecorder, SAMPLE_RATE, BLOCK_SIZE
+from voice_to_text.audio import BLOCK_SIZE, SAMPLE_RATE, AudioRecorder
 
 
 class TestAudioRecorder:
@@ -18,7 +19,7 @@ class TestAudioRecorder:
             chunk = np.zeros((BLOCK_SIZE, 1), dtype=np.int16)
             cb(chunk, BLOCK_SIZE, None, None)
 
-            chunk = (np.ones((BLOCK_SIZE, 1), dtype=np.int16) * 1000)
+            chunk = np.ones((BLOCK_SIZE, 1), dtype=np.int16) * 1000
             cb(chunk, BLOCK_SIZE, None, None)
 
             filepath = recorder.stop()

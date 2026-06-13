@@ -1,6 +1,40 @@
 repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: check-merge-conflict
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.15.17
+    hooks:
+      - id: ruff
+        args: [--fix]
+      - id: ruff-format
+
+  - repo: https://github.com/rbubley/mirrors-prettier
+    rev: v3.8.4
+    hooks:
+      - id: prettier
+        files: ^gnome-ext/.*\.(js|css|json)$
+        additional_dependencies:
+          - prettier@3.8.4
+
   - repo: local
     hooks:
+      - id: eslint
+        name: eslint
+        entry: bash -lc 'npx eslint --stdin --stdin-filename={staged_filename}'
+        language: system
+        types: [javascript]
+        files: ^gnome-ext/.*\.js$
+        pass_filenames: true
+      - id: prettier-check
+        name: prettier
+        entry: npx prettier@3.8.4 --check
+        language: system
+        types: [text]
+        files: ^gnome-ext/.*\.(js|css|json)$
+        pass_filenames: true
       - id: pytest
         name: pytest
         entry: uv run python -m pytest

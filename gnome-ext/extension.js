@@ -9,7 +9,8 @@ import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import * as MessageTray from 'resource:///org/gnome/shell/ui/messageTray.js';
 import {gettext as _} from 'resource:///org/gnome/shell/extensions/extension.js';
 
-const SessionManagerIface = '<node>\
+const SessionManagerIface =
+    '<node>\
   <interface name="org.gnome.SessionManager">\
     <method name="Inhibit">\
       <arg type="s" direction="in"/>\
@@ -26,10 +27,11 @@ const SessionManagerIface = '<node>\
 
 const SessionManagerProxy = Gio.DBusProxy.makeProxyWrapper(SessionManagerIface);
 
-
 export default class VoiceToTextExtension extends Extension {
     enable() {
-        this._settings = this.getSettings('org.gnome.shell.extensions.voice-to-text');
+        this._settings = this.getSettings(
+            'org.gnome.shell.extensions.voice-to-text'
+        );
         this._indicator = new VoiceIndicator();
         this._binPath = GLib.find_program_in_path('voice-to-text');
         this._recorder = null;
@@ -43,7 +45,7 @@ export default class VoiceToTextExtension extends Extension {
 
         Main.panel.addToStatusArea(this.uuid, this._indicator, 0, 'right');
         this._registerHotkey();
-        
+
         // Listen for hotkey changes
         this._hotkeySignalId = this._settings.connect('changed::hotkey', () => {
             this._registerHotkey();
@@ -53,7 +55,7 @@ export default class VoiceToTextExtension extends Extension {
         this._sessionManager = new SessionManagerProxy(
             Gio.DBus.session,
             'org.gnome.SessionManager',
-            '/org/gnome/SessionManager',
+            '/org/gnome/SessionManager'
         );
     }
 
@@ -114,25 +116,27 @@ export default class VoiceToTextExtension extends Extension {
 
         let firstLevelReceived = false;
         this._recorder = new Recorder(this._binPath, this._settings);
-        this._recorder.onAudioLevel = (level) => {
+        this._recorder.onAudioLevel = level => {
             if (!firstLevelReceived) {
                 firstLevelReceived = true;
                 this._indicator.setRecordingActive();
             }
             this._indicator.updateLevel(level);
         };
-        this._recorder.onTranscription = (text) => {
+        this._recorder.onTranscription = text => {
             const outputMethod = this._settings.get_string('output-method');
             if (outputMethod === 'clipboard') {
                 copyToClipboard(text);
                 this._setIdle();
                 return;
             }
-            typeText(text, (ok) => {
+            typeText(text, ok => {
                 if (!ok) {
                     if (outputMethod === 'type-fallback-clipboard') {
                         copyToClipboard(text);
-                        this._showNotification('ydotool failed — text copied to clipboard instead');
+                        this._showNotification(
+                            'ydotool failed — text copied to clipboard instead'
+                        );
                     } else {
                         this._showNotification('ydotool failed to type text');
                     }
@@ -140,7 +144,7 @@ export default class VoiceToTextExtension extends Extension {
                 this._setIdle();
             });
         };
-        this._recorder.onError = (msg) => {
+        this._recorder.onError = msg => {
             this._showNotification('Transcription failed: ' + msg);
             this._setIdle();
         };
@@ -154,43 +158,52 @@ export default class VoiceToTextExtension extends Extension {
     _stop() {
         console.log('VoiceToText: _stop called');
         if (!this._recording) return;
-        
+
         this._recorder?.stop();
         this._indicator?.setProcessing();
-        
+
         // Set a timeout to forcefully return to idle if the process doesn't exit
         // This prevents the spinner from hanging indefinitely
-        const stopTimeoutSeconds = this._settings.get_int('stop-timeout-seconds');
-        console.log(`VoiceToText: setting stop timeout for ${stopTimeoutSeconds} seconds`);
-        
+        const stopTimeoutSeconds = this._settings.get_int(
+            'stop-timeout-seconds'
+        );
+        console.log(
+            `VoiceToText: setting stop timeout for ${stopTimeoutSeconds} seconds`
+        );
+
         if (this._stopTimeoutId) {
             GLib.source_remove(this._stopTimeoutId);
             this._stopTimeoutId = null;
         }
-        
+
         this._stopTimeoutId = GLib.timeout_add_seconds(
             GLib.PRIORITY_DEFAULT,
             stopTimeoutSeconds,
             () => {
-                console.log('VoiceToText: stop timeout reached, forcing idle state');
+                console.log(
+                    'VoiceToText: stop timeout reached, forcing idle state'
+                );
                 this._forceStop();
                 return GLib.SOURCE_REMOVE;
             }
         );
     }
-    
+
     _forceStop() {
         if (this._stopTimeoutId) {
             GLib.source_remove(this._stopTimeoutId);
             this._stopTimeoutId = null;
         }
-        
+
         if (this._recorder?._proc) {
             console.log('VoiceToText: forcefully killing process');
             const pid = this._recorder._proc;
-            Gio.Subprocess.new(['kill', '-9', String(pid)], 0).wait_async(null, null);
+            Gio.Subprocess.new(['kill', '-9', String(pid)], 0).wait_async(
+                null,
+                null
+            );
         }
-        
+
         this._setIdle();
     }
 
@@ -206,7 +219,10 @@ export default class VoiceToTextExtension extends Extension {
                 4 // INHIBIT_SUSPEND
             );
             this._inhibitCookie = cookie;
-            console.log('VoiceToText: sleep inhibitor acquired, cookie=' + this._inhibitCookie);
+            console.log(
+                'VoiceToText: sleep inhibitor acquired, cookie=' +
+                    this._inhibitCookie
+            );
         } catch (e) {
             console.error('VoiceToText: failed to inhibit sleep:', e.message);
         }
@@ -217,9 +233,15 @@ export default class VoiceToTextExtension extends Extension {
 
         try {
             this._sessionManager.UninhibitSync(this._inhibitCookie);
-            console.log('VoiceToText: sleep inhibitor released, cookie=' + this._inhibitCookie);
+            console.log(
+                'VoiceToText: sleep inhibitor released, cookie=' +
+                    this._inhibitCookie
+            );
         } catch (e) {
-            console.error('VoiceToText: failed to release sleep inhibitor:', e.message);
+            console.error(
+                'VoiceToText: failed to release sleep inhibitor:',
+                e.message
+            );
         }
         this._inhibitCookie = 0;
     }
@@ -229,7 +251,7 @@ export default class VoiceToTextExtension extends Extension {
             GLib.source_remove(this._stopTimeoutId);
             this._stopTimeoutId = null;
         }
-        
+
         this._releaseInhibitor();
         this._recording = false;
         this._indicator?.setRecording(false);
@@ -249,7 +271,7 @@ export default class VoiceToTextExtension extends Extension {
 
     _registerHotkey() {
         this._unregisterHotkey();
-        
+
         try {
             registerHotkey('hotkey', this._settings, () => this._toggle());
             console.log('VoiceToText: hotkey registered');
@@ -260,10 +282,13 @@ export default class VoiceToTextExtension extends Extension {
 
     _unregisterHotkey() {
         try {
-unregisterHotkey('hotkey');
+            unregisterHotkey('hotkey');
             console.log('VoiceToText: hotkey unregistered');
         } catch (e) {
-            console.error('VoiceToText: failed to unregister hotkey:', e.message);
+            console.error(
+                'VoiceToText: failed to unregister hotkey:',
+                e.message
+            );
         }
     }
 

@@ -1,12 +1,15 @@
 """Tests for configuration management."""
-import pytest
-import tempfile
+
 import os
+import tempfile
 from pathlib import Path
 from unittest.mock import patch
 
+import pytest
+
 from voice_to_text.config import ConfigManager
 from voice_to_text.providers import get_provider
+
 
 @pytest.fixture
 def groq_config():
@@ -17,19 +20,21 @@ groq:
   api_key_env: GROQ_API_KEY
   model: whisper-large-v3-turbo
 """
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as f:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
         f.write(config_content)
         config_path = f.name
     yield config_path
     os.unlink(config_path)
 
+
 def test_config_management(groq_config):
     config_mgr = ConfigManager(groq_config)
     provider = config_mgr.get_selected_provider()
-    assert provider == 'groq'
+    assert provider == "groq"
 
     provider_config = config_mgr.get_provider_config(provider)
-    assert 'api_key_env' in provider_config
+    assert "api_key_env" in provider_config
+
 
 def test_provider_instantiation(groq_config):
     config_mgr = ConfigManager(groq_config)
@@ -42,10 +47,12 @@ def test_provider_instantiation(groq_config):
     except ValueError as e:
         assert "not set" in str(e)
 
+
 def test_speaker_config_defaults(groq_config):
     config_mgr = ConfigManager(groq_config)
     speaker_config = config_mgr.get_speaker_config()
     assert speaker_config == {}
+
 
 def test_speaker_config_with_values():
     config_content = """
@@ -53,7 +60,7 @@ audio:
   speaker:
     decrease_volume: 50
 """
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as f:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
         f.write(config_content)
         config_path = f.name
 

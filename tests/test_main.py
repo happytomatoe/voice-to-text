@@ -1,11 +1,10 @@
 """Tests for CLI argument parsing."""
+
 import os
 import subprocess
 import sys
 from pathlib import Path
-from unittest.mock import patch, MagicMock
-
-import pytest
+from unittest.mock import MagicMock
 
 from voice_to_text import main
 
@@ -18,22 +17,25 @@ def test_parses_extension_invocation_without_record():
     fail with unrecognized arguments (exit code 2).
     """
     env = os.environ.copy()
-    env["PYTHONPATH"] = str(
-        Path(__file__).parent.parent / "src"
-    )
+    env["PYTHONPATH"] = str(Path(__file__).parent.parent / "src")
     result = subprocess.run(
         [
-            sys.executable, "-m", "voice_to_text.main",
-            "--output", "stdout",
-            "--provider", "groq",
-            "--language", "en",
+            sys.executable,
+            "-m",
+            "voice_to_text.main",
+            "--output",
+            "stdout",
+            "--provider",
+            "groq",
+            "--language",
+            "en",
         ],
-        capture_output=True, text=True, timeout=10,
+        capture_output=True,
+        text=True,
+        timeout=10,
         cwd=Path(__file__).parent.parent,
     )
-    assert result.returncode != 2, (
-        f"Argparse rejected extension's args (exit 2):\n{result.stderr}"
-    )
+    assert result.returncode != 2, f"Argparse rejected extension's args (exit 2):\n{result.stderr}"
 
 
 class TestSetupKeyInteractive:
@@ -111,7 +113,7 @@ class TestSetupInteractive:
         assert user_config.exists()
         assert "provider: groq" in user_config.read_text()
         captured = capsys.readouterr()
-        assert "Provider set to: groq" in captured.out
+        assert "Default provider set to: groq" in captured.out
 
     def test_non_tty_without_env_returns_early(self, tmp_path, monkeypatch, capsys):
         monkeypatch.setattr(Path, "home", lambda: tmp_path)

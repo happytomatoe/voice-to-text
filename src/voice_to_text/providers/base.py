@@ -1,8 +1,8 @@
 """Base provider interface for transcription services."""
 
-from abc import ABC, abstractmethod
-from typing import Dict, Any
 import logging
+from abc import ABC, abstractmethod
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -11,7 +11,7 @@ class TranscriptionProvider(ABC):
     """Abstract base class for transcription providers."""
 
     @abstractmethod
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: dict[str, Any]):
         """Initialize provider with configuration.
 
         Args:
@@ -37,4 +37,3 @@ class TranscriptionProvider(ABC):
     def name(self) -> str:
         """Provider name identifier."""
         pass
-

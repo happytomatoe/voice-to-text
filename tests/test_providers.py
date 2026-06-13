@@ -1,33 +1,37 @@
 """Tests for transcription providers."""
+
 import pytest
 
-from voice_to_text.providers import get_provider, TranscriptionProvider
+from voice_to_text.providers import get_provider
 from voice_to_text.providers.groq import GroqProvider
+
 
 class TestProviderFactory:
     def test_get_groq_provider(self):
-        config = {'api_key': 'test_key', 'model': 'whisper-large-v3-turbo'}
-        provider = get_provider('groq', config)
+        config = {"api_key": "test_key", "model": "whisper-large-v3-turbo"}
+        provider = get_provider("groq", config)
         assert isinstance(provider, GroqProvider)
-        assert provider.name == 'groq'
-    
+        assert provider.name == "groq"
+
     def test_invalid_provider(self):
         with pytest.raises(ValueError):
-            get_provider('invalid', {})
+            get_provider("invalid", {})
+
 
 class TestGroqProvider:
     def test_initialization(self):
-        config = {'api_key': 'test_key'}
+        config = {"api_key": "test_key"}
         provider = GroqProvider(config)
-        assert provider.model == 'whisper-large-v3-turbo'
-    
+        assert provider.model == "whisper-large-v3-turbo"
+
     def test_missing_api_key(self):
         # Unset the environment variable for this test
         import os
-        old_key = os.environ.pop('GROQ_API_KEY', None)
+
+        old_key = os.environ.pop("GROQ_API_KEY", None)
         try:
             with pytest.raises(ValueError):
                 GroqProvider({})
         finally:
             if old_key is not None:
-                os.environ['GROQ_API_KEY'] = old_key
+                os.environ["GROQ_API_KEY"] = old_key
