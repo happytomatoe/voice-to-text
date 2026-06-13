@@ -38,16 +38,21 @@ class AudioRecorder:
         self._wav: wave.Wave_write | None = None
 
     def start(self):
+        sample_rate = SAMPLE_RATE
+        if self.device is not None:
+            device_info = sd.query_devices(self.device)
+            sample_rate = int(device_info["default_samplerate"])
+
         fd, self.filepath = tempfile.mkstemp(suffix=".wav")
         fh = os.fdopen(fd, "wb")
         self._wav = wave.open(fh, "wb")
         self._wav.setnchannels(1)
         self._wav.setsampwidth(2)
-        self._wav.setframerate(SAMPLE_RATE)
+        self._wav.setframerate(sample_rate)
         self.frame_count = 0
 
         self._stream = sd.InputStream(
-            samplerate=SAMPLE_RATE,
+            samplerate=sample_rate,
             channels=1,
             blocksize=BLOCK_SIZE,
             dtype="int16",
