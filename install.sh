@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-set -x
+set -euo pipefail
 REPO="happytomatoe/voice-to-text"
 EXT_UUID="voice-to-text@happytomatoe.com"
 INSTALL_DIR="$HOME/.local/share/gnome-shell/extensions/$EXT_UUID"
@@ -157,8 +157,8 @@ fi
 SOCKET_PATH="/run/user/$(id -u)/.ydotool_socket"
 export YDOTOOL_SOCKET="$SOCKET_PATH"
 
-# 1. Check if the socket already exists
-if [ -S "$SOCKET_PATH" ]; then
+# 1. Check if the socket already exists and service is running
+if [ -S "$SOCKET_PATH" ] && systemctl is-active --quiet ydotool.service 2>/dev/null; then
   echo "ydotool socket already present at $SOCKET_PATH."
 else
   echo "ydotool socket missing. Initializing configuration..."
