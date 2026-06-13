@@ -80,7 +80,7 @@ def detect_shell_rc() -> Path | None:
     return None
 
 
-def setup_key_interactive():
+def setup_key_interactive() -> bool:
     import subprocess as _subprocess
 
     print("voice-to-text API key setup")
@@ -98,7 +98,7 @@ def setup_key_interactive():
         if not sys.stdin.isatty():
             print("ERROR: Non-interactive run and VOICE_TO_TEXT_PROVIDER is unset or invalid.")
             print(f"Set it to one of: {', '.join(PROVIDER_ENV_VARS)}")
-            return
+            return False
         print("Select a provider to configure:")
         for i, (name, env_var) in enumerate(api_providers, 1):
             print(f"  {i}. {name} ({env_var})")
@@ -108,10 +108,10 @@ def setup_key_interactive():
             idx = int(choice) - 1
             if idx < 0 or idx >= len(api_providers):
                 print("Invalid choice.")
-                return
+                return False
         except ValueError:
             print("Invalid choice.")
-            return
+            return False
 
         provider_name, env_var = api_providers[idx]
 
@@ -119,11 +119,11 @@ def setup_key_interactive():
     if not api_key:
         if not sys.stdin.isatty():
             print("ERROR: Non-interactive run and VOICE_TO_TEXT_API_KEY is unset.")
-            return
+            return False
         api_key = getpass.getpass(f"Enter {provider_name} API key: ")
     if not api_key:
         print("No key entered. Aborting.")
-        return
+        return False
 
     try:
         _subprocess.run(
@@ -143,10 +143,10 @@ def setup_key_interactive():
         )
     except FileNotFoundError:
         print("ERROR: `secret-tool` not found. Install libsecret-tools or similar.")
-        return
+        return False
     except _subprocess.CalledProcessError as e:
         print(f"ERROR: Failed to store secret: {e.stderr.decode().strip()}")
-        return
+        return False
 
     print(f"API key stored securely via secret-tool.")
 
@@ -161,7 +161,7 @@ def setup_key_interactive():
     if rc_path is None:
         print("WARNING: Unknown shell. Key stored but no environment variable configured.")
         print(f"Add this manually:\n  export {env_var}=$(secret-tool lookup application voice-to-text provider {provider_name})")
-        return
+        return True
 
     lookup_cmd = f"secret-tool lookup application voice-to-text provider {provider_name}"
     if "fish" in os.environ.get("SHELL", ""):
@@ -180,6 +180,8 @@ def setup_key_interactive():
             f.write(f"\n# Voice-to-Text: {provider_name} API key\n{export_line}\n")
         print(f"Added to {rc_path}.")
         print(f"Restart your shell or run:\n  source {rc_path}")
+
+    return True
 
 
 def setup_interactive():
@@ -513,7 +515,7 @@ def main():
         return
 
     if args.command == "setup-key":
-        setup_key_interactive()
+        sys.exit(0 if setup_key_interactive() else 1)
         return
 
     load_dotenv()

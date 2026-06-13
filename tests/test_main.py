@@ -7,6 +7,8 @@ from unittest.mock import patch, MagicMock
 
 import pytest
 
+from voice_to_text import main
+
 
 def test_parses_extension_invocation_without_record():
     """GNOME extension calls without 'record' subcommand — must not argparse-error.
@@ -38,7 +40,6 @@ class TestSetupKeyInteractive:
     """Issues #1 (persist provider) and #2 (non-interactive env-var path)."""
 
     def test_env_vars_skip_prompts_and_persist_provider(self, tmp_path, monkeypatch):
-        from voice_to_text import main
 
         # Isolate the user config to a temp dir.
         monkeypatch.setattr(Path, "home", lambda: tmp_path)
@@ -76,8 +77,6 @@ class TestSetupKeyInteractive:
         assert "provider: groq" in user_config.read_text()
 
     def test_non_tty_without_env_returns_early(self, tmp_path, monkeypatch, capsys):
-        from voice_to_text import main
-
         monkeypatch.setattr(Path, "home", lambda: tmp_path)
         monkeypatch.delenv("VOICE_TO_TEXT_PROVIDER", raising=False)
         monkeypatch.delenv("VOICE_TO_TEXT_API_KEY", raising=False)
@@ -101,7 +100,6 @@ class TestSetupInteractive:
     """Issue #2 non-interactive path for `setup`, #1 use of save()."""
 
     def test_env_provider_var_persists_without_prompting(self, tmp_path, monkeypatch, capsys):
-        from voice_to_text import main
 
         monkeypatch.setattr(Path, "home", lambda: tmp_path)
         monkeypatch.setenv("VOICE_TO_TEXT_PROVIDER", "groq")
@@ -116,8 +114,6 @@ class TestSetupInteractive:
         assert "Provider set to: groq" in captured.out
 
     def test_non_tty_without_env_returns_early(self, tmp_path, monkeypatch, capsys):
-        from voice_to_text import main
-
         monkeypatch.setattr(Path, "home", lambda: tmp_path)
         monkeypatch.delenv("VOICE_TO_TEXT_PROVIDER", raising=False)
         monkeypatch.setattr(sys.stdin, "isatty", lambda: False)
