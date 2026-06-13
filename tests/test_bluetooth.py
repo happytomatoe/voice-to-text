@@ -14,7 +14,9 @@ class TestDetectHeadset:
         with (
             patch("voice_to_text.bluetooth.get_default_source", return_value=default),
             patch("voice_to_text.bluetooth.list_inputs", return_value=[other, default]),
-            patch("voice_to_text.bluetooth.find_headset_for_source", side_effect=lambda s: card if s == default else None),
+            patch(
+                "voice_to_text.bluetooth.find_headset_for_source", side_effect=lambda s: card if s == default else None
+            ),
             patch("voice_to_text.bluetooth.get_card_profile", return_value="a2dp-sink"),
             patch("voice_to_text.bluetooth.get_source_description", return_value="My Headset"),
         ):

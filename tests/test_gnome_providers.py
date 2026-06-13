@@ -4,10 +4,7 @@ import re
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
-import pytest
-
 from voice_to_text.providers import _BATCH_PROVIDERS, _STREAMING_PROVIDERS
-
 
 GNOME_EXT = Path(__file__).resolve().parent.parent / "gnome-ext"
 GSCHEMA_XML = GNOME_EXT / "schemas" / "org.gnome.shell.extensions.voice-to-text.gschema.xml"
@@ -32,9 +29,7 @@ def _parse_prefs_providers() -> dict[str, list[str]]:
     text = PREFS_JS.read_text()
     result = {}
     # Match: someCombo.append("id", "Label")
-    for match in re.finditer(
-        r'(\w+ProviderCombo)\.append\("([^"]+)"', text
-    ):
+    for match in re.finditer(r'(\w+ProviderCombo)\.append\("([^"]+)"', text):
         combo_name = match.group(1)
         provider_id = match.group(2)
         result.setdefault(combo_name, []).append(provider_id)
@@ -97,7 +92,5 @@ class TestProviderConsistency:
         all_python = set(_BATCH_PROVIDERS) | set(_STREAMING_PROVIDERS)
         for pid in provider_ids:
             assert pid in all_python, (
-                f"prefs.js provider '{pid}' "
-                f"is not a registered provider. "
-                f"Available: {sorted(all_python)}"
+                f"prefs.js provider '{pid}' is not a registered provider. Available: {sorted(all_python)}"
             )
