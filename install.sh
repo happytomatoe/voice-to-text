@@ -38,7 +38,8 @@ echo ""
 echo "--- Installing Python application ---"
 echo "Fetching latest release tag..."
 LATEST_TAG=$(
-  git ls-remote --tags --sort=v:refname https://github.com/happytomatoe/voice-to-text | tail -n 1 | awk -F'/' '{print $NF}'
+  git ls-remote --tags --sort=-v:refname "https://github.com/$REPO.git" \
+    | awk -F'/' '$NF !~ /\^\{\}$/ { print $NF; exit }'
 )
 if [ -z "$LATEST_TAG" ]; then
   echo "WARNING: No releases found for $REPO; falling back to source checkout for the GNOME extension."
@@ -59,6 +60,11 @@ if command -v uv &>/dev/null; then
   echo "Python application installed."
   VOICE_TO_TEXT_CMD="uv tool run voice-to-text"
 else
+  if [ "$HAS_RELEASE" -eq 0 ]; then
+    echo "ERROR: No releases found for $REPO."
+    echo "Install uv (https://docs.astral.sh/uv/) or create a release first: https://github.com/$REPO/releases/new"
+    exit 1
+  fi
   echo "uv not found. Installing standalone binary..."
   LATEST_URL="https://github.com/$REPO/releases/latest/download/voice-to-text"
   curl -L -o /tmp/voice-to-text "$LATEST_URL"
@@ -81,7 +87,8 @@ if [ "$HAS_RELEASE" -eq 0 ]; then
   mkdir -p "$INSTALL_DIR/schemas"
   TMPDIR=$(mktemp -d)
   git clone --depth 1 "https://github.com/$REPO.git" "$TMPDIR/repo"
-  cp "$TMPDIR/repo/gnome-ext"/*.js "$TMPDIR/repo/gnome-ext"/*.json "$TMPDIR/repo/gnome-ext"/*.css "$INSTALL_DIR/"
+  cp "$TMPDIR/repo/gnome-ext"/*.js "$TMPDIR/repo/gnome-ext"/*.json "$INSTALL_DIR/"
+  cp "$TMPDIR/repo/gnome-ext"/*.css "$INSTALL_DIR/" 2>/dev/null || true
   cp "$TMPDIR/repo/gnome-ext"/schemas/*.xml "$INSTALL_DIR/schemas/"
   glib-compile-schemas "$INSTALL_DIR/schemas/"
   rm -rf "$TMPDIR"
@@ -90,7 +97,7 @@ else
   echo "Downloading: $RELEASE_URL"
   cd /tmp
   curl -LO "$RELEASE_URL"
-  filename=$(basename $RELEASE_URL)
+  filename=$(basename "$RELEASE_URL")
   gnome-extensions install --force /tmp/$filename
   rm -f /tmp/$filename
 fi

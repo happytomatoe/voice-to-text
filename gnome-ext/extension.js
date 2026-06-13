@@ -75,7 +75,7 @@ export default class VoiceToTextExtension extends Extension {
         if (this._recorder) {
             this._recorder.onAudioLevel = null;
             this._recorder.onTranscription = null;
-            this._recorder.onTimeout = null;
+            this._recorder.onProcessExit = null;
             this._recorder.onError = null;
             this._recorder.stop();
             this._recorder = null;
@@ -147,6 +147,12 @@ export default class VoiceToTextExtension extends Extension {
         this._recorder.onError = msg => {
             this._showNotification('Transcription failed: ' + msg);
             this._setIdle();
+        };
+        this._recorder.onProcessExit = () => {
+            if (this._recording) {
+                console.log('VoiceToText: process exited before transcription finished');
+                this._setIdle();
+            }
         };
         this._recorder.start();
         this._ensureInhibitor();

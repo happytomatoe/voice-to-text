@@ -52,9 +52,6 @@ class TestSetupKeyInteractive:
         }
         for k, v in env.items():
             monkeypatch.setenv(k, v)
-        # Make sure stale vars from the test runner don't leak in
-        for k in ("VOICE_TO_TEXT_PROVIDER", "VOICE_TO_TEXT_API_KEY"):
-            monkeypatch.delenv(k, raising=False) if k not in env else None
         monkeypatch.setenv("VOICE_TO_TEXT_PROVIDER", "groq")
         monkeypatch.setenv("VOICE_TO_TEXT_API_KEY", "test-key-123")
 

@@ -61,3 +61,40 @@ class TestAudioRecorder:
             assert first < recorder.smoothed_level
 
         os.unlink(recorder.filepath)
+
+    def test_uses_configured_sample_rate(self):
+        with patch("voice_to_text.audio.sd.InputStream") as mock_stream:
+            recorder = AudioRecorder(sample_rate=48000, block_size=1024)
+            recorder.start()
+
+            _, kwargs = mock_stream.call_args
+            assert kwargs["samplerate"] == 48000
+            assert kwargs["blocksize"] == 1024
+
+            filepath = recorder.stop()
+
+        with wave.open(filepath, "rb") as wav:
+            assert wav.getframerate() == 48000
+
+        os.unlink(filepath)
+
+    def test_stop_can_delete_temp_file(self):
+        with patch("voice_to_text.audio.sd.InputStream"):
+            recorder = AudioRecorder()
+            recorder.start()
+            filepath = recorder.filepath
+            recorder.stop(delete=True)
+
+        assert recorder.filepath is None
+        assert not os.path.exists(filepath)
+
+    def test_callback_ignores_writes_after_stop(self):
+        with patch("voice_to_text.audio.sd.InputStream"):
+            recorder = AudioRecorder()
+            recorder.start()
+            filepath = recorder.filepath
+            cb = recorder._callback
+            recorder.stop()
+            cb(np.zeros((BLOCK_SIZE, 1), dtype=np.int16), BLOCK_SIZE, None, None)
+
+        os.unlink(filepath)

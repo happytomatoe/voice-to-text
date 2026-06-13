@@ -28,9 +28,17 @@ BLOCK = "\u2588"
 class AudioRecorder:
     """Records audio directly to a WAV file with level smoothing."""
 
-    def __init__(self, device: int | None = None, smooth_factor: float = 0.7):
+    def __init__(
+        self,
+        device: int | None = None,
+        smooth_factor: float = 0.7,
+        sample_rate: int = SAMPLE_RATE,
+        block_size: int = BLOCK_SIZE,
+    ):
         self.device = device
         self.smooth_factor = smooth_factor
+        self.sample_rate = sample_rate
+        self.block_size = block_size
         self.smoothed_level: float = 0.0
         self.frame_count: int = 0
         self.filepath: str | None = None
@@ -38,10 +46,8 @@ class AudioRecorder:
         self._wav: wave.Wave_write | None = None
 
     def start(self):
-        sample_rate = SAMPLE_RATE
-        if self.device is not None:
-            device_info = sd.query_devices(self.device)
-            sample_rate = int(device_info["default_samplerate"])
+        sample_rate = self.sample_rate
+        block_size = self.block_size
 
         fd, self.filepath = tempfile.mkstemp(suffix=".wav")
         fh = os.fdopen(fd, "wb")
@@ -54,14 +60,14 @@ class AudioRecorder:
         self._stream = sd.InputStream(
             samplerate=sample_rate,
             channels=1,
-            blocksize=BLOCK_SIZE,
+            blocksize=block_size,
             dtype="int16",
             callback=self._callback,
             device=self.device,
         )
         self._stream.start()
 
-    def stop(self):
+    def stop(self, *, delete: bool = False) -> str | None:
         if self._stream:
             self._stream.stop()
             self._stream.close()
@@ -69,10 +75,22 @@ class AudioRecorder:
         if self._wav:
             self._wav.close()
             self._wav = None
-        return self.filepath
+        filepath = self.filepath
+        if delete and filepath:
+            try:
+                os.unlink(filepath)
+            except OSError:
+                logger.debug("Failed to delete recording %s", filepath)
+            self.filepath = None
+        return filepath
 
     def _callback(self, indata: np.ndarray, frames: int, time_info, status):
-        self._wav.writeframes(indata.tobytes())
+        wav = self._wav
+        if wav is None:
+            return
+        if status:
+            logger.warning("Audio stream status: %s", status)
+        wav.writeframes(indata.tobytes())
         self.frame_count += 1
         float_data = indata[:, 0].astype(np.float32) / 32768.0
         rms = math.sqrt(np.mean(float_data**2))

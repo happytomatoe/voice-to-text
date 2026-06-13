@@ -77,13 +77,41 @@ def list_inputs() -> list[str]:
     return names
 
 
+def get_source_description(source: str) -> str:
+    """Return the human-readable description for a pulse source."""
+    out = _run(["pactl", "list", "sources"])
+    if not out:
+        return source
+    in_block = False
+    for line in out.splitlines():
+        if line.strip() == f"Name: {source}":
+            in_block = True
+            continue
+        if in_block:
+            m = SOURCE_DESC_RE.search(line)
+            if m:
+                return m.group("desc").strip()
+            if not line.strip():
+                break
+    return source
+
+
+def _headset_for_source(source: str, card: str) -> BluetoothHeadset:
+    return BluetoothHeadset(
+        card_name=card,
+        active_profile=get_card_profile(card) or "",
+        source_name=source,
+        source_desc=get_source_description(source),
+    )
+
+
 def get_card_profile(card: str) -> str | None:
     out = _run(["pactl", "list", "cards"])
     if not out:
         return None
     in_block = False
     for line in out.splitlines():
-        if line.strip().startswith("Name:") and card in line:
+        if line.strip() == f"Name: {card}":
             in_block = True
             continue
         if not in_block:
@@ -137,7 +165,7 @@ def pick_hsp_profile(card: str) -> str | None:
     in_block = False
     available: list[tuple[int, str]] = []
     for line in out.splitlines():
-        if line.strip().startswith("Name:") and card in line:
+        if line.strip() == f"Name: {card}":
             in_block = True
             continue
         if in_block:
@@ -161,33 +189,20 @@ def pick_hsp_profile(card: str) -> str | None:
 
 
 def detect_headset() -> BluetoothHeadset | None:
-    """Return a connected BT headset that has a capture source available."""
+    """Return a connected BT headset that has a capture source available.
+
+    Prefers the current default source when it is a Bluetooth headset input.
+    """
+    default = get_default_source()
+    if default and default.startswith("bluez_input."):
+        card = find_headset_for_source(default)
+        if card:
+            return _headset_for_source(default, card)
+
     for source in list_inputs():
         card = find_headset_for_source(source)
-        if not card:
-            continue
-        profile = get_card_profile(card) or ""
-        out = _run(["pactl", "list", "sources"])
-        desc = source
-        if out:
-            in_block = False
-            for line in out.splitlines():
-                if line.strip().startswith("Name:") and source in line:
-                    in_block = True
-                    continue
-                if in_block:
-                    m = SOURCE_DESC_RE.search(line)
-                    if m:
-                        desc = m.group("desc").strip()
-                        break
-                    if not line.strip():
-                        break
-        return BluetoothHeadset(
-            card_name=card,
-            active_profile=profile,
-            source_name=source,
-            source_desc=desc,
-        )
+        if card:
+            return _headset_for_source(source, card)
     return None
 
 

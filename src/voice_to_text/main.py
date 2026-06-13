@@ -18,6 +18,8 @@ from dotenv import load_dotenv
 
 from voice_to_text import source_hash
 from voice_to_text.audio import (
+    BLOCK_SIZE,
+    SAMPLE_RATE,
     AudioRecorder,
     SpeakerVolumeManager,
     format_level_bar,
@@ -46,6 +48,17 @@ def setup_logging(log_file: Path | None = None):
 
 def load_config():
     return ConfigManager()
+
+
+def make_audio_recorder(config_mgr: ConfigManager, device: int | None = None) -> AudioRecorder:
+    """Build an AudioRecorder using values from config audio settings."""
+    audio_cfg = config_mgr.get_audio_config() or {}
+    return AudioRecorder(
+        device=device,
+        smooth_factor=audio_cfg.get("smooth_factor", 0.7),
+        sample_rate=audio_cfg.get("sample_rate", SAMPLE_RATE),
+        block_size=audio_cfg.get("block_size", BLOCK_SIZE),
+    )
 
 
 def copy_to_clipboard(text: str):
@@ -109,7 +122,10 @@ def setup_key_interactive() -> bool:
             return False
         print("Select a provider to configure:")
         for i, (name, env_var) in enumerate(api_providers, 1):
+            url = provider_urls.get(name, "")
             print(f"  {i}. {name} ({env_var})")
+            if url:
+                print(f"     Sign up: {url}")
 
         choice = input("\nEnter number: ").strip()
         try:
@@ -221,11 +237,7 @@ def setup_key_interactive() -> bool:
     os.environ[env_var] = api_key
     print("Environment variable set in current shell session.")
 
-    print()
-    change = input("Would you like to set this as the default provider? (y/N): ").strip().lower()
-    if change in ("y", "yes"):
-        config_mgr = ConfigManager()
-        set_provider(config_mgr, provider_name)
+    return True
 
     return True
 
@@ -314,8 +326,9 @@ def transcribe_audio(audio_path: str, transcriber, language) -> str | None:
         start_time = time.time()
         text = transcriber.transcribe_file(audio_path, language=language)
         elapsed = time.time() - start_time
-        logger.info("Transcription complete in %.2fs: %s", elapsed, text[:100])
-        return text.strip()
+        preview = (text or "")[:100]
+        logger.info("Transcription complete in %.2fs: %s", elapsed, preview)
+        return (text or "").strip()
     except Exception:
         logger.exception("Transcription failed")
         raise
@@ -343,7 +356,7 @@ def run_benchmark(args, config_mgr):
     else:
         duration = args.duration
         print(f"Recording for {duration}s...")
-        recorder = AudioRecorder(device=args.device)
+        recorder = make_audio_recorder(config_mgr, device=args.device)
         recorder.start()
         time.sleep(duration)
         recorder.stop()
@@ -388,7 +401,8 @@ def run_benchmark(args, config_mgr):
                 text = provider.transcribe_file(audio_path)
                 elapsed = time.time() - start
                 runs.append({"elapsed": elapsed, "text": text, "ok": True})
-                print(f'    Run {i + 1}: {elapsed:.2f}s  "{text[:60]}"')
+                preview = (text or "")[:60]
+                print(f'    Run {i + 1}: {elapsed:.2f}s  "{preview}"')
             except Exception as e:
                 runs.append({"elapsed": 0.0, "text": f"FAILED: {e}", "ok": False})
                 print(f"    Run {i + 1}: FAILED ({e})")
@@ -457,7 +471,9 @@ def run_stdout_mode(args, config_mgr, transcriber, language, duration):
         nonlocal stop_requested
         stop_requested = True
 
-    signal.signal(signal.SIGINT, handle_sigint)
+    prev_sigint = signal.signal(signal.SIGINT, handle_sigint)
+
+    level_interval = 0.1
 
     level_interval = 0.1
 
@@ -467,7 +483,7 @@ def run_stdout_mode(args, config_mgr, transcriber, language, duration):
         else config_mgr.get_speaker_config().get("decrease_volume", 0)
     )
 
-    recorder = AudioRecorder(device=args.device)
+    recorder = make_audio_recorder(config_mgr, device=args.device)
 
     with SpeakerVolumeManager.with_decrease(decrease_pct):
         recorder.start()
@@ -494,6 +510,7 @@ def run_stdout_mode(args, config_mgr, transcriber, language, duration):
             sys.exit(1)
         finally:
             recorder.stop()
+            signal.signal(signal.SIGINT, prev_sigint)
             logger.info(
                 "Audio stream stopped, collected %d frames, %d level readings",
                 recorder.frame_count,
@@ -681,7 +698,8 @@ def main():
         else config_mgr.get_speaker_config().get("decrease_volume", 0)
     )
 
-    recorder = AudioRecorder(device=args.device, smooth_factor=0.7)
+    recorder = make_audio_recorder(config_mgr, device=args.device)
+    cancelled = False
     with SpeakerVolumeManager.with_decrease(decrease_pct):
         recorder.start()
         start_time = time.time()
@@ -695,8 +713,8 @@ def main():
                     if select.select([sys.stdin], [], [], 0.03)[0]:
                         key = sys.stdin.read(1)
                         if key in ("q", "Q") or ord(key) == 27:
-                            print("\nExiting without transcription")
-                            sys.exit(0)
+                            cancelled = True
+                            break
                         elif key == "\n" or key == "\r":
                             break
 
@@ -711,7 +729,11 @@ def main():
                 termios.tcsetattr(sys.stdin, termios.TCSADRAIN, old_settings)
                 print()
         finally:
-            recorder.stop()
+            recorder.stop(delete=cancelled)
+
+    if cancelled:
+        print("\nExiting without transcription")
+        sys.exit(0)
 
     if recorder.frame_count == 0:
         print("ERROR:No audio recorded")
@@ -734,6 +756,7 @@ def main():
     else:
         logger.error("Clipboard copy failed")
         print("ERROR:Clipboard copy failed")
+        sys.exit(1)
 
 
 if __name__ == "__main__":
