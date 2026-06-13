@@ -29,7 +29,14 @@ class DeepgramProvider(BatchProvider, WebSocketStreamingProvider):
             with open(audio_path, "rb") as audio_file:
                 response = requests.post(
                     f"{self.api_url}/v1/listen",
-                    params={"model": self.model, "language": language},
+                    params={
+                        "model": self.model,
+                        "language": language,
+                        "smart_format": "true",
+                        "punctuate": "true",
+                        "numerals": "true",
+                        "filler_words": "true",
+                    },
                     headers=headers,
                     data=audio_file,
                 )
@@ -65,6 +72,10 @@ class DeepgramProvider(BatchProvider, WebSocketStreamingProvider):
             f"&encoding=linear16"
             f"&sample_rate={sample_rate}"
             f"&interim_results=true"
+            f"&smart_format=true"
+            f"&punctuate=true"
+            f"&numerals=true"
+            f"&filler_words=true"
         )
         headers = {"Authorization": f"Token {self.api_key}"}
         self._connect_ws(ws_url, headers)
