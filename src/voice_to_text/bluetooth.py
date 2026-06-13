@@ -223,7 +223,9 @@ def activate_headset_mic(force: bool = False) -> bool:
             return False
         logger.info(
             "Switching BT headset %s profile: %s -> %s",
-            headset.source_desc, headset.active_profile, target,
+            headset.source_desc,
+            headset.active_profile,
+            target,
         )
         if not set_card_profile(headset.card_name, target):
             logger.warning("Failed to switch BT headset profile to %s", target)
@@ -236,11 +238,11 @@ def activate_headset_mic(force: bool = False) -> bool:
             return False
         logger.info(
             "Set default audio source to %s (%s)",
-            headset.source_name, headset.source_desc,
+            headset.source_name,
+            headset.source_desc,
         )
 
     if resume_source(headset.source_name):
         logger.debug("Resumed suspended source %s", headset.source_name)
 
     return True
-
