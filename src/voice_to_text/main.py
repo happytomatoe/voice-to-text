@@ -153,9 +153,9 @@ def setup_key_interactive() -> bool:
     config_mgr = load_config()
     config_mgr.config.setdefault("transcription", {})["provider"] = provider_name
     if not config_mgr.save():
-        print(f"WARNING: Failed to persist provider '{provider_name}' to {config_mgr.config_path}.")
-    else:
-        print(f"Default provider set to '{provider_name}'.")
+        print(f"ERROR: Failed to persist provider '{provider_name}' to {config_mgr.config_path}.")
+        return False
+    print(f"Default provider set to '{provider_name}'.")
 
     rc_path = detect_shell_rc()
     if rc_path is None:
