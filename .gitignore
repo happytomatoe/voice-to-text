@@ -1,63 +1,63 @@
- # Byte-compiled / optimized / DLL files
- __pycache__/
- **/__pycache__/
- **/**/*.pyc
- *.py[cod]
- *$py.class
+# Byte-compiled / optimized / DLL files
+__pycache__/
+**/__pycache__/
+**/**/*.pyc
+*.py[cod]
+*$py.class
 
- # C extensions
- *.so
+# C extensions
+*.so
 dist
- # Distribution / packaging
- .Python
- build/
- develop-eggs/
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
 dist/
- downloads/
- eggs/
- .eggs/
- lib/
- lib64/
- parts/
- sdist/
- var/
- wheels/
- *.egg-info/
- .installed.cfg
- *.egg
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
 
- # Virtual Environments
- venv/
- .venv/
- env/
- ENV/
- env.bak/
- venv.bak/
+# Virtual Environments
+venv/
+.venv/
+env/
+ENV/
+env.bak/
+venv.bak/
 
- # Unit test / coverage reports
- .tox/
- .nox/
- .coverage
- .coverage.*
- .cache
- nosetests.xml
- coverage.xml
- *.cover
- .hypothesis/
- .pytest_cache/
+# Unit test / coverage reports
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+.hypothesis/
+.pytest_cache/
 
- # Jupyter Notebook
- .ipynb_checkpoints
+# Jupyter Notebook
+.ipynb_checkpoints
 
- # IDE / Editor settings
- .vscode/
- .idea/
- *.swp
- *.swo
+# IDE / Editor settings
+.vscode/
+.idea/
+*.swp
+*.swo
 
- # Environment variables (Sensitive info)
- .env
- .flaskenv
+# Environment variables (Sensitive info)
+.env
+.flaskenv
 
 *.log
 build/
