@@ -4,11 +4,17 @@ import St from 'gi://St';
 export function typeText(text, onDone = () => {}) {
     try {
         const argv = [
-            'ydotool', 'type',
-            '--key-delay=0', '--key-hold=0',
-            '--', text,
+            'ydotool',
+            'type',
+            '--key-delay=0',
+            '--key-hold=0',
+            '--',
+            text,
         ];
-        const proc = new Gio.Subprocess({ argv, flags: Gio.SubprocessFlags.NONE });
+        const proc = new Gio.Subprocess({
+            argv,
+            flags: Gio.SubprocessFlags.NONE,
+        });
         proc.init(null);
         proc.wait_check_async(null, (proc, res) => {
             try {

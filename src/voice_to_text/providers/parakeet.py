@@ -1,10 +1,11 @@
 """Parakeet HTTP transcription provider."""
 
-from typing import Dict, Any
 import logging
 import os
+from typing import Any
 
 import requests
+
 from .base import TranscriptionProvider
 
 logger = logging.getLogger(__name__)
@@ -13,7 +14,7 @@ logger = logging.getLogger(__name__)
 class ParakeetProvider(TranscriptionProvider):
     """Parakeet transcription provider (HTTP mode only)."""
 
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: dict[str, Any]):
         self.model_name = config.get("model", "nvidia/parakeet-tdt-0.6b-v3")
         self.http_endpoint = config.get("http_endpoint", "http://localhost:5092")
         logger.info("Using Parakeet HTTP mode: %s", self.http_endpoint)

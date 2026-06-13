@@ -1,31 +1,32 @@
 #!/usr/bin/env python3
 
 import argparse
+import getpass
+import logging
+import os
 import select
 import signal
+import subprocess
+import sys
 import termios
 import time
 import tty
-import subprocess
-import sys
-import os
-import logging
-import getpass
 from pathlib import Path
 
 import sounddevice as sd
-import yaml
 from dotenv import load_dotenv
 
 from voice_to_text import source_hash
-from voice_to_text.bluetooth import activate_headset_mic
-from voice_to_text.providers import get_provider
-from voice_to_text.config import ConfigManager
 from voice_to_text.audio import (
+    BLOCK_SIZE,
+    SAMPLE_RATE,
     AudioRecorder,
     SpeakerVolumeManager,
     format_level_bar,
 )
+from voice_to_text.bluetooth import activate_headset_mic
+from voice_to_text.config import ConfigManager
+from voice_to_text.providers import get_provider
 
 DEFAULT_LOG_FILE = Path("/tmp") / "voice-to-text.log"
 
@@ -47,6 +48,17 @@ def setup_logging(log_file: Path | None = None):
 
 def load_config():
     return ConfigManager()
+
+
+def make_audio_recorder(config_mgr: ConfigManager, device: int | None = None) -> AudioRecorder:
+    """Build an AudioRecorder using values from config audio settings."""
+    audio_cfg = config_mgr.get_audio_config() or {}
+    return AudioRecorder(
+        device=device,
+        smooth_factor=audio_cfg.get("smooth_factor", 0.7),
+        sample_rate=audio_cfg.get("sample_rate", SAMPLE_RATE),
+        block_size=audio_cfg.get("block_size", BLOCK_SIZE),
+    )
 
 
 def copy_to_clipboard(text: str):
@@ -82,48 +94,63 @@ def detect_shell_rc() -> Path | None:
     return None
 
 
-def setup_key_interactive():
-    import subprocess as _subprocess
-
+def setup_key_interactive() -> bool:
     print("voice-to-text API key setup")
     print("=" * 60)
 
-    PROVIDER_URLS = {
+    provider_urls = {
         "deepgram": "https://console.deepgram.com/",
         "groq": "https://console.groq.com/keys",
         "voxtral": "https://console.mistral.ai/api-keys/",
     }
 
-    api_providers = [
-        (name, PROVIDER_ENV_VARS[name])
-        for name in PROVIDER_ENV_VARS
-    ]
+    api_providers = [(name, PROVIDER_ENV_VARS[name]) for name in PROVIDER_ENV_VARS]
     print("Select a provider to configure:")
     for i, (name, env_var) in enumerate(api_providers, 1):
-        url = PROVIDER_URLS.get(name, "")
+        url = provider_urls.get(name, "")
         print(f"  {i}. {name} ({env_var})")
         if url:
             print(f"     Sign up: {url}")
 
-    choice = input("\nEnter number: ").strip()
-    try:
-        idx = int(choice) - 1
-        if idx < 0 or idx >= len(api_providers):
+    env_provider = os.environ.get("VOICE_TO_TEXT_PROVIDER", "").strip().lower()
+    if env_provider in PROVIDER_ENV_VARS:
+        provider_name, env_var = env_provider, PROVIDER_ENV_VARS[env_provider]
+    else:
+        if not sys.stdin.isatty():
+            print("ERROR: Non-interactive run and VOICE_TO_TEXT_PROVIDER is unset or invalid.")
+            print(f"Set it to one of: {', '.join(PROVIDER_ENV_VARS)}")
+            return False
+        print("Select a provider to configure:")
+        for i, (name, env_var) in enumerate(api_providers, 1):
+            url = provider_urls.get(name, "")
+            print(f"  {i}. {name} ({env_var})")
+            if url:
+                print(f"     Sign up: {url}")
+
+        choice = input("\nEnter number: ").strip()
+        try:
+            idx = int(choice) - 1
+            if idx < 0 or idx >= len(api_providers):
+                print("Invalid choice.")
+                return False
+        except ValueError:
             print("Invalid choice.")
-            return
-    except ValueError:
-        print("Invalid choice.")
-        return
+            return False
 
-    provider_name, env_var = api_providers[idx]
+        provider_name, env_var = api_providers[idx]
 
-    api_key = getpass.getpass(f"Enter {provider_name} API key: ")
+    api_key = os.environ.get("VOICE_TO_TEXT_API_KEY", "").strip()
+    if not api_key:
+        if not sys.stdin.isatty():
+            print("ERROR: Non-interactive run and VOICE_TO_TEXT_API_KEY is unset.")
+            return False
+        api_key = getpass.getpass(f"Enter {provider_name} API key: ")
     if not api_key:
         print("No key entered. Aborting.")
-        return
+        return False
 
     try:
-        _subprocess.run(
+        subprocess.run(
             [
                 "secret-tool",
                 "store",
@@ -140,18 +167,26 @@ def setup_key_interactive():
         )
     except FileNotFoundError:
         print("ERROR: `secret-tool` not found. Install libsecret-tools or similar.")
-        return
-    except _subprocess.CalledProcessError as e:
+        return False
+    except subprocess.CalledProcessError as e:
         print(f"ERROR: Failed to store secret: {e.stderr.decode().strip()}")
-        return
+        return False
 
-    print(f"API key stored securely via secret-tool.")
+    print("API key stored securely via secret-tool.")
+
+    config_mgr = load_config()
+    config_mgr.config.setdefault("transcription", {})["provider"] = provider_name
+    if not config_mgr.save():
+        print(f"ERROR: Failed to persist provider '{provider_name}' to {config_mgr.config_path}.")
+        return False
+    print(f"Default provider set to '{provider_name}'.")
 
     rc_path = detect_shell_rc()
     if rc_path is None:
         print("WARNING: Unknown shell. Key stored but no environment variable configured.")
-        print(f"Add this manually:\n  export {env_var}=$(secret-tool lookup application voice-to-text provider {provider_name})")
-        return
+        print("Add this manually:")
+        print(f"  export {env_var}=$(secret-tool lookup application voice-to-text provider {provider_name})")
+        return True
 
     lookup_cmd = f"secret-tool lookup application voice-to-text provider {provider_name}"
     fish_line = f"set -x {env_var} ({lookup_cmd})"
@@ -197,16 +232,14 @@ def setup_key_interactive():
         for path in written:
             print(f"Added to {path}.")
     else:
-        print(f"Environment variable already configured.")
+        print("Environment variable already configured.")
 
     os.environ[env_var] = api_key
-    print(f"Environment variable set in current shell session.")
+    print("Environment variable set in current shell session.")
 
-    print()
-    change = input("Would you like to set this as the default provider? (y/N): ").strip().lower()
-    if change in ("y", "yes"):
-        config_mgr = ConfigManager()
-        set_provider(config_mgr, provider_name)
+    return True
+
+    return True
 
 
 def setup_interactive():
@@ -219,17 +252,26 @@ def setup_interactive():
     print(f"Config path: {config_mgr.config_path}")
     print()
 
+    if not sys.stdin.isatty():
+        provider = os.environ.get("VOICE_TO_TEXT_PROVIDER")
+        if provider:
+            set_provider(config_mgr, provider)
+        else:
+            print("Non-interactive shell detected. Skipping provider setup.")
+            print("Set VOICE_TO_TEXT_PROVIDER environment variable to configure provider.")
+        return
+
     set_provider(config_mgr)
 
 
 def set_provider(config_mgr, provider: str | None = None) -> bool:
     """Set the default transcription provider in config. If provider is None, prompt interactively."""
-    ALL_PROVIDERS = ["deepgram", "groq", "voxtral", "parakeet"]
+    all_providers = ["deepgram", "groq", "voxtral", "parakeet"]
 
     if provider is None:
         print("Choose your transcription provider:")
         print()
-        for i, name in enumerate(ALL_PROVIDERS, 1):
+        for i, name in enumerate(all_providers, 1):
             print(f"  {i}. {name}")
         print()
 
@@ -240,15 +282,15 @@ def set_provider(config_mgr, provider: str | None = None) -> bool:
         choice = input("Enter choice (1-4): ").strip()
         try:
             idx = int(choice) - 1
-            if idx < 0 or idx >= len(ALL_PROVIDERS):
+            if idx < 0 or idx >= len(all_providers):
                 print("Invalid choice. Keeping current provider.")
                 return False
-            provider = ALL_PROVIDERS[idx]
+            provider = all_providers[idx]
         except ValueError:
             print("Invalid choice. Keeping current provider.")
             return False
-    elif provider not in ALL_PROVIDERS:
-        print(f"Unknown provider '{provider}'. Choose from: {', '.join(ALL_PROVIDERS)}")
+    elif provider not in all_providers:
+        print(f"Unknown provider '{provider}'. Choose from: {', '.join(all_providers)}")
         return False
 
     config_mgr.config.setdefault("transcription", {})["provider"] = provider
@@ -284,9 +326,10 @@ def transcribe_audio(audio_path: str, transcriber, language) -> str | None:
         start_time = time.time()
         text = transcriber.transcribe_file(audio_path, language=language)
         elapsed = time.time() - start_time
-        logger.info("Transcription complete in %.2fs: %s", elapsed, text[:100])
-        return text.strip()
-    except Exception as e:
+        preview = (text or "")[:100]
+        logger.info("Transcription complete in %.2fs: %s", elapsed, preview)
+        return (text or "").strip()
+    except Exception:
         logger.exception("Transcription failed")
         raise
     finally:
@@ -305,7 +348,7 @@ class _LogCollector(logging.Handler):
 
 
 def run_benchmark(args, config_mgr):
-    ALL_PROVIDERS = ["deepgram", "groq", "voxtral", "parakeet"]
+    all_providers = ["deepgram", "groq", "voxtral", "parakeet"]
 
     if args.audio_file:
         audio_path = args.audio_file
@@ -313,7 +356,7 @@ def run_benchmark(args, config_mgr):
     else:
         duration = args.duration
         print(f"Recording for {duration}s...")
-        recorder = AudioRecorder(device=args.device)
+        recorder = make_audio_recorder(config_mgr, device=args.device)
         recorder.start()
         time.sleep(duration)
         recorder.stop()
@@ -321,10 +364,10 @@ def run_benchmark(args, config_mgr):
         frame_count = recorder.frame_count
         print(f"Recorded {frame_count} frames ({duration}s)")
 
-    provider_names = [p.strip() for p in args.providers.split(",")] if args.providers else ALL_PROVIDERS
+    provider_names = [p.strip() for p in args.providers.split(",")] if args.providers else all_providers
     providers = []
     for name in provider_names:
-        if name not in ALL_PROVIDERS:
+        if name not in all_providers:
             print(f"  {name}: SKIP (unknown provider)")
             continue
         try:
@@ -358,10 +401,11 @@ def run_benchmark(args, config_mgr):
                 text = provider.transcribe_file(audio_path)
                 elapsed = time.time() - start
                 runs.append({"elapsed": elapsed, "text": text, "ok": True})
-                print(f"    Run {i+1}: {elapsed:.2f}s  \"{text[:60]}\"")
+                preview = (text or "")[:60]
+                print(f'    Run {i + 1}: {elapsed:.2f}s  "{preview}"')
             except Exception as e:
                 runs.append({"elapsed": 0.0, "text": f"FAILED: {e}", "ok": False})
-                print(f"    Run {i+1}: FAILED ({e})")
+                print(f"    Run {i + 1}: FAILED ({e})")
         ok_runs = [r for r in runs if r["ok"]]
         if ok_runs:
             times = [r["elapsed"] for r in ok_runs]
@@ -394,11 +438,12 @@ def run_benchmark(args, config_mgr):
         print("TIMING")
         print(sep)
         print(f"  {'Provider':<15} {'Avg (s)':<12} {'Min (s)':<12} {'Max (s)':<12}  {'+/-%':<10}")
-        print(f"  {'-'*15} {'-'*12} {'-'*12} {'-'*12}  {'-'*10}")
+        print(f"  {'-' * 15} {'-' * 12} {'-' * 12} {'-' * 12}  {'-' * 10}")
         for name, s in sorted_results:
             pct = ((s["avg"] - base_avg) / base_avg) * 100 if base_avg > 0 else 0
             marker = " <- fastest" if name == fastest else ""
-            print(f"  {name:<15} {s['avg']:<12.2f} {s['min']:<12.2f} {s['max']:<12.2f}  {'+' if pct > 0 else ''}{pct:<8.1f}%{marker}")
+            pct_str = f"{('+' if pct > 0 else '')}{pct:<8.1f}%"
+            print(f"  {name:<15} {s['avg']:<12.2f} {s['min']:<12.2f} {s['max']:<12.2f}  {pct_str}{marker}")
         print(sep)
         print(f"  Fastest: {fastest} ({sorted_results[0][1]['avg']:.2f}s avg)")
 
@@ -414,11 +459,11 @@ def run_benchmark(args, config_mgr):
                 for line in run["text"].splitlines():
                     print(f"    {line}")
                 print()
-    LEVEL_INTERVAL = 0.1
 
-    logger.info(
-        "run_stdout_mode started, duration=%s, device=%s", duration, args.device
-    )
+
+def run_stdout_mode(args, config_mgr, transcriber, language, duration):
+    """Record audio and print level updates and transcription to stdout."""
+    logger.info("run_stdout_mode started, duration=%s, device=%s", duration, args.device)
 
     stop_requested = False
 
@@ -426,7 +471,11 @@ def run_benchmark(args, config_mgr):
         nonlocal stop_requested
         stop_requested = True
 
-    signal.signal(signal.SIGINT, handle_sigint)
+    prev_sigint = signal.signal(signal.SIGINT, handle_sigint)
+
+    level_interval = 0.1
+
+    level_interval = 0.1
 
     decrease_pct = (
         args.decrease_speaker_volume
@@ -434,7 +483,7 @@ def run_benchmark(args, config_mgr):
         else config_mgr.get_speaker_config().get("decrease_volume", 0)
     )
 
-    recorder = AudioRecorder(device=args.device)
+    recorder = make_audio_recorder(config_mgr, device=args.device)
 
     with SpeakerVolumeManager.with_decrease(decrease_pct):
         recorder.start()
@@ -447,7 +496,7 @@ def run_benchmark(args, config_mgr):
                     break
 
                 now = time.time()
-                if now - last_level_time >= LEVEL_INTERVAL:
+                if now - last_level_time >= level_interval:
                     if recorder.frame_count:
                         level_count += 1
                         logger.debug("LEVEL[%d]: %.4f", level_count, recorder.smoothed_level)
@@ -461,6 +510,7 @@ def run_benchmark(args, config_mgr):
             sys.exit(1)
         finally:
             recorder.stop()
+            signal.signal(signal.SIGINT, prev_sigint)
             logger.info(
                 "Audio stream stopped, collected %d frames, %d level readings",
                 recorder.frame_count,
@@ -524,19 +574,17 @@ def main():
     record_parser = subparsers.add_parser("record", help="Record and transcribe audio")
     _add_record_args(record_parser)
 
-    bench_parser = subparsers.add_parser("benchmark", help="Benchmark provider transcription speed (3 runs each, reports avg)")
+    bench_parser = subparsers.add_parser(
+        "benchmark", help="Benchmark provider transcription speed (3 runs each, reports avg)"
+    )
     bench_parser.add_argument(
         "--duration", type=float, default=10.0, help="Recording duration in seconds (default: 10)"
     )
-    bench_parser.add_argument(
-        "--audio-file", type=str, help="Use existing audio file instead of recording"
-    )
+    bench_parser.add_argument("--audio-file", type=str, help="Use existing audio file instead of recording")
     bench_parser.add_argument(
         "--runs", type=int, default=3, help="Number of transcription runs per provider (default: 3)"
     )
-    bench_parser.add_argument(
-        "--device", type=int, help="Audio input device index"
-    )
+    bench_parser.add_argument("--device", type=int, help="Audio input device index")
     bench_parser.add_argument(
         "--providers",
         type=str,
@@ -597,9 +645,7 @@ def main():
         for i, dev in enumerate(all_devices):
             if dev["max_input_channels"] > 0:
                 print(f"  [{i}] {dev['name']}")
-                print(
-                    f"      Sample rate: {dev['default_samplerate']} Hz, Channels: {dev['max_input_channels']}"
-                )
+                print(f"      Sample rate: {dev['default_samplerate']} Hz, Channels: {dev['max_input_channels']}")
         print("-" * 60)
         print("Use --device INDEX to select a microphone")
         return
@@ -609,7 +655,7 @@ def main():
         return
 
     if args.command == "setup-key":
-        setup_key_interactive()
+        sys.exit(0 if setup_key_interactive() else 1)
         return
 
     load_dotenv()
@@ -652,7 +698,8 @@ def main():
         else config_mgr.get_speaker_config().get("decrease_volume", 0)
     )
 
-    recorder = AudioRecorder(device=args.device, smooth_factor=0.7)
+    recorder = make_audio_recorder(config_mgr, device=args.device)
+    cancelled = False
     with SpeakerVolumeManager.with_decrease(decrease_pct):
         recorder.start()
         start_time = time.time()
@@ -666,8 +713,8 @@ def main():
                     if select.select([sys.stdin], [], [], 0.03)[0]:
                         key = sys.stdin.read(1)
                         if key in ("q", "Q") or ord(key) == 27:
-                            print("\nExiting without transcription")
-                            sys.exit(0)
+                            cancelled = True
+                            break
                         elif key == "\n" or key == "\r":
                             break
 
@@ -682,7 +729,11 @@ def main():
                 termios.tcsetattr(sys.stdin, termios.TCSADRAIN, old_settings)
                 print()
         finally:
-            recorder.stop()
+            recorder.stop(delete=cancelled)
+
+    if cancelled:
+        print("\nExiting without transcription")
+        sys.exit(0)
 
     if recorder.frame_count == 0:
         print("ERROR:No audio recorded")
@@ -705,6 +756,7 @@ def main():
     else:
         logger.error("Clipboard copy failed")
         print("ERROR:Clipboard copy failed")
+        sys.exit(1)
 
 
 if __name__ == "__main__":
@@ -713,11 +765,7 @@ if __name__ == "__main__":
     except SystemExit:
         raise
     except Exception as e:
-        output_mode = (
-            sys.argv
-            and "--output" in sys.argv
-            and "stdout" in sys.argv
-        )
+        output_mode = sys.argv and "--output" in sys.argv and "stdout" in sys.argv
         if output_mode:
             print(f"ERROR:{e}", flush=True)
         logger.exception("Unhandled exception: %s", e)
