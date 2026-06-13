@@ -1,9 +1,10 @@
 """Deepgram Nova-3 transcription provider (batch and streaming)."""
 
 import logging
-from typing import Dict, Any
+from typing import Any
 
 import requests
+
 from .base import BatchProvider, WebSocketStreamingProvider, resolve_api_key
 
 logger = logging.getLogger(__name__)
@@ -12,7 +13,7 @@ logger = logging.getLogger(__name__)
 class DeepgramProvider(BatchProvider, WebSocketStreamingProvider):
     """Deepgram Nova-3 transcription provider (batch and streaming)."""
 
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: dict[str, Any]):
         self.api_key = resolve_api_key(config, "DEEPGRAM_API_KEY")
         self.model = config.get("model", "nova-3")
         self.api_url = config.get("api_url", "https://api.deepgram.com")

@@ -1,17 +1,17 @@
 """Voxtral transcription provider (batch and streaming)."""
 
-import os
-import logging
-import threading
 import asyncio
 import concurrent.futures
+import logging
+import os
+import threading
+from typing import Any
+
 import requests
-from typing import Dict, Any
-
-from .base import BatchProvider, StreamingProvider, resolve_api_key
-
 from mistralai.client import Mistral
 from mistralai.extra.realtime import AudioFormat
+
+from .base import BatchProvider, StreamingProvider, resolve_api_key
 
 logger = logging.getLogger(__name__)
 
@@ -23,17 +23,13 @@ class VoxtralProvider(BatchProvider, StreamingProvider):
     and real-time streaming via the Mistral SDK.
     """
 
-    def __init__(self, config: Dict[str, Any]):
-        self.api_key = resolve_api_key(
-            config, "VOXTRAL_API_KEY", extra_envs=("MISTRAL_API_KEY",)
-        )
+    def __init__(self, config: dict[str, Any]):
+        self.api_key = resolve_api_key(config, "VOXTRAL_API_KEY", extra_envs=("MISTRAL_API_KEY",))
         self._api_url = config.get("api_url", "https://api.mistral.ai")
         # Batch model
         self.model = config.get("model", "voxtral-mini-latest")
         # Streaming model
-        self._realtime_model = config.get(
-            "realtime_model", "voxtral-mini-transcribe-realtime-2602"
-        )
+        self._realtime_model = config.get("realtime_model", "voxtral-mini-transcribe-realtime-2602")
         self._target_delay_ms = config.get("target_delay_ms", 400)
 
         # Streaming state
@@ -112,9 +108,7 @@ class VoxtralProvider(BatchProvider, StreamingProvider):
 
         # Schedule the streaming coroutine on the event loop
         assert self._loop is not None  # guaranteed by the thread wait above
-        self._stream_task = asyncio.run_coroutine_threadsafe(
-            self._stream(language, sample_rate), self._loop
-        )
+        self._stream_task = asyncio.run_coroutine_threadsafe(self._stream(language, sample_rate), self._loop)
         logger.info(
             "Starting Voxtral realtime stream: model=%s delay=%sms",
             self._realtime_model,
@@ -177,9 +171,7 @@ class VoxtralProvider(BatchProvider, StreamingProvider):
         self._closed = True
         if self._audio_queue is not None and self._loop is not None:
             try:
-                asyncio.run_coroutine_threadsafe(
-                    self._audio_queue.put(None), self._loop
-                ).result(timeout=1.0)
+                asyncio.run_coroutine_threadsafe(self._audio_queue.put(None), self._loop).result(timeout=1.0)
             except Exception:
                 logger.debug("Failed to signal stream shutdown", exc_info=True)
 

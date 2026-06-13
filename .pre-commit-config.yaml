@@ -1,16 +1,42 @@
 repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: check-merge-conflict
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.15.17
+    hooks:
+      - id: ruff
+        args: [--fix]
+      - id: ruff-format
+
   - repo: local
     hooks:
+      - id: uv-sync
+        name: uv sync
+        entry: uv sync
+        language: system
+        pass_filenames: false
+        always_run: true
+      - id: eslint
+        name: eslint
+        entry: bash -lc 'npx eslint --stdin --stdin-filename={staged_filename}'
+        language: system
+        types: [javascript]
+        files: ^gnome-ext/.*\.js$
+        pass_filenames: true
+      - id: prettier-check
+        name: prettier
+        entry: npx prettier@3.8.4 --check
+        language: system
+        types: [text]
+        files: ^gnome-ext/.*\.(js|css|json)$
+        pass_filenames: true
       - id: pytest
         name: pytest
-        entry: bash -c 'PYTHONDONTWRITEBYTECODE=1 uv run pytest "$@"' --
+        entry: uv run python -m pytest
         language: system
+        types: [python]
+        files: ^(tests/|src/)
         pass_filenames: false
-        always_run: true
-      - id: pyright
-        name: pyright
-        entry: uv run pyright src/
-        language: system
-        pass_filenames: false
-        always_run: true
-# test

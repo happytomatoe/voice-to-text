@@ -4,7 +4,7 @@ import json
 import logging
 import os
 from abc import ABC, abstractmethod
-from typing import Dict, Any, Optional
+from typing import Any
 
 import websocket
 
@@ -15,7 +15,7 @@ class BatchProvider(ABC):
     """Provider that transcribes complete audio files."""
 
     @abstractmethod
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: dict[str, Any]):
         pass
 
     @abstractmethod
@@ -33,7 +33,7 @@ class StreamingProvider(ABC):
     """Provider that transcribes audio in real-time via streaming."""
 
     @abstractmethod
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: dict[str, Any]):
         pass
 
     @abstractmethod
@@ -63,7 +63,7 @@ class StreamingProvider(ABC):
 
 
 def resolve_api_key(
-    config: Dict[str, Any],
+    config: dict[str, Any],
     default_env: str,
     extra_envs: tuple[str, ...] = (),
 ) -> str:
@@ -92,14 +92,14 @@ class WebSocketStreamingProvider(StreamingProvider):
     Subclasses implement: __init__, transcribe_file, start_stream (URL/headers), name.
     """
 
-    _ws: Optional[websocket.WebSocket]
-    _partial_result: Optional[str]
+    _ws: websocket.WebSocket | None
+    _partial_result: str | None
 
     def _init_ws_state(self) -> None:
         self._ws = None
         self._partial_result = None
 
-    def _connect_ws(self, ws_url: str, headers: Dict[str, str]) -> None:
+    def _connect_ws(self, ws_url: str, headers: dict[str, str]) -> None:
         if self._ws is not None:
             try:
                 self._ws.close()
@@ -120,7 +120,7 @@ class WebSocketStreamingProvider(StreamingProvider):
             self._ws = None
             raise RuntimeError("Streaming connection lost") from e
 
-    def get_partial_result(self) -> Optional[str]:
+    def get_partial_result(self) -> str | None:
         return self._partial_result
 
     def finalize_stream(self) -> str:
@@ -139,11 +139,7 @@ class WebSocketStreamingProvider(StreamingProvider):
                         if msg_type == "Results":
                             channel = data.get("channel", {})
                             alternatives = channel.get("alternatives", [{}])
-                            transcript = (
-                                alternatives[0].get("transcript", "")
-                                if alternatives
-                                else ""
-                            )
+                            transcript = alternatives[0].get("transcript", "") if alternatives else ""
                             if transcript:
                                 self._partial_result = transcript
                 except websocket.WebSocketTimeoutException:
@@ -171,17 +167,11 @@ class WebSocketStreamingProvider(StreamingProvider):
                     if msg_type == "Results":
                         channel = data.get("channel", {})
                         alternatives = channel.get("alternatives", [{}])
-                        transcript = (
-                            alternatives[0].get("transcript", "")
-                            if alternatives
-                            else ""
-                        )
+                        transcript = alternatives[0].get("transcript", "") if alternatives else ""
                         if transcript:
                             self._partial_result = transcript
                     elif msg_type == "Error":
-                        logger.error(
-                            "%s stream error: %s", self.name, data.get("message")
-                        )
+                        logger.error("%s stream error: %s", self.name, data.get("message"))
         except websocket.WebSocketTimeoutException:
             pass
         except Exception as e:

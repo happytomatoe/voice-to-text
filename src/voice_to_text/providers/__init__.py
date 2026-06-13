@@ -1,10 +1,12 @@
 """Transcription provider factory and registry."""
-from typing import Dict, Any, Type
+
+from typing import Any
+
 from .base import BatchProvider, StreamingProvider
-from .groq import GroqProvider
 from .deepgram import DeepgramProvider
-from .voxtral import VoxtralProvider
+from .groq import GroqProvider
 from .parakeet import ParakeetProvider
+from .voxtral import VoxtralProvider
 
 _BATCH_PROVIDERS = {
     "groq": GroqProvider,
@@ -18,13 +20,15 @@ _STREAMING_PROVIDERS = {
     "voxtral": VoxtralProvider,
 }
 
-def get_batch_provider(name: str, config: Dict[str, Any]) -> BatchProvider:
+
+def get_batch_provider(name: str, config: dict[str, Any]) -> BatchProvider:
     """Get batch provider instance."""
     if name not in _BATCH_PROVIDERS:
         raise ValueError(f"Batch provider '{name}' not found. Available: {list(_BATCH_PROVIDERS.keys())}")
     return _BATCH_PROVIDERS[name](config)  # type: ignore[abstract]
 
-def get_streaming_provider(name: str, config: Dict[str, Any]) -> StreamingProvider:
+
+def get_streaming_provider(name: str, config: dict[str, Any]) -> StreamingProvider:
     """Get streaming provider instance."""
     if name not in _STREAMING_PROVIDERS:
         raise ValueError(f"Streaming provider '{name}' not found. Available: {list(_STREAMING_PROVIDERS.keys())}")

@@ -1,13 +1,13 @@
 """Audio recording and level metering utilities."""
 
+import logging
 import math
 import os
 import re
 import subprocess
-import logging
 import tempfile
 import wave
-from typing import Callable
+from collections.abc import Callable
 
 import numpy as np
 import sounddevice as sd
@@ -82,10 +82,7 @@ class AudioRecorder:
         self.frame_count += 1
         float_data = indata[:, 0].astype(np.float32) / 32768.0
         rms = math.sqrt(np.mean(float_data**2))
-        self.smoothed_level = (
-            self.smooth_factor * self.smoothed_level
-            + (1 - self.smooth_factor) * rms
-        )
+        self.smoothed_level = self.smooth_factor * self.smoothed_level + (1 - self.smooth_factor) * rms
         if self.on_audio_data is not None:
             try:
                 self.on_audio_data(raw)
@@ -155,7 +152,7 @@ class SpeakerVolumeManager:
 
     @staticmethod
     def _parse_pactl(output: str) -> float | None:
-        match = re.search(r'(\d+)%', output)
+        match = re.search(r"(\d+)%", output)
         if match:
             return int(match.group(1)) / 100.0
         return None
@@ -177,7 +174,8 @@ class SpeakerVolumeManager:
         if self._set_volume(target):
             logger.info(
                 "Decreased speaker volume: %.0f%% -> %.0f%%",
-                current * 100, target * 100,
+                current * 100,
+                target * 100,
             )
 
     def restore(self):

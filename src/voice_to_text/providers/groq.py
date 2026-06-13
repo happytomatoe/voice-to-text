@@ -1,9 +1,10 @@
 """Groq Whisper transcription provider (batch only)."""
 
 import logging
-from typing import Dict, Any
+from typing import Any
 
 from groq import Groq
+
 from .base import BatchProvider, resolve_api_key
 
 logger = logging.getLogger(__name__)
@@ -16,7 +17,7 @@ class GroqProvider(BatchProvider):
     Their API is REST-only. Use batch transcription with fast inference.
     """
 
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: dict[str, Any]):
         self.api_key = resolve_api_key(config, "GROQ_API_KEY")
         self.model = config.get("model", "whisper-large-v3-turbo")
         self.client = Groq(api_key=self.api_key)
@@ -31,7 +32,7 @@ class GroqProvider(BatchProvider):
             result = str(transcription).strip()
             logger.info("Transcription result: %s", result[:100])
             return result
-        except Exception as e:
+        except Exception:
             logger.exception("Groq transcription API call failed")
             raise
 
