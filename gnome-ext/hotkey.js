@@ -12,10 +12,12 @@ export function registerHotkey(name, settings, callback) {
             settings,
             Meta.KeyBindingFlags.NONE,
             Shell.ActionMode.NORMAL | Shell.ActionMode.OVERVIEW,
-            callback,
+            callback
         );
     } catch (e) {
-        console.error(`VoiceToText: failed to register hotkey '${hotkeyValue}': ${e.message}`);
+        console.error(
+            `VoiceToText: failed to register hotkey '${hotkeyValue}': ${e.message}`
+        );
     }
 }
 

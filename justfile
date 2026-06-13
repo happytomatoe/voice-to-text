@@ -96,6 +96,16 @@ gnome-ext-dev: reinstall gnome-ext-install
         echo "Error: Cannot start a development GNOME Shell from within a toolbox container. Run this command on the host system." >&2
         exit 1
     fi
+    if ! rpm -q mutter-devkit &>/dev/null; then
+        echo "mutter-devkit not installed, installing..."
+        if command -v rpm-ostree &>/dev/null; then
+            sudo rpm-ostree install mutter-devkit
+            echo "mutter-devkit was staged via rpm-ostree. Reboot, then rerun 'just gnome-ext-dev'." >&2
+            exit 1
+        else
+            sudo dnf install -y mutter-devkit
+        fi
+    fi
     UUID="voice-to-text@happytomatoe.com"
     gnome-extensions enable "$UUID" 2>/dev/null || true
     GNOME_VERSION=$(gnome-shell --version | awk '{print int($3)}')

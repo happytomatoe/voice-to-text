@@ -10,8 +10,8 @@ without needing a microphone or real speech data.
 """
 
 import argparse
-import struct
 import math
+import struct
 import wave
 
 SAMPLE_RATE = 16000
@@ -34,17 +34,17 @@ def generate_test_audio(duration_sec: float) -> bytes:
 
     # Syllable pattern: frequency pairs (f0, f1) and durations
     syllables = [
-        (0.0, 0.15, 200, 350),    # uh
-        (0.15, 0.35, 280, 450),   # hmm
-        (0.35, 0.55, 300, 600),   # rising tone
-        (0.55, 0.70, 400, 350),   # falling tone
-        (0.70, 0.90, 250, 500),   # mid rise
-        (0.90, 1.10, 350, 300),   # mid fall
-        (1.10, 1.30, 450, 700),   # high rise
-        (1.30, 1.50, 500, 400),   # high fall
-        (1.50, 1.70, 300, 550),   # another rise
-        (1.70, 1.85, 350, 280),   # fall
-        (1.85, 2.00, 400, 500),   # short rise
+        (0.0, 0.15, 200, 350),  # uh
+        (0.15, 0.35, 280, 450),  # hmm
+        (0.35, 0.55, 300, 600),  # rising tone
+        (0.55, 0.70, 400, 350),  # falling tone
+        (0.70, 0.90, 250, 500),  # mid rise
+        (0.90, 1.10, 350, 300),  # mid fall
+        (1.10, 1.30, 450, 700),  # high rise
+        (1.30, 1.50, 500, 400),  # high fall
+        (1.50, 1.70, 300, 550),  # another rise
+        (1.70, 1.85, 350, 280),  # fall
+        (1.85, 2.00, 400, 500),  # short rise
     ]
 
     total_pattern = 2.0  # seconds per pattern repetition
