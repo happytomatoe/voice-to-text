@@ -82,8 +82,6 @@ def detect_shell_rc() -> Path | None:
 
 
 def setup_key_interactive() -> bool:
-    import subprocess as _subprocess
-
     print("voice-to-text API key setup")
     print("=" * 60)
 
@@ -139,7 +137,7 @@ def setup_key_interactive() -> bool:
         return False
 
     try:
-        _subprocess.run(
+        subprocess.run(
             [
                 "secret-tool",
                 "store",
@@ -157,11 +155,11 @@ def setup_key_interactive() -> bool:
     except FileNotFoundError:
         print("ERROR: `secret-tool` not found. Install libsecret-tools or similar.")
         return False
-    except _subprocess.CalledProcessError as e:
+    except subprocess.CalledProcessError as e:
         print(f"ERROR: Failed to store secret: {e.stderr.decode().strip()}")
         return False
 
-    print(f"API key stored securely via secret-tool.")
+    print("API key stored securely via secret-tool.")
 
     config_mgr = load_config()
     config_mgr.config.setdefault("transcription", {})["provider"] = provider_name
