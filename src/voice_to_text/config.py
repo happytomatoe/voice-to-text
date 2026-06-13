@@ -13,7 +13,7 @@ class ConfigManager:
     """Manage application configuration with provider support."""
 
     def __init__(self, config_path: str | None = None):
-        self._explicit_config_path = config_path is not None
+        self._explicit_config_path = bool(config_path)
         # User config path (persistent)
         self.user_config_path = str(Path.home() / ".config" / "voice-to-text" / "config.yaml")
 
@@ -65,6 +65,7 @@ class ConfigManager:
                 yaml.dump(self.config, f)
             return True
         except Exception:
+            logger.exception("Failed to save config: %s", target)
             return False
 
     def get_provider_config(self, provider_name: str) -> dict[str, Any]:
