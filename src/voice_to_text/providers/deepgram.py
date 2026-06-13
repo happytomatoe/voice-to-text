@@ -1,30 +1,26 @@
-"""Deepgram Nova-3 batch transcription provider."""
+"""Deepgram Nova-3 transcription provider (batch and streaming)."""
 
 import logging
-import os
 from typing import Any
 
 import requests
 
-from .base import TranscriptionProvider
+from .base import BatchProvider, WebSocketStreamingProvider, resolve_api_key
 
 logger = logging.getLogger(__name__)
 
 
-class DeepgramProvider(TranscriptionProvider):
-    """Deepgram Nova-3 batch file transcription provider."""
+class DeepgramProvider(BatchProvider, WebSocketStreamingProvider):
+    """Deepgram Nova-3 transcription provider (batch and streaming)."""
 
     def __init__(self, config: dict[str, Any]):
-        self.api_key = config.get("api_key") or os.getenv(config.get("api_key_env", "DEEPGRAM_API_KEY"))
-        if not self.api_key:
-            raise ValueError(f"{config.get('api_key_env', 'DEEPGRAM_API_KEY')} not set")
+        self.api_key = resolve_api_key(config, "DEEPGRAM_API_KEY")
         self.model = config.get("model", "nova-3")
         self.api_url = config.get("api_url", "https://api.deepgram.com")
+        self._init_ws_state()
 
     def transcribe_file(self, audio_path: str, language: str = "en") -> str:
-        """Transcribe audio file using Deepgram Nova-3 API."""
         logger.info("Transcribing %s with Deepgram model %s", audio_path, self.model)
-
         try:
             headers = {
                 "Authorization": f"Token {self.api_key}",
@@ -33,11 +29,17 @@ class DeepgramProvider(TranscriptionProvider):
             with open(audio_path, "rb") as audio_file:
                 response = requests.post(
                     f"{self.api_url}/v1/listen",
-                    params={"model": self.model, "language": language},
+                    params={
+                        "model": self.model,
+                        "language": language,
+                        "smart_format": "true",
+                        "punctuate": "true",
+                        "numerals": "true",
+                        "filler_words": "true",
+                    },
                     headers=headers,
                     data=audio_file,
                 )
-
             response.raise_for_status()
             result = response.json()
             text = (
@@ -49,7 +51,6 @@ class DeepgramProvider(TranscriptionProvider):
             )
             logger.info("Transcription result: %s", text[:100])
             return text
-
         except requests.exceptions.RequestException as e:
             logger.exception("Deepgram transcription API call failed")
             detail = ""
@@ -62,6 +63,23 @@ class DeepgramProvider(TranscriptionProvider):
         except Exception as e:
             logger.exception("Deepgram transcription failed")
             raise RuntimeError(f"Deepgram transcription failed: {e}")
+
+    def start_stream(self, language: str = "en", sample_rate: int = 16000) -> None:
+        ws_url = (
+            f"{self.api_url.replace('https://', 'wss://').replace('http://', 'ws://')}/v1/listen"
+            f"?model={self.model}"
+            f"&language={language}"
+            f"&encoding=linear16"
+            f"&sample_rate={sample_rate}"
+            f"&interim_results=true"
+            f"&smart_format=true"
+            f"&punctuate=true"
+            f"&numerals=true"
+            f"&filler_words=true"
+        )
+        headers = {"Authorization": f"Token {self.api_key}"}
+        self._connect_ws(ws_url, headers)
+        logger.info("Deepgram stream started (sample_rate=%d)", sample_rate)
 
     @property
     def name(self) -> str:

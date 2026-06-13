@@ -1,28 +1,28 @@
-"""Groq Whisper transcription provider."""
+"""Groq Whisper transcription provider (batch only)."""
 
 import logging
-import os
 from typing import Any
 
 from groq import Groq
 
-from .base import TranscriptionProvider
+from .base import BatchProvider, resolve_api_key
 
 logger = logging.getLogger(__name__)
 
 
-class GroqProvider(TranscriptionProvider):
-    """Groq Whisper batch transcription provider."""
+class GroqProvider(BatchProvider):
+    """Groq Whisper batch transcription provider.
+
+    Note: Groq does not support WebSocket streaming for audio transcription.
+    Their API is REST-only. Use batch transcription with fast inference.
+    """
 
     def __init__(self, config: dict[str, Any]):
-        self.api_key = config.get("api_key") or os.getenv(config.get("api_key_env", "GROQ_API_KEY"))
-        if not self.api_key:
-            raise ValueError(f"{config.get('api_key_env', 'GROQ_API_KEY')} not set")
+        self.api_key = resolve_api_key(config, "GROQ_API_KEY")
         self.model = config.get("model", "whisper-large-v3-turbo")
         self.client = Groq(api_key=self.api_key)
 
     def transcribe_file(self, audio_path: str, language: str = "en") -> str:
-        """Transcribe audio file using Groq Whisper."""
         logger.info("Transcribing %s with Groq model %s", audio_path, self.model)
         try:
             with open(audio_path, "rb") as f:
@@ -35,6 +35,12 @@ class GroqProvider(TranscriptionProvider):
         except Exception:
             logger.exception("Groq transcription API call failed")
             raise
+
+    def start_stream(self, language: str = "en", sample_rate: int = 16000) -> None:
+        raise NotImplementedError(
+            "Groq does not support WebSocket streaming for audio transcription. "
+            "Use batch transcription or choose a different provider for streaming."
+        )
 
     @property
     def name(self) -> str:

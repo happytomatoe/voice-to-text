@@ -9,6 +9,7 @@ import signal
 import subprocess
 import sys
 import termios
+import threading
 import time
 import tty
 from pathlib import Path
@@ -16,49 +17,38 @@ from pathlib import Path
 import sounddevice as sd
 from dotenv import load_dotenv
 
-from voice_to_text import source_hash
 from voice_to_text.audio import (
-    BLOCK_SIZE,
-    SAMPLE_RATE,
     AudioRecorder,
     SpeakerVolumeManager,
     format_level_bar,
 )
 from voice_to_text.bluetooth import activate_headset_mic
 from voice_to_text.config import ConfigManager
-from voice_to_text.providers import get_provider
+from voice_to_text.hybrid import HybridTranscriber
+from voice_to_text.providers import get_batch_provider, get_streaming_provider
 
 DEFAULT_LOG_FILE = Path("/tmp") / "voice-to-text.log"
+
+ALL_PROVIDERS = ["deepgram", "groq", "voxtral", "parakeet"]
 
 logger = logging.getLogger(__name__)
 
 
-def setup_logging(log_file: Path | None = None):
+def setup_logging(log_file: Path | None = None, level: int = logging.INFO):
     log_path = log_file if log_file else DEFAULT_LOG_FILE
     logging.basicConfig(
-        level=logging.INFO,
+        level=level,
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
         handlers=[
             logging.FileHandler(log_path),
             logging.StreamHandler(sys.stderr),
         ],
     )
-    logger.info("Logging initialized, log file: %s", log_path)
+    logger.info("Logging initialized, log file: %s, level: %s", log_path, logging.getLevelName(level))
 
 
 def load_config():
     return ConfigManager()
-
-
-def make_audio_recorder(config_mgr: ConfigManager, device: int | None = None) -> AudioRecorder:
-    """Build an AudioRecorder using values from config audio settings."""
-    audio_cfg = config_mgr.get_audio_config() or {}
-    return AudioRecorder(
-        device=device,
-        smooth_factor=audio_cfg.get("smooth_factor", 0.7),
-        sample_rate=audio_cfg.get("sample_rate", SAMPLE_RATE),
-        block_size=audio_cfg.get("block_size", BLOCK_SIZE),
-    )
 
 
 def copy_to_clipboard(text: str):
@@ -94,7 +84,40 @@ def detect_shell_rc() -> Path | None:
     return None
 
 
-def setup_key_interactive() -> bool:
+def setup_key_interactive():
+    env_provider = os.environ.get("VOICE_TO_TEXT_PROVIDER")
+    env_key = os.environ.get("VOICE_TO_TEXT_API_KEY")
+
+    if env_provider and env_key:
+        config_mgr = ConfigManager()
+        set_provider(config_mgr, env_provider)
+        try:
+            subprocess.run(
+                [
+                    "secret-tool",
+                    "store",
+                    "--label",
+                    f"Voice-to-Text {env_provider} API Key",
+                    "application",
+                    "voice-to-text",
+                    "provider",
+                    env_provider,
+                ],
+                input=env_key.encode(),
+                check=True,
+                capture_output=True,
+            )
+            print("API key stored securely via secret-tool.")
+        except FileNotFoundError:
+            print("ERROR: `secret-tool` not found. Install libsecret-tools or similar.")
+        except subprocess.CalledProcessError as e:
+            print(f"ERROR: Failed to store secret: {e.stderr.decode().strip()}")
+        return True
+
+    if not sys.stdin.isatty():
+        print("Non-interactive session. Skipping interactive setup.")
+        return False
+
     print("voice-to-text API key setup")
     print("=" * 60)
 
@@ -112,39 +135,19 @@ def setup_key_interactive() -> bool:
         if url:
             print(f"     Sign up: {url}")
 
-    env_provider = os.environ.get("VOICE_TO_TEXT_PROVIDER", "").strip().lower()
-    if env_provider in PROVIDER_ENV_VARS:
-        provider_name, env_var = env_provider, PROVIDER_ENV_VARS[env_provider]
-    else:
-        if not sys.stdin.isatty():
-            print("ERROR: Non-interactive run and VOICE_TO_TEXT_PROVIDER is unset or invalid.")
-            print(f"Set it to one of: {', '.join(PROVIDER_ENV_VARS)}")
-            return False
-        print("Select a provider to configure:")
-        for i, (name, env_var) in enumerate(api_providers, 1):
-            url = provider_urls.get(name, "")
-            print(f"  {i}. {name} ({env_var})")
-            if url:
-                print(f"     Sign up: {url}")
-
-        choice = input("\nEnter number: ").strip()
-        try:
-            idx = int(choice) - 1
-            if idx < 0 or idx >= len(api_providers):
-                print("Invalid choice.")
-                return False
-        except ValueError:
+    choice = input("\nEnter number: ").strip()
+    try:
+        idx = int(choice) - 1
+        if idx < 0 or idx >= len(api_providers):
             print("Invalid choice.")
             return False
+    except ValueError:
+        print("Invalid choice.")
+        return False
 
-        provider_name, env_var = api_providers[idx]
+    provider_name, env_var = api_providers[idx]
 
-    api_key = os.environ.get("VOICE_TO_TEXT_API_KEY", "").strip()
-    if not api_key:
-        if not sys.stdin.isatty():
-            print("ERROR: Non-interactive run and VOICE_TO_TEXT_API_KEY is unset.")
-            return False
-        api_key = getpass.getpass(f"Enter {provider_name} API key: ")
+    api_key = getpass.getpass(f"Enter {provider_name} API key: ")
     if not api_key:
         print("No key entered. Aborting.")
         return False
@@ -174,19 +177,14 @@ def setup_key_interactive() -> bool:
 
     print("API key stored securely via secret-tool.")
 
-    config_mgr = load_config()
-    config_mgr.config.setdefault("transcription", {})["provider"] = provider_name
-    if not config_mgr.save():
-        print(f"ERROR: Failed to persist provider '{provider_name}' to {config_mgr.config_path}.")
-        return False
-    print(f"Default provider set to '{provider_name}'.")
-
     rc_path = detect_shell_rc()
     if rc_path is None:
         print("WARNING: Unknown shell. Key stored but no environment variable configured.")
-        print("Add this manually:")
-        print(f"  export {env_var}=$(secret-tool lookup application voice-to-text provider {provider_name})")
-        return True
+        print(
+            f"Add this manually:\n"
+            f"  export {env_var}=$(secret-tool lookup application voice-to-text provider {provider_name})"
+        )
+        return False
 
     lookup_cmd = f"secret-tool lookup application voice-to-text provider {provider_name}"
     fish_line = f"set -x {env_var} ({lookup_cmd})"
@@ -237,8 +235,11 @@ def setup_key_interactive() -> bool:
     os.environ[env_var] = api_key
     print("Environment variable set in current shell session.")
 
-    return True
-
+    print()
+    change = input("Would you like to set this as the default provider? (y/N): ").strip().lower()
+    if change in ("y", "yes"):
+        config_mgr = ConfigManager()
+        set_provider(config_mgr, provider_name)
     return True
 
 
@@ -246,32 +247,33 @@ def setup_interactive():
     print("voice-to-text setup")
     print("=" * 60)
 
+    env_provider = os.environ.get("VOICE_TO_TEXT_PROVIDER")
+    if env_provider:
+        config_mgr = load_config()
+        set_provider(config_mgr, env_provider)
+        return True
+
+    if not sys.stdin.isatty():
+        print("Non-interactive session. Skipping interactive setup.")
+        return False
+
     config_mgr = load_config()
     current_provider = config_mgr.get_selected_provider()
     print(f"Current provider: {current_provider}")
     print(f"Config path: {config_mgr.config_path}")
     print()
 
-    if not sys.stdin.isatty():
-        provider = os.environ.get("VOICE_TO_TEXT_PROVIDER")
-        if provider:
-            set_provider(config_mgr, provider)
-        else:
-            print("Non-interactive shell detected. Skipping provider setup.")
-            print("Set VOICE_TO_TEXT_PROVIDER environment variable to configure provider.")
-        return
-
     set_provider(config_mgr)
+    return True
 
 
 def set_provider(config_mgr, provider: str | None = None) -> bool:
     """Set the default transcription provider in config. If provider is None, prompt interactively."""
-    all_providers = ["deepgram", "groq", "voxtral", "parakeet"]
 
     if provider is None:
         print("Choose your transcription provider:")
         print()
-        for i, name in enumerate(all_providers, 1):
+        for i, name in enumerate(ALL_PROVIDERS, 1):
             print(f"  {i}. {name}")
         print()
 
@@ -282,15 +284,15 @@ def set_provider(config_mgr, provider: str | None = None) -> bool:
         choice = input("Enter choice (1-4): ").strip()
         try:
             idx = int(choice) - 1
-            if idx < 0 or idx >= len(all_providers):
+            if idx < 0 or idx >= len(ALL_PROVIDERS):
                 print("Invalid choice. Keeping current provider.")
                 return False
-            provider = all_providers[idx]
+            provider = ALL_PROVIDERS[idx]
         except ValueError:
             print("Invalid choice. Keeping current provider.")
             return False
-    elif provider not in all_providers:
-        print(f"Unknown provider '{provider}'. Choose from: {', '.join(all_providers)}")
+    elif provider not in ALL_PROVIDERS:
+        print(f"Unknown provider '{provider}'. Choose from: {', '.join(ALL_PROVIDERS)}")
         return False
 
     config_mgr.config.setdefault("transcription", {})["provider"] = provider
@@ -326,9 +328,8 @@ def transcribe_audio(audio_path: str, transcriber, language) -> str | None:
         start_time = time.time()
         text = transcriber.transcribe_file(audio_path, language=language)
         elapsed = time.time() - start_time
-        preview = (text or "")[:100]
-        logger.info("Transcription complete in %.2fs: %s", elapsed, preview)
-        return (text or "").strip()
+        logger.info("Transcription complete in %.2fs: %s", elapsed, text[:100])
+        return text.strip()
     except Exception:
         logger.exception("Transcription failed")
         raise
@@ -348,7 +349,6 @@ class _LogCollector(logging.Handler):
 
 
 def run_benchmark(args, config_mgr):
-    all_providers = ["deepgram", "groq", "voxtral", "parakeet"]
 
     if args.audio_file:
         audio_path = args.audio_file
@@ -356,7 +356,7 @@ def run_benchmark(args, config_mgr):
     else:
         duration = args.duration
         print(f"Recording for {duration}s...")
-        recorder = make_audio_recorder(config_mgr, device=args.device)
+        recorder = AudioRecorder(device=args.device)
         recorder.start()
         time.sleep(duration)
         recorder.stop()
@@ -364,15 +364,15 @@ def run_benchmark(args, config_mgr):
         frame_count = recorder.frame_count
         print(f"Recorded {frame_count} frames ({duration}s)")
 
-    provider_names = [p.strip() for p in args.providers.split(",")] if args.providers else all_providers
+    provider_names = [p.strip() for p in args.providers.split(",")] if args.providers else ALL_PROVIDERS
     providers = []
     for name in provider_names:
-        if name not in all_providers:
+        if name not in ALL_PROVIDERS:
             print(f"  {name}: SKIP (unknown provider)")
             continue
         try:
             provider_config = config_mgr.get_provider_config(name)
-            p = get_provider(name, provider_config)
+            p = get_batch_provider(name, provider_config)
             providers.append(p)
         except (ValueError, Exception) as e:
             print(f"  {name}: SKIP ({e})")
@@ -401,8 +401,7 @@ def run_benchmark(args, config_mgr):
                 text = provider.transcribe_file(audio_path)
                 elapsed = time.time() - start
                 runs.append({"elapsed": elapsed, "text": text, "ok": True})
-                preview = (text or "")[:60]
-                print(f'    Run {i + 1}: {elapsed:.2f}s  "{preview}"')
+                print(f'    Run {i + 1}: {elapsed:.2f}s  "{text[:60]}"')
             except Exception as e:
                 runs.append({"elapsed": 0.0, "text": f"FAILED: {e}", "ok": False})
                 print(f"    Run {i + 1}: FAILED ({e})")
@@ -461,9 +460,17 @@ def run_benchmark(args, config_mgr):
                 print()
 
 
-def run_stdout_mode(args, config_mgr, transcriber, language, duration):
-    """Record audio and print level updates and transcription to stdout."""
-    logger.info("run_stdout_mode started, duration=%s, device=%s", duration, args.device)
+def run_stdout_mode(args, config_mgr, transcriber, language, duration, hybrid=None, mode="batch"):
+
+    level_interval = 0.1
+
+    logger.info(
+        "run_stdout_mode started, duration=%s, device=%s, hybrid=%s, mode=%s",
+        duration,
+        args.device,
+        hybrid is not None,
+        mode,
+    )
 
     stop_requested = False
 
@@ -471,11 +478,7 @@ def run_stdout_mode(args, config_mgr, transcriber, language, duration):
         nonlocal stop_requested
         stop_requested = True
 
-    prev_sigint = signal.signal(signal.SIGINT, handle_sigint)
-
-    level_interval = 0.1
-
-    level_interval = 0.1
+    signal.signal(signal.SIGINT, handle_sigint)
 
     decrease_pct = (
         args.decrease_speaker_volume
@@ -483,14 +486,30 @@ def run_stdout_mode(args, config_mgr, transcriber, language, duration):
         else config_mgr.get_speaker_config().get("decrease_volume", 0)
     )
 
-    recorder = make_audio_recorder(config_mgr, device=args.device)
+    recorder = AudioRecorder(device=args.device)
+
+    audio_chunks: list[bytes] = []
+    chunk_lock = threading.Lock()
+
+    if hybrid:
+
+        def _on_audio_data(data: bytes):
+            logger.debug("Received audio chunk: %d bytes", len(data))
+            with chunk_lock:
+                audio_chunks.append(data)
+
+        recorder.on_audio_data = _on_audio_data
 
     with SpeakerVolumeManager.with_decrease(decrease_pct):
         recorder.start()
+        print("START", flush=True)
         start_time = time.time()
         last_level_time = time.time()
         level_count = 0
         try:
+            if hybrid:
+                hybrid.start_stream(language, sample_rate=recorder.sample_rate)
+
             while not stop_requested:
                 if duration > 0 and (time.time() - start_time) > duration:
                     break
@@ -503,6 +522,17 @@ def run_stdout_mode(args, config_mgr, transcriber, language, duration):
                         print(f"LEVEL:{recorder.smoothed_level:.4f}", flush=True)
                     last_level_time = now
 
+                if hybrid:
+                    with chunk_lock:
+                        chunks = audio_chunks[:]
+                        audio_chunks.clear()
+                    logger.debug("Processing %d audio chunks", len(chunks))
+                    for chunk in chunks:
+                        logger.debug("Sending chunk to hybrid: %d bytes", len(chunk))
+                        partial = hybrid.on_audio_chunk(chunk)
+                        if partial:
+                            print(f"STREAM:{partial}", flush=True)
+
                 time.sleep(0.02)
         except Exception as e:
             logger.exception("Recording error: %s", e)
@@ -510,7 +540,6 @@ def run_stdout_mode(args, config_mgr, transcriber, language, duration):
             sys.exit(1)
         finally:
             recorder.stop()
-            signal.signal(signal.SIGINT, prev_sigint)
             logger.info(
                 "Audio stream stopped, collected %d frames, %d level readings",
                 recorder.frame_count,
@@ -521,9 +550,19 @@ def run_stdout_mode(args, config_mgr, transcriber, language, duration):
         print("ERROR:No audio recorded", flush=True)
         sys.exit(1)
 
+    if recorder.filepath is None:
+        print("ERROR:No audio file produced", flush=True)
+        sys.exit(1)
+
     try:
-        text = transcribe_audio(recorder.filepath, transcriber, language)
+        if mode == "streaming" and hybrid:
+            text = hybrid.streaming.finalize_stream()
+        elif hybrid:
+            text = hybrid.on_recording_stop(recorder.filepath, language)
+        else:
+            text = transcribe_audio(recorder.filepath, transcriber, language)
         if text:
+            logger.info("Final text len=%d: %r", len(text), text)
             print(f"TEXT:{text}", flush=True)
         else:
             print("ERROR:No speech detected", flush=True)
@@ -532,6 +571,12 @@ def run_stdout_mode(args, config_mgr, transcriber, language, duration):
         logger.exception("Transcription in stdout mode failed: %s", e)
         print(f"ERROR:{e}", flush=True)
         sys.exit(1)
+    finally:
+        if recorder.filepath and os.path.exists(recorder.filepath):
+            try:
+                os.unlink(recorder.filepath)
+            except OSError:
+                logger.debug("Could not remove temp file %s", recorder.filepath)
 
 
 def _add_record_args(parser_obj):
@@ -560,6 +605,24 @@ def _add_record_args(parser_obj):
         choices=range(0, 101),
         metavar="{0-100}",
         help="Decrease speaker volume by this %% during recording (0=no change, 100=mute)",
+    )
+    parser_obj.add_argument(
+        "--mode",
+        type=str,
+        choices=["batch", "hybrid", "streaming"],
+        help="Transcription mode: 'batch' (default), 'hybrid' (streaming + batch), or 'streaming' (test)",
+    )
+    parser_obj.add_argument(
+        "--streaming-provider",
+        type=str,
+        choices=["deepgram", "voxtral"],
+        help="Streaming provider for hybrid mode (overrides config)",
+    )
+    parser_obj.add_argument(
+        "--batch-provider",
+        type=str,
+        choices=["deepgram", "groq", "voxtral", "parakeet"],
+        help="Batch provider for hybrid mode (overrides config)",
     )
 
 
@@ -595,11 +658,6 @@ def main():
     _add_record_args(parser)
 
     parser.add_argument(
-        "--source-hash",
-        action="store_true",
-        help="Print the source hash embedded in this binary",
-    )
-    parser.add_argument(
         "--language",
         type=str,
         help="Language code for transcription",
@@ -625,16 +683,20 @@ def main():
     if args.command is None:
         args.command = "record"
 
-    if args.source_hash:
-        h = source_hash()
-        print(h if h else "no-source-hash")
-        return
-
     config_mgr = load_config()
     log_file_config = config_mgr.get_logging_config().get("file")
+    log_level_config = config_mgr.get_logging_config().get("level", "info").upper()
+    log_level = getattr(logging, log_level_config, logging.INFO)
+
+    # Override to DEBUG for hybrid/streaming modes to help debug streaming issues
+    mode_override = args.mode
+    selected_mode = mode_override or config_mgr.config.get("transcription", {}).get("mode", "batch")
+    if selected_mode in ("hybrid", "streaming"):
+        log_level = logging.DEBUG
+
     log_file_arg = Path(args.log_file) if args.log_file else None
     log_file = log_file_arg or (Path(log_file_config) if log_file_config else None)
-    setup_logging(log_file)
+    setup_logging(log_file, log_level)
 
     if args.command == "devices":
         print("Available audio input devices:")
@@ -655,7 +717,7 @@ def main():
         return
 
     if args.command == "setup-key":
-        sys.exit(0 if setup_key_interactive() else 1)
+        setup_key_interactive()
         return
 
     load_dotenv()
@@ -666,15 +728,50 @@ def main():
 
     provider_override = args.provider
     language_override = args.language
+    mode_override = args.mode
+    selected_mode = mode_override or config_mgr.config.get("transcription", {}).get("mode", "batch")
     selected_provider = provider_override or config_mgr.get_selected_provider()
     provider_config = config_mgr.get_provider_config(selected_provider)
 
-    try:
-        transcriber = get_provider(selected_provider, provider_config)
-    except ValueError as e:
-        logger.error("Provider initialization failed: %s", e)
-        print(f"ERROR:Provider initialization failed: {e}", file=sys.stdout, flush=True)
-        sys.exit(1)
+    hybrid = None
+    transcriber = None
+    if selected_mode == "hybrid":
+        hybrid_cfg = config_mgr.config.get("transcription", {}).get("hybrid", {})
+        streaming_name = getattr(args, "streaming_provider", None) or hybrid_cfg.get("streaming_provider", "deepgram")
+        batch_name = getattr(args, "batch_provider", None) or hybrid_cfg.get("batch_provider", "voxtral")
+        streaming_config = config_mgr.get_provider_config(streaming_name)
+        batch_config = config_mgr.get_provider_config(batch_name)
+
+        try:
+            streaming_provider = get_streaming_provider(streaming_name, streaming_config)
+            batch_provider = get_batch_provider(batch_name, batch_config)
+            hybrid = HybridTranscriber(streaming_provider, batch_provider)
+        except ValueError as e:
+            logger.error("Hybrid provider initialization failed: %s", e)
+            print(f"ERROR:Hybrid provider initialization failed: {e}", file=sys.stdout, flush=True)
+            sys.exit(1)
+    elif selected_mode == "streaming":
+        if args.output != "stdout":
+            print("ERROR:streaming mode requires --output stdout", file=sys.stdout, flush=True)
+            sys.exit(1)
+        hybrid_cfg = config_mgr.config.get("transcription", {}).get("hybrid", {})
+        streaming_name = getattr(args, "streaming_provider", None) or hybrid_cfg.get("streaming_provider", "deepgram")
+        streaming_config = config_mgr.get_provider_config(streaming_name)
+
+        try:
+            streaming_provider = get_streaming_provider(streaming_name, streaming_config)
+            hybrid = HybridTranscriber(streaming_provider, streaming_provider)  # type: ignore[arg-type]
+        except ValueError as e:
+            logger.error("Streaming provider initialization failed: %s", e)
+            print(f"ERROR:Streaming provider initialization failed: {e}", file=sys.stdout, flush=True)
+            sys.exit(1)
+    else:
+        try:
+            transcriber = get_batch_provider(selected_provider, provider_config)
+        except ValueError as e:
+            logger.error("Provider initialization failed: %s", e)
+            print(f"ERROR:Provider initialization failed: {e}", file=sys.stdout, flush=True)
+            sys.exit(1)
 
     language = language_override or config_mgr.config.get("transcription", {}).get("language", "en")
     audio_config = config_mgr.config.get("audio", {})
@@ -684,7 +781,7 @@ def main():
 
     if output_mode == "stdout":
         maybe_activate_bt_mic(config_mgr, args.device)
-        run_stdout_mode(args, config_mgr, transcriber, language, duration)
+        run_stdout_mode(args, config_mgr, transcriber, language, duration, hybrid=hybrid, mode=selected_mode)
         return
 
     print("Recording... (press ESC or Q to cancel, ENTER to continue)")
@@ -698,8 +795,7 @@ def main():
         else config_mgr.get_speaker_config().get("decrease_volume", 0)
     )
 
-    recorder = make_audio_recorder(config_mgr, device=args.device)
-    cancelled = False
+    recorder = AudioRecorder(device=args.device, smooth_factor=0.7)
     with SpeakerVolumeManager.with_decrease(decrease_pct):
         recorder.start()
         start_time = time.time()
@@ -713,8 +809,8 @@ def main():
                     if select.select([sys.stdin], [], [], 0.03)[0]:
                         key = sys.stdin.read(1)
                         if key in ("q", "Q") or ord(key) == 27:
-                            cancelled = True
-                            break
+                            print("\nExiting without transcription")
+                            sys.exit(0)
                         elif key == "\n" or key == "\r":
                             break
 
@@ -729,18 +825,21 @@ def main():
                 termios.tcsetattr(sys.stdin, termios.TCSADRAIN, old_settings)
                 print()
         finally:
-            recorder.stop(delete=cancelled)
-
-    if cancelled:
-        print("\nExiting without transcription")
-        sys.exit(0)
+            recorder.stop()
 
     if recorder.frame_count == 0:
         print("ERROR:No audio recorded")
         sys.exit(1)
 
+    if recorder.filepath is None:
+        print("ERROR:No audio file produced")
+        sys.exit(1)
+
     try:
-        text = transcribe_audio(recorder.filepath, transcriber, language)
+        if hybrid:
+            text = hybrid.on_recording_stop(recorder.filepath, language)
+        else:
+            text = transcribe_audio(recorder.filepath, transcriber, language)
     except Exception as e:
         logger.exception("Transcription failed: %s", e)
         print(f"ERROR:Transcription failed: {e}")
@@ -756,7 +855,6 @@ def main():
     else:
         logger.error("Clipboard copy failed")
         print("ERROR:Clipboard copy failed")
-        sys.exit(1)
 
 
 if __name__ == "__main__":

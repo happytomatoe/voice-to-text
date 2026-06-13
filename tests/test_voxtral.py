@@ -2,14 +2,14 @@
 
 import pytest
 
-from voice_to_text.providers import get_provider
+from voice_to_text.providers import get_batch_provider
 from voice_to_text.providers.voxtral import VoxtralProvider
 
 
 class TestVoxtralProvider:
     def test_get_voxtral_provider(self):
         config = {"api_key": "test_key", "model": "voxtral-mini-latest"}
-        provider = get_provider("voxtral", config)
+        provider = get_batch_provider("voxtral", config)
         assert isinstance(provider, VoxtralProvider)
         assert provider.name == "voxtral"
 
@@ -17,19 +17,22 @@ class TestVoxtralProvider:
         config = {"api_key": "test_key"}
         provider = VoxtralProvider(config)
         assert provider.model == "voxtral-mini-latest"
-        assert provider.api_url == "https://api.mistral.ai"
+        assert provider._api_url == "https://api.mistral.ai"
 
     def test_missing_api_key(self):
-        # Unset the environment variable for this test
+        # Unset the environment variables for this test
         import os
 
-        old_key = os.environ.pop("VOXTRAL_API_KEY", None)
+        old_voxtral_key = os.environ.pop("VOXTRAL_API_KEY", None)
+        old_mistral_key = os.environ.pop("MISTRAL_API_KEY", None)
         try:
             with pytest.raises(ValueError):
                 VoxtralProvider({})
         finally:
-            if old_key is not None:
-                os.environ["VOXTRAL_API_KEY"] = old_key
+            if old_voxtral_key is not None:
+                os.environ["VOXTRAL_API_KEY"] = old_voxtral_key
+            if old_mistral_key is not None:
+                os.environ["MISTRAL_API_KEY"] = old_mistral_key
 
     def test_transcribe_file_request_format(self):
         """Test that transcribe_file sends properly formatted request."""

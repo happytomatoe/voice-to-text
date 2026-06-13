@@ -6,12 +6,12 @@ from typing import Any
 
 import requests
 
-from .base import TranscriptionProvider
+from .base import BatchProvider
 
 logger = logging.getLogger(__name__)
 
 
-class ParakeetProvider(TranscriptionProvider):
+class ParakeetProvider(BatchProvider):
     """Parakeet transcription provider (HTTP mode only)."""
 
     def __init__(self, config: dict[str, Any]):

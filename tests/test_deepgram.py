@@ -2,14 +2,14 @@
 
 import pytest
 
-from voice_to_text.providers import get_provider
+from voice_to_text.providers import get_batch_provider
 from voice_to_text.providers.deepgram import DeepgramProvider
 
 
 class TestDeepgramProvider:
     def test_get_deepgram_provider(self):
         config = {"api_key": "test_key"}
-        provider = get_provider("deepgram", config)
+        provider = get_batch_provider("deepgram", config)
         assert isinstance(provider, DeepgramProvider)
         assert provider.name == "deepgram"
 

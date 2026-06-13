@@ -4,7 +4,12 @@ import {Extension} from 'resource:///org/gnome/shell/extensions/extension.js';
 import {VoiceIndicator} from './indicator.js';
 import {Recorder} from './recorder.js';
 import {registerHotkey, unregisterHotkey} from './hotkey.js';
-import {typeText, copyToClipboard} from './typer.js';
+import {
+    typeText,
+    typeTextIncremental,
+    resetTypedState,
+    copyToClipboard,
+} from './typer.js';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import * as MessageTray from 'resource:///org/gnome/shell/ui/messageTray.js';
 import {gettext as _} from 'resource:///org/gnome/shell/extensions/extension.js';
@@ -67,14 +72,12 @@ export default class VoiceToTextExtension extends Extension {
             this._hotkeySignalId = null;
         }
 
-        if (this._stopTimeoutId) {
-            GLib.source_remove(this._stopTimeoutId);
-            this._stopTimeoutId = null;
-        }
+        this._clearStopTimeout();
 
         if (this._recorder) {
             this._recorder.onAudioLevel = null;
             this._recorder.onTranscription = null;
+            this._recorder.onStreamingText = null;
             this._recorder.onProcessExit = null;
             this._recorder.onError = null;
             this._recorder.stop();
@@ -111,6 +114,7 @@ export default class VoiceToTextExtension extends Extension {
         }
         console.log('VoiceToText: binary found at', this._binPath);
 
+        resetTypedState();
         this._indicator.setProcessing();
         this._recording = true;
 
@@ -130,21 +134,17 @@ export default class VoiceToTextExtension extends Extension {
                 this._setIdle();
                 return;
             }
-            typeText(text, ok => {
-                if (!ok) {
-                    if (outputMethod === 'type-fallback-clipboard') {
-                        copyToClipboard(text);
-                        this._showNotification(
-                            'ydotool failed — text copied to clipboard instead'
-                        );
-                    } else {
-                        this._showNotification('ydotool failed to type text');
-                    }
-                }
-                this._setIdle();
-            });
+            typeTextIncremental(text);
+            this._setIdle();
+        };
+        this._recorder.onStreamingText = text => {
+            const outputMethod = this._settings.get_string('output-method');
+            if (text && outputMethod !== 'clipboard') {
+                typeTextIncremental(text);
+            }
         };
         this._recorder.onError = msg => {
+            console.log('VoiceToText: error:', msg);
             this._showNotification('Transcription failed: ' + msg);
             this._setIdle();
         };
@@ -177,10 +177,7 @@ export default class VoiceToTextExtension extends Extension {
             `VoiceToText: setting stop timeout for ${stopTimeoutSeconds} seconds`
         );
 
-        if (this._stopTimeoutId) {
-            GLib.source_remove(this._stopTimeoutId);
-            this._stopTimeoutId = null;
-        }
+        this._clearStopTimeout();
 
         this._stopTimeoutId = GLib.timeout_add_seconds(
             GLib.PRIORITY_DEFAULT,
@@ -195,11 +192,15 @@ export default class VoiceToTextExtension extends Extension {
         );
     }
 
-    _forceStop() {
+    _clearStopTimeout() {
         if (this._stopTimeoutId) {
             GLib.source_remove(this._stopTimeoutId);
             this._stopTimeoutId = null;
         }
+    }
+
+    _forceStop() {
+        this._clearStopTimeout();
 
         if (this._recorder?._proc) {
             console.log('VoiceToText: forcefully killing process');
@@ -253,10 +254,7 @@ export default class VoiceToTextExtension extends Extension {
     }
 
     _setIdle() {
-        if (this._stopTimeoutId) {
-            GLib.source_remove(this._stopTimeoutId);
-            this._stopTimeoutId = null;
-        }
+        this._clearStopTimeout();
 
         this._releaseInhibitor();
         this._recording = false;

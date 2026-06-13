@@ -7,6 +7,7 @@ import re
 import subprocess
 import tempfile
 import wave
+from collections.abc import Callable
 
 import numpy as np
 import sounddevice as sd
@@ -32,21 +33,30 @@ class AudioRecorder:
         self,
         device: int | None = None,
         smooth_factor: float = 0.7,
-        sample_rate: int = SAMPLE_RATE,
+        sample_rate: int | None = None,
         block_size: int = BLOCK_SIZE,
     ):
         self.device = device
         self.smooth_factor = smooth_factor
-        self.sample_rate = sample_rate
+        self.sample_rate = sample_rate or SAMPLE_RATE
+        self._explicit_sample_rate = sample_rate is not None
         self.block_size = block_size
         self.smoothed_level: float = 0.0
         self.frame_count: int = 0
         self.filepath: str | None = None
         self._stream: sd.InputStream | None = None
         self._wav: wave.Wave_write | None = None
+        self.on_audio_data: Callable[[bytes], None] | None = None
 
     def start(self):
         sample_rate = self.sample_rate
+        if not self._explicit_sample_rate and self.device is not None:
+            try:
+                device_info = sd.query_devices(self.device)
+                sample_rate = int(device_info["default_samplerate"])
+            except Exception:
+                pass
+        self.sample_rate = sample_rate
         block_size = self.block_size
 
         fd, self.filepath = tempfile.mkstemp(suffix=".wav")
@@ -85,16 +95,18 @@ class AudioRecorder:
         return filepath
 
     def _callback(self, indata: np.ndarray, frames: int, time_info, status):
-        wav = self._wav
-        if wav is None:
-            return
-        if status:
-            logger.warning("Audio stream status: %s", status)
-        wav.writeframes(indata.tobytes())
+        raw = indata.tobytes()
+        if self._wav is not None:
+            self._wav.writeframes(raw)
         self.frame_count += 1
         float_data = indata[:, 0].astype(np.float32) / 32768.0
         rms = math.sqrt(np.mean(float_data**2))
         self.smoothed_level = self.smooth_factor * self.smoothed_level + (1 - self.smooth_factor) * rms
+        if self.on_audio_data is not None:
+            try:
+                self.on_audio_data(raw)
+            except Exception:
+                logger.exception("on_audio_data callback failed")
 
 
 def format_level_bar(level: float, elapsed: float) -> str:

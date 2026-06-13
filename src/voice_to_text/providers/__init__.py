@@ -2,40 +2,34 @@
 
 from typing import Any
 
-from .base import TranscriptionProvider
+from .base import BatchProvider, StreamingProvider
 from .deepgram import DeepgramProvider
 from .groq import GroqProvider
 from .parakeet import ParakeetProvider
 from .voxtral import VoxtralProvider
 
-# Provider registry
-_PROVIDERS: dict[str, type[TranscriptionProvider]] = {
-    "deepgram": DeepgramProvider,
+_BATCH_PROVIDERS = {
     "groq": GroqProvider,
+    "deepgram": DeepgramProvider,
     "voxtral": VoxtralProvider,
     "parakeet": ParakeetProvider,
 }
 
-
-def get_provider(provider_name: str, config: dict[str, Any]) -> TranscriptionProvider:
-    """Get transcription provider instance.
-
-    Args:
-        provider_name: Name of provider to use
-        config: Provider-specific configuration
-
-    Returns:
-        Configured provider instance
-
-    Raises:
-        ValueError: If provider not found
-    """
-    if provider_name not in _PROVIDERS:
-        raise ValueError(f"Provider '{provider_name}' not found. Available: {list(_PROVIDERS.keys())}")
-
-    return _PROVIDERS[provider_name](config)
+_STREAMING_PROVIDERS = {
+    "deepgram": DeepgramProvider,
+    "voxtral": VoxtralProvider,
+}
 
 
-def register_provider(name: str, provider_class: type[TranscriptionProvider]):
-    """Register a new transcription provider."""
-    _PROVIDERS[name] = provider_class
+def get_batch_provider(name: str, config: dict[str, Any]) -> BatchProvider:
+    """Get batch provider instance."""
+    if name not in _BATCH_PROVIDERS:
+        raise ValueError(f"Batch provider '{name}' not found. Available: {list(_BATCH_PROVIDERS.keys())}")
+    return _BATCH_PROVIDERS[name](config)  # type: ignore[abstract]
+
+
+def get_streaming_provider(name: str, config: dict[str, Any]) -> StreamingProvider:
+    """Get streaming provider instance."""
+    if name not in _STREAMING_PROVIDERS:
+        raise ValueError(f"Streaming provider '{name}' not found. Available: {list(_STREAMING_PROVIDERS.keys())}")
+    return _STREAMING_PROVIDERS[name](config)  # type: ignore[return-value]

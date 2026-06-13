@@ -96,6 +96,8 @@ gnome-ext-dev: reinstall gnome-ext-install
         echo "Error: Cannot start a development GNOME Shell from within a toolbox container. Run this command on the host system." >&2
         exit 1
     fi
+    echo "" > /tmp/gnome-shell-nested.log
+    echo "" > /tmp/voice-to-text.log
     if ! rpm -q mutter-devkit &>/dev/null; then
         echo "mutter-devkit not installed, installing..."
         if command -v rpm-ostree &>/dev/null; then
@@ -110,7 +112,7 @@ gnome-ext-dev: reinstall gnome-ext-install
     gnome-extensions enable "$UUID" 2>/dev/null || true
     GNOME_VERSION=$(gnome-shell --version | awk '{print int($3)}')
     if [ "$GNOME_VERSION" -ge 49 ]; then
-      dbus-run-session -- gnome-shell --wayland --devkit 2>&1 | tee /tmp/gnome-shell-nested.log
+      dbus-run-session -- gnome-shell --wayland --devkit  2>&1 | tee /tmp/gnome-shell-nested.log
     else
       MUTTER_DEBUG_NESTED=1 dbus-run-session -- gnome-shell --wayland --nested 2>&1 | tee /tmp/gnome-shell-nested.log
     fi
