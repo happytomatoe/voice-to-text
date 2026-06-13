@@ -94,10 +94,12 @@ class WebSocketStreamingProvider(StreamingProvider):
 
     _ws: websocket.WebSocket | None
     _partial_result: str | None
+    _finalized_text: str
 
     def _init_ws_state(self) -> None:
         self._ws = None
         self._partial_result = None
+        self._finalized_text = ""
 
     def _connect_ws(self, ws_url: str, headers: dict[str, str]) -> None:
         if self._ws is not None:
@@ -108,6 +110,7 @@ class WebSocketStreamingProvider(StreamingProvider):
         self._ws = websocket.WebSocket()
         self._ws.connect(ws_url, header=headers)
         self._partial_result = None
+        self._finalized_text = ""
 
     def send_audio(self, audio_chunk: bytes) -> None:
         if self._ws is None:
@@ -121,11 +124,21 @@ class WebSocketStreamingProvider(StreamingProvider):
             raise RuntimeError("Streaming connection lost") from e
 
     def get_partial_result(self) -> str | None:
-        return self._partial_result
+        if self._partial_result:
+            return (
+                (self._finalized_text + " " + self._partial_result).strip()
+                if self._finalized_text
+                else self._partial_result
+            )
+        return self._finalized_text or None
 
     def finalize_stream(self) -> str:
         if self._ws is None:
-            return self._partial_result or ""
+            return (
+                (self._finalized_text + " " + self._partial_result).strip()
+                if self._partial_result
+                else self._finalized_text
+            )
 
         try:
             self._ws.send(json.dumps({"type": "CloseStream"}))
@@ -141,16 +154,17 @@ class WebSocketStreamingProvider(StreamingProvider):
                             alternatives = channel.get("alternatives", [{}])
                             transcript = alternatives[0].get("transcript", "") if alternatives else ""
                             if transcript:
-                                self._partial_result = transcript
+                                self._finalized_text = (self._finalized_text + " " + transcript).strip()
                 except websocket.WebSocketTimeoutException:
                     break
             self._ws.close()
         except Exception as e:
             logger.warning("Error closing %s stream: %s", self.name, e)
 
-        result = self._partial_result or ""
+        result = self._finalized_text
         self._ws = None
         self._partial_result = None
+        self._finalized_text = ""
         return result
 
     def _process_messages(self) -> None:
@@ -165,10 +179,15 @@ class WebSocketStreamingProvider(StreamingProvider):
                     data = json.loads(msg)
                     msg_type = data.get("type", "unknown")
                     if msg_type == "Results":
+                        logger.debug("Deepgram Results: %s", msg)
                         channel = data.get("channel", {})
                         alternatives = channel.get("alternatives", [{}])
                         transcript = alternatives[0].get("transcript", "") if alternatives else ""
-                        if transcript:
+                        is_final = data.get("is_final", False)
+                        if is_final and transcript:
+                            self._finalized_text = (self._finalized_text + " " + transcript).strip()
+                            self._partial_result = None
+                        elif transcript:
                             self._partial_result = transcript
                     elif msg_type == "Error":
                         logger.error("%s stream error: %s", self.name, data.get("message"))
