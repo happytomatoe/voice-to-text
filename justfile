@@ -100,6 +100,8 @@ gnome-ext-dev: reinstall gnome-ext-install
         echo "mutter-devkit not installed, installing..."
         if command -v rpm-ostree &>/dev/null; then
             sudo rpm-ostree install mutter-devkit
+            echo "mutter-devkit was staged via rpm-ostree. Reboot, then rerun 'just gnome-ext-dev'." >&2
+            exit 1
         else
             sudo dnf install -y mutter-devkit
         fi
