@@ -113,7 +113,9 @@ export class Recorder {
                 }
 
                 if (!this._hasStarted) {
-                    console.log('VoiceToText: Process exited before sending start token');
+                    console.log(
+                        'VoiceToText: Process exited before sending start token'
+                    );
                     this._handleStartTimeout();
                 } else {
                     this.onProcessExit?.();
@@ -147,14 +149,19 @@ export class Recorder {
                 null,
                 null
             );
+            GLib.spawn_close_pid(pid);
         }
 
         this._retryCount++;
         if (this._retryCount > 3) {
             console.log('VoiceToText: Failed to start after 3 retries');
-            this.onError?.('Could not start the recording application. Start token not received after 3 retries.');
+            this.onError?.(
+                'Could not start the recording application. Start token not received after 3 retries.'
+            );
         } else {
-            console.log(`VoiceToText: Retrying to spawn process (attempt ${this._retryCount + 1}/4)`);
+            console.log(
+                `VoiceToText: Retrying to spawn process (attempt ${this._retryCount + 1}/4)`
+            );
             this._spawn();
         }
     }
@@ -179,6 +186,7 @@ export class Recorder {
                     null,
                     null
                 );
+                GLib.spawn_close_pid(pid);
             }
         } else {
             if (this._proc) {

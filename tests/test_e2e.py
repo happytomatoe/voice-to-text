@@ -3,6 +3,7 @@
 import os
 import struct
 import subprocess
+import sys
 import tempfile
 import wave
 
@@ -42,14 +43,14 @@ class TestCLIHelp:
 
     def test_help_exits_zero(self):
         result = subprocess.run(
-            ["python", "-m", "voice_to_text.main", "--help"], capture_output=True, text=True, timeout=10
+            [sys.executable, "-m", "voice_to_text.main", "--help"], capture_output=True, text=True, timeout=10
         )
         assert result.returncode == 0
         assert "Voice to Text" in result.stdout or "voice-to-text" in result.stdout
 
     def test_record_help(self):
         result = subprocess.run(
-            ["python", "-m", "voice_to_text.main", "record", "--help"], capture_output=True, text=True, timeout=10
+            [sys.executable, "-m", "voice_to_text.main", "record", "--help"], capture_output=True, text=True, timeout=10
         )
         assert result.returncode == 0
         assert "--mode" in result.stdout
@@ -57,7 +58,7 @@ class TestCLIHelp:
 
     def test_devices_command(self):
         result = subprocess.run(
-            ["python", "-m", "voice_to_text.main", "devices"], capture_output=True, text=True, timeout=10
+            [sys.executable, "-m", "voice_to_text.main", "devices"], capture_output=True, text=True, timeout=10
         )
         assert result.returncode == 0
         assert "Available audio input devices" in result.stdout
@@ -68,19 +69,19 @@ class TestModeArgument:
 
     def test_mode_batch(self):
         result = subprocess.run(
-            ["python", "-m", "voice_to_text.main", "--help"], capture_output=True, text=True, timeout=10
+            [sys.executable, "-m", "voice_to_text.main", "--help"], capture_output=True, text=True, timeout=10
         )
         assert "batch" in result.stdout
 
     def test_mode_hybrid(self):
         result = subprocess.run(
-            ["python", "-m", "voice_to_text.main", "--help"], capture_output=True, text=True, timeout=10
+            [sys.executable, "-m", "voice_to_text.main", "--help"], capture_output=True, text=True, timeout=10
         )
         assert "hybrid" in result.stdout
 
     def test_mode_streaming(self):
         result = subprocess.run(
-            ["python", "-m", "voice_to_text.main", "--help"], capture_output=True, text=True, timeout=10
+            [sys.executable, "-m", "voice_to_text.main", "--help"], capture_output=True, text=True, timeout=10
         )
         assert "streaming" in result.stdout
 
@@ -90,13 +91,13 @@ class TestRecordHelp:
 
     def test_record_help_has_streaming_provider(self):
         result = subprocess.run(
-            ["python", "-m", "voice_to_text.main", "record", "--help"], capture_output=True, text=True, timeout=10
+            [sys.executable, "-m", "voice_to_text.main", "record", "--help"], capture_output=True, text=True, timeout=10
         )
         assert "--streaming-provider" in result.stdout
 
     def test_record_help_has_batch_provider(self):
         result = subprocess.run(
-            ["python", "-m", "voice_to_text.main", "record", "--help"], capture_output=True, text=True, timeout=10
+            [sys.executable, "-m", "voice_to_text.main", "record", "--help"], capture_output=True, text=True, timeout=10
         )
         assert "--batch-provider" in result.stdout
 
@@ -131,6 +132,9 @@ class TestProviderABCs:
     def test_voxtral_is_batch_provider(self):
         assert issubclass(VoxtralProvider, BatchProvider)
 
+    def test_voxtral_is_streaming_provider(self):
+        assert issubclass(VoxtralProvider, StreamingProvider)
+
     def test_parakeet_is_batch_provider(self):
         assert issubclass(ParakeetProvider, BatchProvider)
 
@@ -162,7 +166,7 @@ class TestConfigLoading:
     def test_config_has_hybrid_mode(self):
         config_mgr = ConfigManager()
         mode = config_mgr.config.get("transcription", {}).get("mode", "batch")
-        assert mode in ["batch", "hybrid"]
+        assert mode in ["batch", "hybrid", "streaming"]
 
 
 class TestGNOMESchema:

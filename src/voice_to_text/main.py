@@ -17,7 +17,6 @@ from pathlib import Path
 import sounddevice as sd
 from dotenv import load_dotenv
 
-from voice_to_text import source_hash
 from voice_to_text.audio import (
     AudioRecorder,
     SpeakerVolumeManager,
@@ -86,8 +85,6 @@ def detect_shell_rc() -> Path | None:
 
 
 def setup_key_interactive():
-    import subprocess as _subprocess
-
     env_provider = os.environ.get("VOICE_TO_TEXT_PROVIDER")
     env_key = os.environ.get("VOICE_TO_TEXT_API_KEY")
 
@@ -95,7 +92,7 @@ def setup_key_interactive():
         config_mgr = ConfigManager()
         set_provider(config_mgr, env_provider)
         try:
-            _subprocess.run(
+            subprocess.run(
                 [
                     "secret-tool",
                     "store",
@@ -113,7 +110,7 @@ def setup_key_interactive():
             print("API key stored securely via secret-tool.")
         except FileNotFoundError:
             print("ERROR: `secret-tool` not found. Install libsecret-tools or similar.")
-        except _subprocess.CalledProcessError as e:
+        except subprocess.CalledProcessError as e:
             print(f"ERROR: Failed to store secret: {e.stderr.decode().strip()}")
         return True
 
@@ -156,7 +153,7 @@ def setup_key_interactive():
         return False
 
     try:
-        _subprocess.run(
+        subprocess.run(
             [
                 "secret-tool",
                 "store",
@@ -174,7 +171,7 @@ def setup_key_interactive():
     except FileNotFoundError:
         print("ERROR: `secret-tool` not found. Install libsecret-tools or similar.")
         return False
-    except _subprocess.CalledProcessError as e:
+    except subprocess.CalledProcessError as e:
         print(f"ERROR: Failed to store secret: {e.stderr.decode().strip()}")
         return False
 
@@ -661,11 +658,6 @@ def main():
     _add_record_args(parser)
 
     parser.add_argument(
-        "--source-hash",
-        action="store_true",
-        help="Print the source hash embedded in this binary",
-    )
-    parser.add_argument(
         "--language",
         type=str,
         help="Language code for transcription",
@@ -690,11 +682,6 @@ def main():
 
     if args.command is None:
         args.command = "record"
-
-    if args.source_hash:
-        h = source_hash()
-        print(h if h else "no-source-hash")
-        return
 
     config_mgr = load_config()
     log_file_config = config_mgr.get_logging_config().get("file")
