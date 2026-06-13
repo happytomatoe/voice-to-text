@@ -1,7 +1,7 @@
 """Hybrid transcriber combining streaming and batch providers."""
 
 import logging
-from typing import Optional
+
 from .providers.base import BatchProvider, StreamingProvider
 
 logger = logging.getLogger(__name__)
