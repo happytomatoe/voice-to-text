@@ -24,7 +24,7 @@ class ParakeetProvider(TranscriptionProvider):
         url = f"{self.http_endpoint}/v1/audio/transcriptions"
         with open(audio_path, "rb") as f:
             files = {"file": (os.path.basename(audio_path), f, "audio/wav")}
-            data = {"model": self.model_name, "language": language}
+            data = {"model": self.model_name}
             response = requests.post(url, files=files, data=data)
         response.raise_for_status()
         result = response.json().get("text", "").strip()
