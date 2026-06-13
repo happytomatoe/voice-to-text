@@ -88,6 +88,39 @@ def detect_shell_rc() -> Path | None:
 def setup_key_interactive():
     import subprocess as _subprocess
 
+    env_provider = os.environ.get("VOICE_TO_TEXT_PROVIDER")
+    env_key = os.environ.get("VOICE_TO_TEXT_API_KEY")
+
+    if env_provider and env_key:
+        config_mgr = ConfigManager()
+        set_provider(config_mgr, env_provider)
+        try:
+            _subprocess.run(
+                [
+                    "secret-tool",
+                    "store",
+                    "--label",
+                    f"Voice-to-Text {env_provider} API Key",
+                    "application",
+                    "voice-to-text",
+                    "provider",
+                    env_provider,
+                ],
+                input=env_key.encode(),
+                check=True,
+                capture_output=True,
+            )
+            print("API key stored securely via secret-tool.")
+        except FileNotFoundError:
+            print("ERROR: `secret-tool` not found. Install libsecret-tools or similar.")
+        except _subprocess.CalledProcessError as e:
+            print(f"ERROR: Failed to store secret: {e.stderr.decode().strip()}")
+        return True
+
+    if not sys.stdin.isatty():
+        print("Non-interactive session. Skipping interactive setup.")
+        return False
+
     print("voice-to-text API key setup")
     print("=" * 60)
 
@@ -110,17 +143,17 @@ def setup_key_interactive():
         idx = int(choice) - 1
         if idx < 0 or idx >= len(api_providers):
             print("Invalid choice.")
-            return
+            return False
     except ValueError:
         print("Invalid choice.")
-        return
+        return False
 
     provider_name, env_var = api_providers[idx]
 
     api_key = getpass.getpass(f"Enter {provider_name} API key: ")
     if not api_key:
         print("No key entered. Aborting.")
-        return
+        return False
 
     try:
         _subprocess.run(
@@ -140,10 +173,10 @@ def setup_key_interactive():
         )
     except FileNotFoundError:
         print("ERROR: `secret-tool` not found. Install libsecret-tools or similar.")
-        return
+        return False
     except _subprocess.CalledProcessError as e:
         print(f"ERROR: Failed to store secret: {e.stderr.decode().strip()}")
-        return
+        return False
 
     print("API key stored securely via secret-tool.")
 
@@ -154,7 +187,7 @@ def setup_key_interactive():
             f"Add this manually:\n"
             f"  export {env_var}=$(secret-tool lookup application voice-to-text provider {provider_name})"
         )
-        return
+        return False
 
     lookup_cmd = f"secret-tool lookup application voice-to-text provider {provider_name}"
     fish_line = f"set -x {env_var} ({lookup_cmd})"
@@ -210,11 +243,22 @@ def setup_key_interactive():
     if change in ("y", "yes"):
         config_mgr = ConfigManager()
         set_provider(config_mgr, provider_name)
+    return True
 
 
 def setup_interactive():
     print("voice-to-text setup")
     print("=" * 60)
+
+    env_provider = os.environ.get("VOICE_TO_TEXT_PROVIDER")
+    if env_provider:
+        config_mgr = load_config()
+        set_provider(config_mgr, env_provider)
+        return True
+
+    if not sys.stdin.isatty():
+        print("Non-interactive session. Skipping interactive setup.")
+        return False
 
     config_mgr = load_config()
     current_provider = config_mgr.get_selected_provider()
@@ -223,6 +267,7 @@ def setup_interactive():
     print()
 
     set_provider(config_mgr)
+    return True
 
 
 def set_provider(config_mgr, provider: str | None = None) -> bool:
@@ -460,6 +505,7 @@ def run_stdout_mode(args, config_mgr, transcriber, language, duration, hybrid=No
 
     with SpeakerVolumeManager.with_decrease(decrease_pct):
         recorder.start()
+        print("START", flush=True)
         start_time = time.time()
         last_level_time = time.time()
         level_count = 0

@@ -15,9 +15,22 @@ export class Recorder {
         this.onStreamingText = null;
         this.onError = null;
         this.onProcessExit = null;
+
+        // Retry logic properties
+        this._retryCount = 0;
+        this._startTimeoutId = null;
+        this._hasStarted = false;
+        this._stopped = false;
     }
 
     start() {
+        this._stopped = false;
+        this._retryCount = 0;
+        this._spawn();
+    }
+
+    _spawn() {
+        this._hasStarted = false;
         const provider = this._settings.get_string('provider');
         const language = this._settings.get_string('language');
         const mode = this._settings.get_string('mode');
@@ -76,6 +89,17 @@ export class Recorder {
         });
         this._readOutput();
 
+        this._clearStartTimeout();
+        this._startTimeoutId = GLib.timeout_add_seconds(
+            GLib.PRIORITY_DEFAULT,
+            5,
+            () => {
+                console.log('VoiceToText: Start token timeout reached');
+                this._handleStartTimeout();
+                return GLib.SOURCE_REMOVE;
+            }
+        );
+
         this._childWatchId = GLib.child_watch_add(
             GLib.PRIORITY_DEFAULT,
             pid,
@@ -83,19 +107,88 @@ export class Recorder {
                 this._childWatchId = null;
                 this._proc = null;
                 GLib.spawn_close_pid(p);
-                this.onProcessExit?.();
+
+                if (this._stopped) {
+                    return;
+                }
+
+                if (!this._hasStarted) {
+                    console.log('VoiceToText: Process exited before sending start token');
+                    this._handleStartTimeout();
+                } else {
+                    this.onProcessExit?.();
+                }
             }
         );
     }
 
-    stop() {
+    _clearStartTimeout() {
+        if (this._startTimeoutId) {
+            GLib.source_remove(this._startTimeoutId);
+            this._startTimeoutId = null;
+        }
+    }
+
+    _handleStartTimeout() {
+        this._clearStartTimeout();
+
+        if (this._childWatchId) {
+            GLib.source_remove(this._childWatchId);
+            this._childWatchId = null;
+        }
+        if (this._cancellable) {
+            this._cancellable.cancel();
+            this._cancellable = null;
+        }
         if (this._proc) {
             const pid = this._proc;
             this._proc = null;
-            Gio.Subprocess.new(['kill', '-INT', String(pid)], 0).wait_async(
+            Gio.Subprocess.new(['kill', '-9', String(pid)], 0).wait_async(
                 null,
                 null
             );
+        }
+
+        this._retryCount++;
+        if (this._retryCount > 3) {
+            console.log('VoiceToText: Failed to start after 3 retries');
+            this.onError?.('Could not start the recording application. Start token not received after 3 retries.');
+        } else {
+            console.log(`VoiceToText: Retrying to spawn process (attempt ${this._retryCount + 1}/4)`);
+            this._spawn();
+        }
+    }
+
+    stop() {
+        this._clearStartTimeout();
+
+        if (!this._hasStarted) {
+            this._stopped = true;
+            if (this._cancellable) {
+                this._cancellable.cancel();
+                this._cancellable = null;
+            }
+            if (this._childWatchId) {
+                GLib.source_remove(this._childWatchId);
+                this._childWatchId = null;
+            }
+            if (this._proc) {
+                const pid = this._proc;
+                this._proc = null;
+                Gio.Subprocess.new(['kill', '-9', String(pid)], 0).wait_async(
+                    null,
+                    null
+                );
+            }
+        } else {
+            if (this._proc) {
+                const pid = this._proc;
+                this._proc = null;
+                Gio.Subprocess.new(['kill', '-INT', String(pid)], 0).wait_async(
+                    null,
+                    null
+                );
+            }
         }
     }
 
@@ -113,20 +206,25 @@ export class Recorder {
 
                 if (line === null) return;
 
-                if (line.startsWith('LEVEL:')) {
-                    const level = parseFloat(line.slice(6));
+                const trimmedLine = line.trim();
+                if (trimmedLine === 'START') {
+                    console.log('VoiceToText: received START token');
+                    this._hasStarted = true;
+                    this._clearStartTimeout();
+                } else if (trimmedLine.startsWith('LEVEL:')) {
+                    const level = parseFloat(trimmedLine.slice(6));
                     if (!Number.isNaN(level)) {
                         this.onAudioLevel?.(level);
                     }
-                } else if (line.startsWith('STREAM:')) {
-                    const text = line.slice(7).trim();
+                } else if (trimmedLine.startsWith('STREAM:')) {
+                    const text = trimmedLine.slice(7).trim();
                     this.onStreamingText?.(text);
-                } else if (line.startsWith('TEXT:')) {
-                    const text = line.slice(5).trim();
+                } else if (trimmedLine.startsWith('TEXT:')) {
+                    const text = trimmedLine.slice(5).trim();
                     console.log('VoiceToText: received TEXT:', text);
                     this.onTranscription?.(text);
-                } else if (line.startsWith('ERROR:')) {
-                    const errorMsg = line.slice(6).trim();
+                } else if (trimmedLine.startsWith('ERROR:')) {
+                    const errorMsg = trimmedLine.slice(6).trim();
                     console.log('VoiceToText: received ERROR:', errorMsg);
                     this.stop();
                     this.onError?.(errorMsg);
