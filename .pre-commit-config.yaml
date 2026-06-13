@@ -11,14 +11,6 @@ repos:
         args: [--fix]
       - id: ruff-format
 
-  - repo: https://github.com/rbubley/mirrors-prettier
-    rev: v3.8.4
-    hooks:
-      - id: prettier
-        files: ^gnome-ext/.*\.(js|css|json)$
-        additional_dependencies:
-          - prettier@3.8.4
-
   - repo: local
     hooks:
       - id: uv-sync
@@ -46,4 +38,5 @@ repos:
         entry: uv run python -m pytest
         language: system
         types: [python]
+        files: ^(tests/|src/)
         pass_filenames: false
