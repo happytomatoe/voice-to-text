@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 
 import argparse
-import getpass
 import logging
 import os
 import select
@@ -147,7 +146,7 @@ def setup_key_interactive():
 
     provider_name, env_var = api_providers[idx]
 
-    api_key = getpass.getpass(f"Enter {provider_name} API key: ")
+    api_key = input(f"Enter {provider_name} API key: ")
     if not api_key:
         print("No key entered. Aborting.")
         return False
@@ -222,8 +221,9 @@ def setup_key_interactive():
         if _append_to_file(bashrc_path, posix_line):
             written.append(str(bashrc_path))
 
+    # Always write to .profile — needed for GNOME Shell / display managers
     profile_path = Path.home() / ".profile"
-    if profile_path != rc_path and profile_path != bashrc_path and _append_to_file(profile_path, posix_line):
+    if _append_to_file(profile_path, posix_line):
         written.append(str(profile_path))
 
     if written:
