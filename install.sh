@@ -4,42 +4,129 @@ REPO="happytomatoe/voice-to-text"
 EXT_UUID="voice-to-text@happytomatoe.com"
 INSTALL_DIR="$HOME/.local/share/gnome-shell/extensions/$EXT_UUID"
 
+# --- Helper: check if a command is available ---
+command_exists() {
+  command -v "$1" &>/dev/null
+}
+
 # --- Detect OS ---
-if command -v dnf &>/dev/null; then
+if command_exists rpm-ostree; then
+  PKG_MGR="rpm-ostree"
+elif command_exists dnf; then
   PKG_MGR="dnf"
-elif command -v pacman &>/dev/null; then
+elif command_exists pacman; then
   PKG_MGR="pacman"
-elif command -v apt &>/dev/null; then
+elif command_exists apt; then
   PKG_MGR="apt"
 else
-  echo "ERROR: Unsupported package manager. Supported: dnf, pacman, apt"
+  echo "ERROR: Unsupported package manager. Supported: rpm-ostree, dnf, pacman, apt"
   exit 1
 fi
 
 echo "Detected package manager: $PKG_MGR"
 echo ""
 
+# --- Helper: install a package if not already present ---
+install_pkg() {
+  local pkg="$1"
+  # Check common binary names; fall back to dpkg/rpm queries
+  if command_exists "$pkg"; then
+    echo "  $pkg already installed, skipping."
+    return 0
+  fi
+  # Fallback checks for packages whose binary name differs
+  case "$PKG_MGR" in
+  apt)
+    if dpkg -s "$pkg" &>/dev/null; then
+      echo "  $pkg already installed, skipping."
+      return 0
+    fi
+    ;;
+  dnf | rpm-ostree)
+    if rpm -q "$pkg" &>/dev/null; then
+      echo "  $pkg already installed, skipping."
+      return 0
+    fi
+    ;;
+  pacman)
+    if pacman -Qi "$pkg" &>/dev/null; then
+      echo "  $pkg already installed, skipping."
+      return 0
+    fi
+    ;;
+  esac
+  echo "  Installing $pkg..."
+  case "$PKG_MGR" in
+  rpm-ostree)
+    sudo rpm-ostree install -y "$pkg" || true
+    ;;
+  dnf)
+    sudo dnf install -y "$pkg" || true
+    ;;
+  pacman)
+    sudo pacman -S --noconfirm "$pkg" || true
+    ;;
+  apt)
+    sudo apt install -y "$pkg" || true
+    ;;
+  esac
+}
+
 # --- Install prerequisites ---
 echo "Installing prerequisites..."
 case "$PKG_MGR" in
+rpm-ostree)
+  install_pkg ydotool
+  install_pkg unzip
+  install_pkg curl
+  install_pkg libsecret
+  echo ""
+  echo "NOTE: rpm-ostree changes require a reboot to take effect."
+  echo "      If this is the first time layering packages, reboot before continuing."
+  ;;
 dnf)
-  sudo dnf install ydotool unzip curl libsecret 2>/dev/null || true
+  install_pkg ydotool
+  install_pkg unzip
+  install_pkg curl
+  install_pkg libsecret
   ;;
 pacman)
-  sudo pacman -S ydotool unzip curl libsecret 2>/dev/null || true
+  install_pkg ydotool
+  install_pkg unzip
+  install_pkg curl
+  install_pkg libsecret
   ;;
 apt)
-  sudo apt install ydotool unzip curl libsecret-1-dev libsecret-tools 2>/dev/null || true
+  install_pkg ydotool
+  install_pkg unzip
+  install_pkg curl
+  install_pkg libsecret-1-dev
+  install_pkg libsecret-tools
   ;;
 esac
+
+# --- Install uv if not present ---
+if ! command_exists uv; then
+  echo "Installing uv..."
+  curl -LsSf https://astral.sh/uv/install.sh | sh
+  # Source the environment to pick up uv in this session
+  export PATH="$HOME/.local/bin:$PATH"
+  if ! command_exists uv; then
+    echo "ERROR: Failed to install uv."
+    exit 1
+  fi
+  echo "uv installed."
+else
+  echo "uv already installed, skipping."
+fi
 
 # --- Install Python application ---
 echo ""
 echo "--- Installing Python application ---"
 echo "Fetching latest release tag..."
 LATEST_TAG=$(
-  git ls-remote --tags --sort=-v:refname "https://github.com/$REPO.git" \
-    | awk -F'/' '$NF !~ /\^\{\}$/ { print $NF; exit }'
+  git ls-remote --tags --sort=-v:refname "https://github.com/$REPO.git" |
+    awk -F'/' '$NF !~ /\^\{\}$/ { print $NF; exit }'
 )
 if [ -z "$LATEST_TAG" ]; then
   echo "WARNING: No releases found for $REPO; falling back to source checkout for the GNOME extension."
@@ -48,33 +135,16 @@ else
   HAS_RELEASE=1
 fi
 
-if command -v uv &>/dev/null; then
-  if [ "$HAS_RELEASE" -eq 0 ]; then
-    echo "ERROR: No releases found for $REPO."
-    echo "Create a release first: https://github.com/$REPO/releases/new"
-    exit 1
-  fi
-
-  echo "Installing version $LATEST_TAG..."
-  uv tool install "git+https://github.com/$REPO.git@$LATEST_TAG" --force
-  echo "Python application installed."
-  VOICE_TO_TEXT_CMD="uv tool run voice-to-text"
-else
-  if [ "$HAS_RELEASE" -eq 0 ]; then
-    echo "ERROR: No releases found for $REPO."
-    echo "Install uv (https://docs.astral.sh/uv/) or create a release first: https://github.com/$REPO/releases/new"
-    exit 1
-  fi
-  echo "uv not found. Installing standalone binary..."
-  LATEST_URL="https://github.com/$REPO/releases/latest/download/voice-to-text"
-  curl -L -o /tmp/voice-to-text "$LATEST_URL"
-  chmod +x /tmp/voice-to-text
-  mkdir -p "$HOME/.local/bin"
-  mv /tmp/voice-to-text "$HOME/.local/bin/voice-to-text"
-  echo "Binary installed to $HOME/.local/bin/voice-to-text"
-  echo "Make sure $HOME/.local/bin is in your PATH."
-  VOICE_TO_TEXT_CMD="$HOME/.local/bin/voice-to-text"
+if [ "$HAS_RELEASE" -eq 0 ]; then
+  echo "ERROR: No releases found for $REPO."
+  echo "Create a release first: https://github.com/$REPO/releases/new"
+  exit 1
 fi
+
+echo "Installing version $LATEST_TAG..."
+uv tool install "git+https://github.com/$REPO.git@$LATEST_TAG" --force
+echo "Python application installed."
+VOICE_TO_TEXT_CMD="uv tool run voice-to-text"
 
 # --- Install GNOME extension ---
 echo ""
@@ -168,14 +238,4 @@ EOF
   fi
 fi
 
-
-echo ""
-echo "=== Installation complete ==="
-echo ""
-echo "Python app: voice-to-text"
-echo "GNOME extension: $EXT_UUID (hotkey: Super+W)"
-echo ""
-echo "Restart your shell or open a new terminal."
-echo "Then test with: voice-to-text"
-echo ""
 echo "Restart GNOME Shell (Alt+F2, r, Enter on X11) or log out/in on Wayland."
