@@ -17,12 +17,8 @@ benchmark-gen:
 benchmark-file path runs="3":
     PYTHONPATH=src .venv/bin/python -m voice_to_text.main benchmark --audio-file {{path}} --runs {{runs}}
 
-install: build-binary
-    uv tool uninstall voice-to-text 2>/dev/null || true
-    rm -f ~/.local/bin/voice-to-text
-    mkdir -p ~/.local/bin
-    cp dist/voice-to-text ~/.local/bin/voice-to-text
-    chmod +x ~/.local/bin/voice-to-text
+install:
+    uv tool install -e .
 
 uninstall:
     rm -f ~/.local/bin/voice-to-text
