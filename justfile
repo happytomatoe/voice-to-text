@@ -24,7 +24,7 @@ uninstall:
     rm -f ~/.local/bin/voice-to-text
     uv tool uninstall voice-to-text 2>/dev/null || true
 
-# Reinstall Python package from source (skips if already installed)
+# Reinstall Python package from source
 reinstall:
     #!/usr/bin/env bash
     set -euo pipefail
