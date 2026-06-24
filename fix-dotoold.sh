@@ -29,7 +29,7 @@ sleep 1
 
 if [ -p "$PIPE_PATH" ]; then
     echo "✅ dotoold is running. Pipe at $PIPE_PATH"
-    echo type 'voice-to-text fixed' | dotool
+    echo "type voice-to-text fixed" | dotoolc
 else
     echo "❌ Pipe not found at $PIPE_PATH"
     sudo journalctl -u dotool.service --no-pager -n 20
