@@ -56,7 +56,7 @@ setup-global-hotkey:
     echo "Global hotkey Super+q configured for voice-to-text"
 
 # @category gnome-ext
-# Rebuild binary if stale, install extension, then start a nested GNOME Shell
+# Install extension, then start a nested GNOME Shell
 gnome-ext-dev: reinstall gnome-ext-install
     #!/usr/bin/env bash
     set -euo pipefail
