@@ -108,11 +108,11 @@ export default class VoiceToTextExtension extends Extension {
         if (this._recording) return;
 
         if (!this._binPath) {
-            console.log('VoiceToText: binary not found in PATH');
-            this._showNotification('voice-to-text binary not found in PATH');
+            console.log('VoiceToText: executable not found in PATH');
+            this._showNotification('voice-to-text executable not found in PATH');
             return;
         }
-        console.log('VoiceToText: binary found at', this._binPath);
+        console.log('VoiceToText: executable found at', this._binPath);
 
         resetTypedState();
         this._indicator.setProcessing();
