@@ -26,33 +26,28 @@ export function getLastTyped() {
 
 export function typeText(text, onDone = () => {}) {
     try {
-        const argv = [
-            'ydotool',
-            'type',
-            '--key-delay=0',
-            '--key-hold=0',
-            '--',
-            text,
-        ];
+        // dotool reads from stdin: echo "type TEXT" | dotool
+        const input = `type ${text}\n`;
         const proc = new Gio.Subprocess({
-            argv,
-            flags: Gio.SubprocessFlags.NONE,
+            argv: ['dotool'],
+            flags: Gio.SubprocessFlags.STDOUT_PIPE | Gio.SubprocessFlags.STDIN_PIPE,
         });
         proc.init(null);
+        proc.communicate_utf8(null, input, null, null);
         proc.wait_check_async(null, (proc, res) => {
             try {
                 proc.wait_check_finish(res);
                 _lastTyped = text;
                 onDone(true);
             } catch (e) {
-                console.error(`VoiceToText: ydotool failed: ${e.message}`);
-                _showNotification(`ydotool failed: ${e.message}`);
+                console.error(`VoiceToText: dotool failed: ${e.message}`);
+                _showNotification(`dotool failed: ${e.message}`);
                 onDone(false);
             }
         });
     } catch (e) {
-        console.error(`VoiceToText: failed to run ydotool: ${e.message}`);
-        _showNotification(`Failed to run ydotool: ${e.message}`);
+        console.error(`VoiceToText: failed to run dotool: ${e.message}`);
+        _showNotification(`Failed to run dotool: ${e.message}`);
         onDone(false);
     }
 }
@@ -76,12 +71,12 @@ export function typeTextIncremental(text) {
         backspaceCount,
         newSuffix: newSuffix.slice(0, 60),
     });
-    _ydotoolDiffType(backspaceCount, newSuffix, text);
+    _dotoolDiffType(backspaceCount, newSuffix, text);
 }
 
 // Diff-based typing: backspace the changed suffix, then type only what's new.
 // Based on the nerd-dictation algorithm (ideasman42/nerd-dictation).
-function _ydotoolDiffType(backspaceCount, newSuffix, newText) {
+function _dotoolDiffType(backspaceCount, newSuffix, newText) {
     try {
         if (backspaceCount > 0) {
             // KEY_BACKSPACE = evdev keycode 14
@@ -89,18 +84,18 @@ function _ydotoolDiffType(backspaceCount, newSuffix, newText) {
                 .fill('14:1 14:0')
                 .join(' ');
             GLib.spawn_command_line_sync(
-                `ydotool key --key-delay=3 -- ${backspaces}`
+                `printf '%s\\n' '${backspaces}' | dotool`
             );
         }
         if (newSuffix.length > 0) {
             GLib.spawn_command_line_sync(
-                `ydotool type --key-delay=0 --key-hold=0 -- ${GLib.shell_quote(newSuffix)}`
+                `echo type ${GLib.shell_quote(newSuffix)} | dotool`
             );
         }
         _lastTyped = newText;
     } catch (e) {
-        console.error(`VoiceToText: ydotool diff type failed: ${e.message}`);
-        _showNotification(`ydotool diff type failed: ${e.message}`);
+        console.error(`VoiceToText: dotool diff type failed: ${e.message}`);
+        _showNotification(`dotool diff type failed: ${e.message}`);
     }
 }
 
