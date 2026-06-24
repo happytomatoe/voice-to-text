@@ -40,15 +40,6 @@ jobs:
       - name: Build Python package
         run: uv build --out-dir dist
 
-      - name: Build standalone binary
-        run: |
-          uv run pyinstaller \
-            --name voice-to-text \
-            --onefile \
-            src/voice_to_text/main.py \
-            --distpath dist \
-            --clean
-
       - name: Pack GNOME extension
         run: |
           UUID="voice-to-text@happytomatoe.com"
@@ -71,6 +62,5 @@ jobs:
           files: |
             dist/voice_to_text-*.whl
             dist/voice_to_text-*.tar.gz
-            dist/voice-to-text
             dist/voice-to-text@happytomatoe.com.shell-extension.zip
           generate_release_notes: true

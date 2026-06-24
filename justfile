@@ -35,15 +35,7 @@ reinstall:
 build-python:
     uv build --out-dir dist
 
-build-binary:
-    #!/usr/bin/env bash
-    set -e
-    SOURCE_HASH=$( (find src/voice_to_text -name '*.py' ! -name '_build_info.py' -type f; echo "voice-to-text.spec") | xargs sha256sum | sort | sha256sum | cut -d' ' -f1)
-    printf 'SOURCE_HASH = "%s"\n' "$SOURCE_HASH" > src/voice_to_text/_build_info.py
-    uv run pyinstaller voice-to-text.spec
-    echo "Binary built to dist/voice-to-text"
-
-build-release: build-python build-binary gnome-ext-pack
+build-release: build-python gnome-ext-pack
     echo "All release artifacts built in dist/"
     ls -la dist/
 
