@@ -63,6 +63,7 @@ export class Recorder {
                 String(decreaseSpeakerVolume)
             );
         }
+        console.log('VoiceToText: Spawning process with argv:', argv.join(' '));
         const [ok, pid, stdin, stdout, stderr] = GLib.spawn_async_with_pipes(
             null,
             argv,
@@ -75,6 +76,7 @@ export class Recorder {
             GLib.close(stdin);
             GLib.close(stdout);
             GLib.close(stderr);
+            console.error('VoiceToText: Failed to spawn voice-to-text process');
             this.onError?.('Failed to spawn voice-to-text process');
             return;
         }
@@ -83,6 +85,7 @@ export class Recorder {
         GLib.close(stderr);
 
         this._proc = pid;
+        console.log('VoiceToText: Process spawned with PID:', pid);
         this._cancellable = new Gio.Cancellable();
         this._stdout = new Gio.DataInputStream({
             base_stream: new GioUnix.InputStream({fd: stdout, close_fd: true}),
@@ -107,6 +110,8 @@ export class Recorder {
                 this._childWatchId = null;
                 this._proc = null;
                 GLib.spawn_close_pid(p);
+
+                console.log('VoiceToText: Child process exited with status:', status);
 
                 if (this._stopped) {
                     return;
@@ -237,6 +242,8 @@ export class Recorder {
                     this.stop();
                     this.onError?.(errorMsg);
                     return;
+                } else {
+                    console.log('VoiceToText: received unknown line:', trimmedLine);
                 }
 
                 this._readOutput();

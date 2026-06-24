@@ -230,7 +230,7 @@ EOF
   # 5. Final verification check
   if [ -p "$PIPE_PATH" ]; then
     echo "dotoold started successfully. Pipe at $PIPE_PATH"
-    echo type 'voice-to-text fixed' | dotool
+    echo "type voice-to-text fixed" | dotoolc
   else
     echo "ERROR: Pipe not found at $PIPE_PATH"
     sudo journalctl -u dotool.service --no-pager -n 20
