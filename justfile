@@ -116,3 +116,60 @@ gnome-ext-pack:
     glib-compile-schemas "dist/$UUID/schemas/"
     cd dist && zip -r "$UUID.shell-extension.zip" "$UUID"
     echo "Extension packed to dist/$UUID.shell-extension.zip"
+
+# -------------------------------------------
+# IBus Integration Commands
+# -------------------------------------------
+
+# Install IBus component (register the Voxtral engine with IBus)
+ibus-install:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    echo "Installing Voxtral IBus engine..."
+    
+    # Create user component directory
+    mkdir -p ~/.config/ibus/component/
+    cp src/voice_to_text/ibus/voxtral.xml ~/.config/ibus/component/
+    
+    # Try system directory (may fail if read-only, e.g. on Silverblue)
+    sudo cp src/voice_to_text/ibus/voxtral.xml /usr/share/ibus/component/ 2>/dev/null || true
+    
+    # Set environment variable for user directory (required on Silverblue)
+    echo 'export IBUS_COMPONENT_PATH="$HOME/.config/ibus/component:$IBUS_COMPONENT_PATH"' >> ~/.bashrc 2>/dev/null || true
+    echo 'export IBUS_COMPONENT_PATH="$HOME/.config/ibus/component:$IBUS_COMPONENT_PATH"' >> ~/.zshrc 2>/dev/null || true
+    
+    # Update IBus cache
+    ibus write-cache
+    
+    echo "Voxtral IBus engine installed!"
+    echo ""
+    echo "IMPORTANT: On Fedora Silverblue or other immutable systems:"
+    echo "  1. Log out and back in to apply the IBUS_COMPONENT_PATH environment variable"
+    echo "  2. Run: ibus write-cache && ibus restart"
+    echo ""
+    echo "Then add Voxtral as an input source:"
+    echo "  Settings → Keyboard → Input Sources → + → Other → Voxtral"
+
+# Uninstall IBus component
+ibus-uninstall:
+    #!/usr/bin/env bash
+    echo "Uninstalling Voxtral IBus engine..."
+    rm -f ~/.local/share/ibus/component/voxtral.xml
+    ibus write-cache
+    echo "Voxtral IBus engine uninstalled!"
+
+# Start the IBus engine only (for debugging)
+ibus-engine:
+    PYTHONPATH=src /usr/bin/python3 src/voice_to_text/ibus/engine.py
+
+# Start the bridge only (requires engine to be running)
+ibus-bridge:
+    PYTHONPATH=src .venv/bin/python3 src/voice_to_text/ibus/bridge.py
+
+# Start both engine and bridge
+ibus-run:
+    PYTHONPATH=src .venv/bin/python3 scripts/voxtral_ibus.py
+
+# Test that the engine can be imported
+ibus-test:
+    PYTHONPATH=src /usr/bin/python3 -c "from voice_to_text.ibus.engine import VoxtralEngine; print('Engine imports OK')"
