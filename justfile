@@ -1,175 +1,187 @@
 default:
     @just --list
 
-run *args:
-    PYTHONPATH=src .venv/bin/python -m voice_to_text.main {{args}}
-
-# Benchmark: record 10s of audio, test all providers 3x each
-benchmark:
-    PYTHONPATH=src .venv/bin/python -m voice_to_text.main benchmark --duration 10
-
-# Benchmark: generate synthetic audio then test providers (no microphone needed)
-benchmark-gen:
-    python scripts/generate_test_audio.py --duration 12 --output /tmp/vtt-bench.wav
-    PYTHONPATH=src .venv/bin/python -m voice_to_text.main benchmark --audio-file /tmp/vtt-bench.wav --runs 3
-
-# Benchmark: test specific providers with an audio file
-benchmark-file path runs="3":
-    PYTHONPATH=src .venv/bin/python -m voice_to_text.main benchmark --audio-file {{path}} --runs {{runs}}
-
-install:
-    uv tool install -e .
-
-uninstall:
-    rm -f ~/.local/bin/voice-to-text
-    uv tool uninstall voice-to-text 2>/dev/null || true
-
-# Reinstall Python package from source
-reinstall:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    echo "Reinstalling voice-to-text from source..."
-    uv tool install -e . --force
-    echo "voice-to-text reinstalled from source"
-
-build-python:
-    uv build --out-dir dist
-
-build-release: build-python gnome-ext-pack
-    echo "All release artifacts built in dist/"
-    ls -la dist/
-
-setup-global-hotkey:
-    #!/usr/bin/env bash
-    KEYBINDING_PATH="/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/voice-to-text"
-    dconf write "$KEYBINDING_PATH/name" "'voice-to-text'"
-    dconf write "$KEYBINDING_PATH/command" "'alacritty -e bash -l -c voice-to-text'"
-    dconf write "$KEYBINDING_PATH/binding" "'<Super>q'"
-    CURRENT=$(dconf read /org/gnome/settings-daemon/plugins/media-keys/custom-keybindings 2>/dev/null)
-    if [ -z "$CURRENT" ] || [ "$CURRENT" = "@as []" ]; then
-        dconf write /org/gnome/settings-daemon/plugins/media-keys/custom-keybindings "['$KEYBINDING_PATH/']"
-    elif echo "$CURRENT" | grep -q "$KEYBINDING_PATH"; then
-        echo "Hotkey already configured"
-    else
-        dconf write /org/gnome/settings-daemon/plugins/media-keys/custom-keybindings "${CURRENT%]}, '$KEYBINDING_PATH/']"
-    fi
-    echo "Global hotkey Super+q configured for voice-to-text"
-
-# @category gnome-ext
-# Install extension, then start a nested GNOME Shell
-gnome-ext-dev: reinstall gnome-ext-install
-    #!/usr/bin/env bash
-    set -euo pipefail
-    if [ -n "${TOOLBOX_PATH:-}" ] || [ "${container:-}" = "oci" ]; then
-        echo "Error: Cannot start a development GNOME Shell from within a toolbox container. Run this command on the host system." >&2
-        exit 1
-    fi
-    echo "" > /tmp/gnome-shell-nested.log
-    echo "" > /tmp/voice-to-text.log
-    if ! rpm -q mutter-devkit &>/dev/null; then
-        echo "mutter-devkit not installed, installing..."
-        if command -v rpm-ostree &>/dev/null; then
-            sudo rpm-ostree install mutter-devkit
-            echo "mutter-devkit was staged via rpm-ostree. Reboot, then rerun 'just gnome-ext-dev'." >&2
-            exit 1
-        else
-            sudo dnf install -y mutter-devkit
-        fi
-    fi
-    UUID="voice-to-text@happytomatoe.com"
-    gnome-extensions enable "$UUID" 2>/dev/null || true
-    GNOME_VERSION=$(gnome-shell --version | awk '{print int($3)}')
-    if [ "$GNOME_VERSION" -ge 49 ]; then
-      dbus-run-session -- gnome-shell --wayland --devkit  2>&1 | tee /tmp/gnome-shell-nested.log
-    else
-      MUTTER_DEBUG_NESTED=1 dbus-run-session -- gnome-shell --wayland --nested 2>&1 | tee /tmp/gnome-shell-nested.log
-    fi
-# Install extension files directly (no nested shell)
-gnome-ext-install:
-    #!/usr/bin/env bash
-    UUID="voice-to-text@happytomatoe.com"
-    DEST=$HOME/.local/share/gnome-shell/extensions/$UUID
-    mkdir -p "$DEST/schemas"
-    cp gnome-ext/*.js gnome-ext/*.json gnome-ext/*.css "$DEST/" 2>/dev/null || true
-    cp gnome-ext/schemas/*.xml "$DEST/schemas/"
-    glib-compile-schemas "$DEST/schemas/"
-    echo "Extension installed to $DEST"
-
-# Uninstall extension by removing it from the extensions directory
-gnome-ext-uninstall:
-    rm -rf ~/.local/share/gnome-shell/extensions/voice-to-text@happytomatoe.com
-    echo "Extension uninstalled"
-
-# Reinstall files and reset in GNOME Shell
-gnome-ext-reload:
-    ./gnome-ext/run-dev.sh && gnome-extensions reset voice-to-text@happytomatoe.com && gnome-extensions enable voice-to-text@happytomatoe.com
-
-# Pack extension into a ZIP for distribution
-gnome-ext-pack:
-    #!/usr/bin/env bash
-    UUID="voice-to-text@happytomatoe.com"
-    SRC="gnome-ext"
-    rm -rf "dist/$UUID"
-    mkdir -p "dist/$UUID/schemas"
-    cp "$SRC"/*.js "$SRC"/*.json "$SRC"/*.css "dist/$UUID/"
-    cp "$SRC"/schemas/*.xml "dist/$UUID/schemas/"
-    glib-compile-schemas "dist/$UUID/schemas/"
-    cd dist && zip -r "$UUID.shell-extension.zip" "$UUID"
-    echo "Extension packed to dist/$UUID.shell-extension.zip"
-
-# -------------------------------------------
 # IBus Integration Commands
-# -------------------------------------------
 
-# Install IBus component (register the Voxtral engine with IBus)
+# Quick path for installation (simplest, creates user-local component)
 ibus-install:
     #!/usr/bin/env bash
     set -euo pipefail
-    echo "Installing Voxtral IBus engine..."
+    echo "Installing Voxtral IBus engine (user-local)..."
     
-    # Create user component directory
-    mkdir -p ~/.config/ibus/component/
-    cp src/voice_to_text/ibus/voxtral.xml ~/.config/ibus/component/
+    # Create component directory
+    mkdir -p ~/.local/share/ibus/component
     
-    # Try system directory (may fail if read-only, e.g. on Silverblue)
-    sudo cp src/voice_to_text/ibus/voxtral.xml /usr/share/ibus/component/ 2>/dev/null || true
+    # Copy the XML and patch the path (the hardcoded author path)
+    cp src/voice_to_text/ibus/voxtral.xml ~/.local/share/ibus/component/voxtral.xml
+    # Fix the exec path in the XML
+    PROJECT_ROOT=$(pwd)
+    sed -i "s|/var/home/l/git/voice-to-text-ibus|$PROJECT_ROOT|" ~/.local/share/ibus/component/voxtral.xml
     
-    # Set environment variable for user directory (required on Silverblue)
-    echo 'export IBUS_COMPONENT_PATH="$HOME/.config/ibus/component:$IBUS_COMPONENT_PATH"' >> ~/.bashrc 2>/dev/null || true
-    echo 'export IBUS_COMPONENT_PATH="$HOME/.config/ibus/component:$IBUS_COMPONENT_PATH"' >> ~/.zshrc 2>/dev/null || true
+    # Show what we fixed
+    FIXED_PATH=$(grep '/usr/bin/python3' ~/.local/share/ibus/component/voxtral.xml)
+    echo "✓ Fixed exec path to: $FIXED_PATH"
     
-    # Update IBus cache
-    ibus write-cache
+    # Set environment for GNOME/systemd
+    mkdir -p ~/.config/environment.d
+    echo 'IBUS_COMPONENT_PATH=$HOME/.local/share/ibus/component:$IBUS_COMPONENT_PATH' > ~/.config/environment.d/ibus.conf
     
-    echo "Voxtral IBus engine installed!"
+    # Update ibus cache if available
+    if command -v ibus > /dev/null 2>&1; then
+        ibus write-cache
+        ibus restart
+        echo "✓ IBus cache updated and restarted"
+    else
+        echo "⚠️  ibus not found - please install ibus: sudo dnf install ibus"
+    fi
+    
     echo ""
-    echo "IMPORTANT: On Fedora Silverblue or other immutable systems:"
-    echo "  1. Log out and back in to apply the IBUS_COMPONENT_PATH environment variable"
-    echo "  2. Run: ibus write-cache && ibus restart"
+    echo "=== Installation Complete ==="
     echo ""
-    echo "Then add Voxtral as an input source:"
-    echo "  Settings → Keyboard → Input Sources → + → Other → Voxtral"
+    echo "Next steps for Fedora Silverblue/GNOME:"
+    echo "1. Log out and log back in"
+    echo "2. Settings → Keyboard → Input Sources → + → Other → Voxtral"
+    echo ""
+    echo "Files created:"
+    ls -la ~/.local/share/ibus/component/
+    ls -la ~/.config/environment.d/
 
-# Uninstall IBus component
+# Alternative: System-wide installation (requires sudo)
+ibus-install-system:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    echo "Installing Voxtral IBus engine (system-wide)..."
+    
+    # Create component directory with sudo
+    sudo mkdir -p /usr/share/ibus/component
+    
+    # Fix the path in the XML before copying
+    PROJECT_ROOT=$(pwd)
+    sed -i "s|/var/home/l/git/voice-to-text-ibus|$PROJECT_ROOT|" src/voice_to_text/ibus/voxtral.xml
+    
+    # Copy to system location with sudo
+    sudo cp src/voice_to_text/ibus/voxtral.xml /usr/share/ibus/component/
+    
+    # Set environment variable
+    mkdir -p ~/.config/environment.d
+    echo 'IBUS_COMPONENT_PATH=/usr/share/ibus/component:$IBUS_COMPONENT_PATH' > ~/.config/environment.d/ibus.conf
+    
+    echo "✓ System-wide installation complete"
+    echo ""
+    echo "System component: /usr/share/ibus/component/voxtral.xml"
+    echo "Environment: ~/.config/environment.d/ibus.conf"
+
+# Verify installation
+ibus-verify:
+    #!/usr/bin/env bash
+    echo "=== Verifying IBus Installation ==="
+    
+    echo "Checking component files..."
+    if [[ -f $HOME/.local/share/ibus/component/voxtral.xml ]]; then
+        echo "✓ User component exists"
+        ls -la ~/.local/share/ibus/component/
+    else
+        echo "✗ User component missing"
+    fi
+    
+    if [[ -f $HOME/.config/environment.d/ibus.conf ]]; then
+        echo "✓ Environment file exists"
+        cat ~/.config/environment.d/ibus.conf
+    else
+        echo "✗ Environment file missing"
+    fi
+    
+    echo ""
+    echo "Checking environment..."
+    if [[ -n "$IBUS_COMPONENT_PATH" ]]; then
+        echo "✓ IBUS_COMPONENT_PATH is set: $IBUS_COMPONENT_PATH"
+    else
+        echo "⚠  IBUS_COMPONENT_PATH not set in current session"
+        echo "  The environment.d file will take effect after login"
+    fi
+    
+    echo ""
+    echo "Checking IBus daemon..."
+    if pgrep -x ibus-daemon > /dev/null 2>&1; then
+        echo "✓ IBus daemon is running"
+    else
+        echo "✗ IBus daemon is not running"
+        echo "  Start with: ibus-daemon -drx"
+    fi
+    
+    echo ""
+    echo "Checking IBus availability..."
+    if command -v ibus > /dev/null 2>&1; then
+        echo "✓ ibus command available"
+        ibus version 2>/dev/null || echo "ibus version not available"
+        
+        echo ""
+        echo "Checking for voxtral engine..."
+        if ibus list-engine 2>/dev/null | grep -qi voxtral; then
+            echo "✓ Voxtral engine found in IBus"
+            ibus list-engine 2>/dev/null | grep -i voxtral
+        else
+            echo "✗ Voxtral engine not found in IBus"
+            echo "  This may be because:"
+            echo "    - IBus daemon is not running"
+            echo "    - Environment variable IBUS_COMPONENT_PATH not set"
+            echo "    - Need to log out and log back in after installation"
+        fi
+    else
+        echo "✗ ibus command not found"
+        echo "  Install with: sudo dnf install ibus"
+    fi
+
+# Start the Voxtral engine (for testing)
+ibus-engine:
+    #!/usr/bin/env bash
+    echo "Starting Voxtral IBus engine..."
+    echo "Note: This runs the engine for testing purposes"
+    echo "The real IBus integration happens when you select it in System Settings"
+    
+    # Check if IBus daemon is running
+    if ! pgrep -x ibus-daemon > /dev/null 2>&1; then
+        echo "✗ IBus daemon is not running"
+        echo "  Start with: ibus-daemon -drx"
+        exit 1
+    fi
+    
+    cd /var/home/l/git/voice-to-text-ibus
+    export IBUS_COMPONENT_PATH="$HOME/.local/share/ibus/component"
+    export PYTHONPATH=src
+    setsid /usr/bin/python3 src/voice_to_text/ibus/engine.py --ibus > /tmp/voxtral-engine.log 2>&1 &
+    echo "Engine started with PID: $!"
+    echo "Log: /tmp/voxtral-engine.log"
+
+# Bridge (runs the audio transcription bridge)
+ibus-bridge:
+    #!/usr/bin/env bash
+    echo "Starting Voxtral bridge (requires engine to be running)..."
+    cd /var/home/l/git/voice-to-text-ibus
+    PYTHONPATH=src .venv/bin/python3 src/voice_to_text/ibus/bridge.py
+
+# Combined: engine + bridge
+ibus-run:
+    #!/usr/bin/env bash
+    echo "Starting both Voxtral IBus engine and bridge..."
+    cd /var/home/l/git/voice-to-text-ibus
+    PYTHONPATH=src .venv/bin/python3 scripts/voxtral_ibus.py
+
+# Uninstall
 ibus-uninstall:
     #!/usr/bin/env bash
     echo "Uninstalling Voxtral IBus engine..."
+    
+    # Remove files
     rm -f ~/.local/share/ibus/component/voxtral.xml
-    ibus write-cache
-    echo "Voxtral IBus engine uninstalled!"
+    rm -f ~/.config/environment.d/ibus.conf
+    
+    # Restart ibus if available
+    if command -v ibus > /dev/null 2>&1; then
+        ibus write-cache
+        ibus restart
+        echo "✓ IBus cache updated and restarted"
+    fi
+    
+    echo "✓ Uninstall complete"
 
-# Start the IBus engine only (for debugging)
-ibus-engine:
-    PYTHONPATH=src /usr/bin/python3 src/voice_to_text/ibus/engine.py
-
-# Start the bridge only (requires engine to be running)
-ibus-bridge:
-    PYTHONPATH=src .venv/bin/python3 src/voice_to_text/ibus/bridge.py
-
-# Start both engine and bridge
-ibus-run:
-    PYTHONPATH=src .venv/bin/python3 scripts/voxtral_ibus.py
-
-# Test that the engine can be imported
-ibus-test:
-    PYTHONPATH=src /usr/bin/python3 -c "from voice_to_text.ibus.engine import VoxtralEngine; print('Engine imports OK')"

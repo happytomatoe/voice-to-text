@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <component type="inputmethod">
-  <name>org.freedesktop.IBus.Voxtral</name>
+  <name>io.github.happytomatoe.voxtral</name>
   <description>Voxtral Speech-to-Text Engine</description>
   <exec>/usr/bin/python3 /var/home/l/git/voice-to-text-ibus/src/voice_to_text/ibus/engine.py --ibus</exec>
   <version>1.0</version>

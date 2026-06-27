@@ -5,6 +5,7 @@ from the bridge process and relays them to the active application
 through the IBus framework.
 """
 
+import json
 import logging
 import os
 import socket
@@ -19,12 +20,12 @@ from gi.repository import GLib, IBus
 
 logger = logging.getLogger(__name__)
 
-# Default socket path for bridge communication
-DEFAULT_SOCKET_PATH = "/tmp/voxtral-ibus.sock"
+# Default socket path for bridge communication (use XDG_RUNTIME_DIR for security)
+DEFAULT_SOCKET_PATH = os.environ.get("XDG_RUNTIME_DIR", "/tmp") + "/voxtral-ibus.sock"
 
-# Protocol commands
-CMD_PREFIX_PREEDIT = "preedit:"
-CMD_PREFIX_COMMIT = "commit:"
+# Protocol commands (now using JSON-lines for robustness)
+CMD_PREEDIT = "preedit"
+CMD_COMMIT = "commit"
 CMD_CLEAR_PREEDIT = "clear_preedit"
 CMD_SHUTDOWN = "shutdown"
 
@@ -47,7 +48,7 @@ class VoxtralEngine(IBus.Engine):
 
     def do_focus_in(self):
         """Called when the engine is focused in."""
-        logger.debug("VoxtralEngine focused in")
+        logger.info("VoxtralEngine focused in - starting socket listener")
         self._start_listener()
 
     def do_focus_out(self):
@@ -65,6 +66,15 @@ class VoxtralEngine(IBus.Engine):
     def do_reset(self):
         """Called when engine is reset."""
         self._clear_preedit()
+
+    def do_enable(self):
+        """Called when engine is enabled (became the active input method)."""
+        logger.info("VoxtralEngine enabled - starting socket listener")
+        self._start_listener()
+
+    def do_disable(self):
+        """Called when engine is disabled (another engine became active)."""
+        logger.debug("VoxtralEngine disabled")
 
     def _start_listener(self):
         """Start the Unix socket listener if not already running."""
@@ -91,7 +101,7 @@ class VoxtralEngine(IBus.Engine):
         try:
             tmp = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
             tmp.connect(self._socket_path)
-            tmp.sendall(CMD_SHUTDOWN.encode())
+            tmp.sendall(json.dumps({"type": CMD_SHUTDOWN}).encode())
             tmp.close()
         except (OSError, ConnectionRefusedError):
             pass
@@ -115,6 +125,8 @@ class VoxtralEngine(IBus.Engine):
             self._server_socket = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
             self._server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             self._server_socket.bind(self._socket_path)
+            # Set secure permissions (only owner can read/write)
+            os.chmod(self._socket_path, 0o600)
             self._server_socket.listen(1)
             self._server_socket.settimeout(1.0)
 
@@ -171,19 +183,22 @@ class VoxtralEngine(IBus.Engine):
             self._running = False
             return
 
-        if command.startswith(CMD_PREFIX_COMMIT):
-            text = command[len(CMD_PREFIX_COMMIT) :]
+        try:
+            data = json.loads(command)
+            cmd_type = data.get("type")
+            text = data.get("text", "")
+        except json.JSONDecodeError:
+            logger.warning("Invalid JSON command: %s", command[:50])
+            return
+
+        if cmd_type == CMD_COMMIT:
             self._commit_text(text)
-
-        elif command.startswith(CMD_PREFIX_PREEDIT):
-            text = command[len(CMD_PREFIX_PREEDIT) :]
+        elif cmd_type == CMD_PREEDIT:
             self._update_preedit(text)
-
-        elif command == CMD_CLEAR_PREEDIT:
+        elif cmd_type == CMD_CLEAR_PREEDIT:
             self._clear_preedit()
-
         else:
-            logger.warning("Unknown command: %s", command[:50])
+            logger.warning("Unknown command type: %s", cmd_type)
 
     def _commit_text(self, text: str):
         """Commit text to the focused application via IBus."""
@@ -250,24 +265,35 @@ def main():
     logger.info("Starting Voxtral IBus engine")
 
     # Check if running under IBus (passed --ibus flag)
-    running_under_ibus = "--ibus" in sys.argv
     if "--ibus" in sys.argv:
         sys.argv.remove("--ibus")
 
-    # Create the engine and register it with IBus
-    engine = VoxtralEngine()
+    # Initialize IBus
+    IBus.init()
+
+    # Create the bus and check connection
     bus = IBus.Bus()
-    factory = IBus.Factory.new(bus.get_connection())
-    factory.add_engine("Voxtral", engine.__class__)
+    if not bus.is_connected():
+        logger.error("Cannot connect to IBus daemon. Is it running?")
+        logger.error("Start with: ibus-daemon -drx")
+        sys.exit(1)
 
-    # Always start the socket listener
-    # When running under IBus, do_focus_in will also be called
-    engine._start_listener()
+    # Create the engine and register it with IBus
+    # Note: The engine name must match the one in voxtral.xml
+    engine = VoxtralEngine()
+    connection = bus.get_connection()
+    factory = IBus.Factory.new(connection)
+    factory.add_engine("voxtral", engine.__class__)
+    logger.info("Engine 'voxtral' registered with IBus")
 
-    # Run the main loop
+    # Run the main loop - keep references to prevent GC
+    logger.info("Starting GLib main loop...")
     loop = GLib.MainLoop()
+    
     try:
+        logger.info("Main loop running...")
         loop.run()
+        logger.info("Main loop exited")
     except KeyboardInterrupt:
         logger.info("Engine interrupted")
     finally:

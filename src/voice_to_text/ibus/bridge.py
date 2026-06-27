@@ -5,6 +5,7 @@ for real-time transcription, and relays the results to the IBus
 engine via a Unix socket.
 """
 
+import json
 import logging
 import os
 import socket
@@ -24,8 +25,8 @@ from voice_to_text.providers.voxtral import VoxtralProvider
 
 logger = logging.getLogger(__name__)
 
-# Default socket path (must match engine.py)
-DEFAULT_SOCKET_PATH = "/tmp/voxtral-ibus.sock"
+# Default socket path (must match engine.py) - use XDG_RUNTIME_DIR for security
+DEFAULT_SOCKET_PATH = os.environ.get("XDG_RUNTIME_DIR", "/tmp") + "/voxtral-ibus.sock"
 SAMPLE_RATE = 16000
 BLOCK_SIZE = 2048  # samples
 
@@ -42,36 +43,61 @@ class VoxtralBridge:
         self._running = False
         self._recording = False
 
-    def _connect_socket(self) -> bool:
+    def _connect_socket(self, wait: bool = True) -> bool:
         """Connect to the IBus engine's Unix socket."""
+        # First, try to connect immediately
         try:
             self._socket = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
             self._socket.connect(self._socket_path)
             logger.info("Connected to IBus engine at %s", self._socket_path)
             return True
-        except (OSError, ConnectionRefusedError) as e:
-            logger.error("Failed to connect to IBus engine: %s", e)
+        except (OSError, ConnectionRefusedError):
+            pass
+        
+        if not wait:
+            logger.error("Failed to connect to IBus engine: Socket not found")
             return False
+        
+        # Wait for the socket to be created (engine needs to be focused)
+        logger.info("Waiting for IBus engine socket at %s...", self._socket_path)
+        logger.info("(The socket will appear when you switch to Voxtral engine)")
+        
+        for i in range(100):  # Wait up to 10 seconds
+            try:
+                self._socket = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+                self._socket.connect(self._socket_path)
+                logger.info("Connected to IBus engine at %s", self._socket_path)
+                return True
+            except (OSError, ConnectionRefusedError):
+                time.sleep(0.1)
+        
+        logger.error("Timeout waiting for IBus engine socket")
+        logger.error("Make sure to switch to Voxtral engine (Super+Space)")
+        return False
 
-    def _send_command(self, command: str):
+    def _send_command(self, command_type: str, text: str = ""):
         """Send a command to the IBus engine via socket."""
         if self._socket is None:
             return
 
         try:
-            self._socket.sendall(f"{command}\n".encode("utf-8"))
+            cmd = json.dumps({"type": command_type, "text": text})
+            self._socket.sendall(f"{cmd}\n".encode("utf-8"))
         except (OSError, BrokenPipeError) as e:
             logger.warning("Failed to send command: %s", e)
             self._socket = None
+            # Trigger reconnection on next send
+            if self._running:
+                self._connect_socket()
 
     def _on_event(self, event_type: str, text: str):
         """Callback for VoxtralProvider events."""
         logger.debug("Event: %s -> %s", event_type, text[:50] if text else "")
 
         if event_type == "preedit":
-            self._send_command(f"preedit:{text}")
+            self._send_command("preedit", text)
         elif event_type == "commit":
-            self._send_command(f"commit:{text}")
+            self._send_command("commit", text)
 
     def _audio_callback(self, indata: np.ndarray, frames: int, time_info, status):
         """Callback for audio stream - sends audio to provider."""
@@ -165,7 +191,7 @@ class VoxtralBridge:
                 try:
                     result = self._provider.finalize_stream()
                     if result:
-                        self._send_command(f"commit:{result}")
+                        self._send_command("commit", result)
                 except Exception as e:
                     logger.error("Error finalizing stream: %s", e)
 

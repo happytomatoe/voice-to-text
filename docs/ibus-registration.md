@@ -17,7 +17,6 @@ This guide explains how to register and use the Voxtral speech-to-text engine as
 The easiest way to run Voxtral IBus integration:
 
 ```bash
-cd /var/home/l/git/voice-to-text-ibus
 python3 scripts/voxtral_ibus.py
 ```
 
@@ -39,8 +38,8 @@ sudo cp src/voice_to_text/ibus/voxtral.xml /usr/share/ibus/component/
 
 **Option B: User-local (recommended for Silverblue and immutable systems)**
 ```bash
-mkdir -p ~/.config/ibus/component/
-cp src/voice_to_text/ibus/voxtral.xml ~/.config/ibus/component/
+mkdir -p ~/.local/share/ibus/component/
+cp src/voice_to_text/ibus/voxtral.xml ~/.local/share/ibus/component/
 ```
 
 ### 2. Set Environment Variable
@@ -54,7 +53,7 @@ export IBUS_COMPONENT_PATH="$HOME/.local/share/ibus/component:$IBUS_COMPONENT_PA
 Alternatively, on Fedora/Silverblue with GNOME, create an environment file:
 
 ```bash
-echo 'IBUS_COMPONENT_PATH="$HOME/.local/share/ibus/component:$IBUS_COMPONENT_PATH"' > ~/.config/environment.d/ibus.conf
+echo 'IBUS_COMPONENT_PATH=$HOME/.local/share/ibus/component:$IBUS_COMPONENT_PATH' > ~/.config/environment.d/ibus.conf
 ```
 
 ### 3. Update IBus Cache
@@ -75,7 +74,7 @@ ibus restart
 
 **Alternative:** You can also add Voxtral to the preload engines:
 ```bash
-ibus config --preload-engines org.freedesktop.IBus.Voxtral
+ibus config --preload-engines io.github.happytomatoe.voxtral
 ```
 
 ## Usage
@@ -120,12 +119,19 @@ pkill -f voxtral_ibus.py
 
 ## Socket Protocol
 
-The bridge communicates with the engine using newline-delimited commands:
+The bridge communicates with the engine using JSON-lines format (one JSON object per line):
 
-- `preedit:<text>` - Update the underlined temporary text
-- `commit:<text>` - Commit finalized text to the application
+- `preedit` - Update the underlined temporary text
+- `commit` - Commit finalized text to the application
 - `clear_preedit` - Clear the preedit text
 - `shutdown` - Shut down the engine
+
+Example commands:
+```json
+{"type": "preedit", "text": "hello world"}
+{"type": "commit", "text": "hello world"}
+{"type": "clear_preedit"}
+```
 
 ## Configuration
 
