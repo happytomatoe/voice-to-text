@@ -21,7 +21,6 @@ const SessionManagerIface =
       <arg type="s" direction="in"/>\
       <arg type="u" direction="in"/>\
       <arg type="s" direction="in"/>\
-      <arg type="u" direction="in"/>\
       <arg type="u" direction="out"/>\
     </method>\
     <method name="Uninhibit">\
@@ -103,6 +102,29 @@ export default class VoiceToTextExtension extends Extension {
         }
     }
 
+    _registerHotkey() {
+        this._unregisterHotkey();
+
+        try {
+            registerHotkey('hotkey', this._settings, () => this._toggle());
+            console.log('VoiceToText: hotkey registered');
+        } catch (e) {
+            console.error('VoiceToText: failed to register hotkey:', e.message);
+        }
+    }
+
+    _unregisterHotkey() {
+        try {
+            unregisterHotkey('hotkey');
+            console.log('VoiceToText: hotkey unregistered');
+        } catch (e) {
+            console.error(
+                'VoiceToText: failed to unregister hotkey:',
+                e.message
+            );
+        }
+    }
+
     _start() {
         console.log('VoiceToText: _start called');
         if (this._recording) return;
@@ -117,9 +139,10 @@ export default class VoiceToTextExtension extends Extension {
         resetTypedState();
         this._indicator.setProcessing();
         this._recording = true;
-
-        let firstLevelReceived = false;
+        console.log('VoiceToText: recording started');
         this._recorder = new Recorder(this._binPath, this._settings);
+        
+        let firstLevelReceived = false;
         this._recorder.onAudioLevel = level => {
             if (!firstLevelReceived) {
                 firstLevelReceived = true;
@@ -231,13 +254,15 @@ export default class VoiceToTextExtension extends Extension {
                     this._inhibitCookie
             );
         } catch (e) {
-            console.error('VoiceToText: failed to inhibit sleep:', e.message);
+            console.error(
+                'VoiceToText: failed to acquire sleep inhibitor:',
+                e.message
+            );
         }
     }
 
     _releaseInhibitor() {
         if (this._inhibitCookie === 0) return;
-
         try {
             this._sessionManager.UninhibitSync(this._inhibitCookie);
             console.log(
@@ -262,40 +287,6 @@ export default class VoiceToTextExtension extends Extension {
         this._recorder = null;
     }
 
-    _showNotification(message) {
-        const systemSource = MessageTray.getSystemSource();
-        const notification = new MessageTray.Notification({
-            source: systemSource,
-            title: 'Voice to Text',
-            body: message,
-            iconName: 'audio-input-microphone-symbolic',
-        });
-        systemSource.addNotification(notification);
-    }
-
-    _registerHotkey() {
-        this._unregisterHotkey();
-
-        try {
-            registerHotkey('hotkey', this._settings, () => this._toggle());
-            console.log('VoiceToText: hotkey registered');
-        } catch (e) {
-            console.error('VoiceToText: failed to register hotkey:', e.message);
-        }
-    }
-
-    _unregisterHotkey() {
-        try {
-            unregisterHotkey('hotkey');
-            console.log('VoiceToText: hotkey unregistered');
-        } catch (e) {
-            console.error(
-                'VoiceToText: failed to unregister hotkey:',
-                e.message
-            );
-        }
-    }
-
     _openPreferences() {
         console.log('VoiceToText: opening preferences dialog');
         try {
@@ -305,5 +296,16 @@ export default class VoiceToTextExtension extends Extension {
             console.error('VoiceToText: failed to open preferences:', e);
             this._showNotification('Failed to open preferences: ' + e.message);
         }
+    }
+
+    _showNotification(message) {
+        const systemSource = MessageTray.getSystemSource();
+        const notification = new MessageTray.Notification({
+            source: systemSource,
+            title: 'Voice to Text',
+            body: message,
+            iconName: 'audio-input-microphone-symbolic',
+        });
+        systemSource.addNotification(notification);
     }
 }

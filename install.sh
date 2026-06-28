@@ -76,7 +76,7 @@ install_pkg() {
 echo "Installing prerequisites..."
 case "$PKG_MGR" in
 rpm-ostree)
-  install_pkg ydotool
+  install_pkg dotool
   install_pkg unzip
   install_pkg curl
   install_pkg libsecret
@@ -85,19 +85,19 @@ rpm-ostree)
   echo "      If this is the first time layering packages, reboot before continuing."
   ;;
 dnf)
-  install_pkg ydotool
+  install_pkg dotool
   install_pkg unzip
   install_pkg curl
   install_pkg libsecret
   ;;
 pacman)
-  install_pkg ydotool
+  install_pkg dotool
   install_pkg unzip
   install_pkg curl
   install_pkg libsecret
   ;;
 apt)
-  install_pkg ydotool
+  install_pkg dotool
   install_pkg unzip
   install_pkg curl
   install_pkg libsecret-1-dev
@@ -198,42 +198,42 @@ else
   fi
 fi
 
-# --- Configure ydotool daemon ---
-SOCKET_PATH="/run/user/$(id -u)/.ydotool_socket"
-export YDOTOOL_SOCKET="$SOCKET_PATH"
+# --- Configure dotool daemon ---
+PIPE_PATH="/run/user/$(id -u)/dotool_pipe"
 
-# 1. Check if the socket already exists and service is running
-if [ -S "$SOCKET_PATH" ] && systemctl is-active --quiet ydotool.service 2>/dev/null; then
-  echo "ydotool socket already present at $SOCKET_PATH."
+# 1. Check if the pipe already exists and service is running
+if [ -p "$PIPE_PATH" ] && systemctl is-active --quiet dotool.service 2>/dev/null; then
+  echo "dotool pipe already present at $PIPE_PATH."
 else
-  echo "ydotool socket missing. Initializing configuration..."
+  echo "dotool pipe missing. Initializing configuration..."
 
-  # 2. Create the system-level drop-in override directory
-  sudo mkdir -p /etc/systemd/system/ydotool.service.d
+  # 2. Create the systemd user directory
+  sudo mkdir -p /etc/systemd/system/dotool.service.d
 
-  # 3. Inject the custom socket path configuration
-  sudo tee /etc/systemd/system/ydotool.service.d/socket-path.conf >/dev/null <<EOF
+  # 3. Inject the environment configuration
+  sudo tee /etc/systemd/system/dotool.service.d/override.conf >/dev/null <<EOF
 [Unit]
 After=user-runtime-dir@$(id -u).service
 Requires=user-runtime-dir@$(id -u).service
 
 [Service]
 ExecStart=
-ExecStart=/usr/bin/ydotoold --socket-path=$SOCKET_PATH --socket-perm=666
+ExecStart=/usr/bin/dotoold
+Environment=DOTOOL_PIPE=$PIPE_PATH
 EOF
 
   # 4. Reload and restart the service
   sudo systemctl daemon-reload
-  sudo systemctl restart ydotool.service
+  sudo systemctl restart dotool.service
   sleep 1
 
   # 5. Final verification check
-  if [ -S "$SOCKET_PATH" ]; then
-    echo "ydotoold started successfully. Socket at $SOCKET_PATH"
-    ydotool type -- "voice-to-text fixed"
+  if [ -p "$PIPE_PATH" ]; then
+    echo "dotoold started successfully. Pipe at $PIPE_PATH"
+    echo "type voice-to-text fixed" | DOTOOL_PIPE="$PIPE_PATH" dotoolc
   else
-    echo "ERROR: Socket not found at $SOCKET_PATH"
-    sudo journalctl -u ydotool.service --no-pager -n 20
+    echo "ERROR: Pipe not found at $PIPE_PATH"
+    sudo journalctl -u dotool.service --no-pager -n 20
     exit 1
   fi
 fi
