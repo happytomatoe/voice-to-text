@@ -219,7 +219,7 @@ Requires=user-runtime-dir@$(id -u).service
 [Service]
 ExecStart=
 ExecStart=/usr/bin/dotoold
-Environment=DOTOOL_PIPE=%t/dotool_pipe
+Environment=DOTOOL_PIPE=$PIPE_PATH
 EOF
 
   # 4. Reload and restart the service
@@ -230,7 +230,7 @@ EOF
   # 5. Final verification check
   if [ -p "$PIPE_PATH" ]; then
     echo "dotoold started successfully. Pipe at $PIPE_PATH"
-    echo "type voice-to-text fixed" | dotoolc
+    echo "type voice-to-text fixed" | DOTOOL_PIPE="$PIPE_PATH" dotoolc
   else
     echo "ERROR: Pipe not found at $PIPE_PATH"
     sudo journalctl -u dotool.service --no-pager -n 20

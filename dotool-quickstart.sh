@@ -22,6 +22,13 @@ if ! getent group input > /dev/null; then
     exit 1
 fi
 
+if ! id -nG | grep -qw input; then
+    echo "⚠️  Your current user is not a member of the 'input' group."
+    echo "Please run: sudo usermod -aG input $USER"
+    echo "Then log out and back in, or reboot, before running this script again."
+    exit 1
+fi
+
 # 2. Binary Installation
 BIN_DIR="$HOME/.local/bin"
 mkdir -p "$BIN_DIR"
@@ -72,7 +79,7 @@ else
             if $CONTAINER_BIN run --rm \
                 -v "$BIN_DIR:/out:Z" \
                 golang:latest sh -c "
-                    apt-get update && apt-get install -y git libev-dev libxkbcommon-dev
+                    set -e; apt-get update && apt-get install -y git libev-dev libxkbcommon-dev
                     git clone https://git.sr.ht/~geb/dotool /tmp/dotool
                     cd /tmp/dotool
                     go build -o /out/dotool .

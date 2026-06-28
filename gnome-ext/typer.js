@@ -4,7 +4,7 @@ import St from 'gi://St';
 import * as MessageTray from 'resource:///org/gnome/shell/ui/messageTray.js';
 
 let _lastTyped = '';
-const DOTOOLC_PATH = GLib.find_program_in_path('dotoolc') || '/var/home/l/.local/bin/dotoolc';
+const DOTOOLC_PATH = GLib.find_program_in_path('dotoolc') || GLib.build_filenamev([GLib.get_home_dir(), '.local', 'bin', 'dotoolc']);
 
 console.log(`VoiceToText: Using dotoolc path: ${DOTOOLC_PATH}`);
 
@@ -30,25 +30,34 @@ export function getLastTyped() {
 }
 
 function _executeDotoolc(input) {
-    return new Promise((resolve) => {
+    return new Promise((resolve, reject) => {
         try {
             const proc = new Gio.Subprocess({
                 argv: [DOTOOLC_PATH],
                 flags: Gio.SubprocessFlags.STDOUT_PIPE | Gio.SubprocessFlags.STDIN_PIPE,
             });
             proc.init(null);
-            proc.communicate_utf8(input, null, null, null);
-            proc.wait_check_async(null, (p, res) => {
+
+            proc.communicate_utf8_async(input, null, (proc, res) => {
                 try {
-                    p.wait_check_finish(res);
+                    proc.communicate_utf8_finish(res);
+                    proc.wait_check_async(null, (p, res2) => {
+                        try {
+                            p.wait_check_finish(res2);
+                            resolve();
+                        } catch (e) {
+                            console.error(`VoiceToText: dotoolc exited with error: ${e.message}`);
+                            reject(e);
+                        }
+                    });
                 } catch (e) {
-                    console.error(`VoiceToText: dotoolc execution failed: ${e.message}`);
+                    console.error(`VoiceToText: dotoolc communication failed: ${e.message}`);
+                    reject(e);
                 }
-                resolve();
             });
         } catch (e) {
             console.error(`VoiceToText: failed to spawn dotoolc: ${e.message}`);
-            resolve();
+            reject(e);
         }
     });
 }
@@ -95,15 +104,23 @@ export function typeTextIncremental(text) {
 function _dotoolDiffType(backspaceCount, newSuffix, newText) {
     _typingQueue = _typingQueue.then(async () => {
         try {
+            let command = '';
+            if (backspaceCount > 0 || newSuffix.length > 0) {
+                command += 'keydelay 0\ntypedelay 0\n';
+            }
+
             if (backspaceCount > 0) {
-                // Use 'key backspace' as per verified command
                 const backspaces = Array(backspaceCount)
                     .fill('key backspace')
-                    .join(' ');
-                await _executeDotoolc(`${backspaces}\n`);
+                    .join('\n');
+                command += `${backspaces}\n`;
             }
             if (newSuffix.length > 0) {
-                await _executeDotoolc(`type ${newSuffix}\n`);
+                command += `type ${newSuffix}\n`;
+            }
+
+            if (command) {
+                await _executeDotoolc(command);
             }
             _lastTyped = newText;
         } catch (e) {

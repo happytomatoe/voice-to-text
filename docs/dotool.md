@@ -1,3 +1,7 @@
+# Source code: https://git.sr.ht/~geb/dotool
+# Manual:
+
+
 dotool(1)
 
 # NAME
