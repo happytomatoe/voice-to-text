@@ -29,7 +29,7 @@ sudo systemctl daemon-reload
 sudo systemctl restart dotool.service
 sleep 1
 
-if [ -p "$PIPE_PATH" ]; then
+if [ -p "$PIPE_PATH" ] && sudo systemctl is-active --quiet dotool.service; then
     echo "✅ dotoold is running. Pipe at $PIPE_PATH"
     echo "type voice-to-text fixed" | DOTOOL_PIPE="$PIPE_PATH" dotoolc
 else

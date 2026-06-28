@@ -62,9 +62,18 @@ function _executeDotoolc(input) {
     });
 }
 
+function _buildTypeActions(text) {
+    return text
+        .split('\n')
+        .map((part, index, parts) =>
+            index < parts.length - 1 ? `type ${part}\nkey enter` : `type ${part}`
+        )
+        .join('\n') + '\n';
+}
+
 export function typeText(text, onDone = () => {}) {
     _typingQueue = _typingQueue.then(() => {
-        return _executeDotoolc(`type ${text}\n`).then(() => {
+        return _executeDotoolc(_buildTypeActions(text)).then(() => {
             _lastTyped = text;
             onDone(true);
         });
@@ -101,33 +110,32 @@ export function typeTextIncremental(text) {
 
 // Diff-based typing: backspace the changed suffix, then type only what's new.
 // Based on the nerd-dictation algorithm (ideasman42/nerd-dictation).
-function _dotoolDiffType(backspaceCount, newSuffix, newText) {
-    _typingQueue = _typingQueue.then(async () => {
-        try {
-            let command = '';
-            if (backspaceCount > 0 || newSuffix.length > 0) {
-                command += 'keydelay 0\ntypedelay 0\n';
-            }
-
-            if (backspaceCount > 0) {
-                const backspaces = Array(backspaceCount)
-                    .fill('key backspace')
-                    .join('\n');
-                command += `${backspaces}\n`;
-            }
-            if (newSuffix.length > 0) {
-                command += `type ${newSuffix}\n`;
-            }
-
-            if (command) {
-                await _executeDotoolc(command);
-            }
-            _lastTyped = newText;
-        } catch (e) {
-            console.error(`VoiceToText: dotoolc diff type failed: ${e.message}`);
-            _showNotification(`dotoolc diff type failed: ${e.message}`);
+async function _dotoolDiffType(backspaceCount, newSuffix, newText) {
+    try {
+        let command = '';
+        if (backspaceCount > 0 || newSuffix.length > 0) {
+            command += 'keydelay 0\ntypedelay 0\n';
         }
-    });
+
+        if (backspaceCount > 0) {
+            const backspaces = Array(backspaceCount)
+                .fill('key backspace')
+                .join('\n');
+            command += `${backspaces}\n`;
+        }
+        if (newSuffix.length > 0) {
+            command += _buildTypeActions(newSuffix);
+        }
+
+        if (command) {
+            await _executeDotoolc(command);
+        }
+        _lastTyped = newText;
+    } catch (e) {
+        console.error(`VoiceToText: dotoolc diff type failed: ${e.message}`);
+        _showNotification(`dotoolc diff type failed: ${e.message}`);
+        throw e;
+    }
 }
 
 export function copyToClipboard(text) {
