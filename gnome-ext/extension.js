@@ -2,17 +2,37 @@ import GLib from 'gi://GLib';
 import Gio from 'gi://Gio';
 import {Extension} from 'resource:///org/gnome/shell/extensions/extension.js';
 import {VoiceIndicator} from './indicator.js';
-import {Recorder} from './recorder.js';
 import {registerHotkey, unregisterHotkey} from './hotkey.js';
-import {
-    typeText,
-    typeTextIncremental,
-    resetTypedState,
-    copyToClipboard,
-} from './typer.js';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import * as MessageTray from 'resource:///org/gnome/shell/ui/messageTray.js';
 import {gettext as _} from 'resource:///org/gnome/shell/extensions/extension.js';
+
+const VoiceToTextIface = `
+<node>
+  <interface name="com.happytomatoe.VoiceToText">
+    <method name="StartRecording">
+      <arg type="s" name="config" direction="in"/>
+    </method>
+    <method name="StopRecording"/>
+    <method name="GetStatus">
+      <arg type="s" direction="out"/>
+    </method>
+    <signal name="AudioLevel">
+      <arg type="d" name="level"/>
+    </signal>
+    <signal name="Error">
+      <arg type="s" name="message"/>
+    </signal>
+    <signal name="StateChanged">
+      <arg type="s" name="state"/>
+    </signal>
+    <signal name="TranscriptionResult">
+      <arg type="s" name="text"/>
+    </signal>
+  </interface>
+</node>`;
+
+const VoiceToTextProxy = Gio.DBusProxy.makeProxyWrapper(VoiceToTextIface);
 
 const SessionManagerIface =
     '<node>\
@@ -37,11 +57,10 @@ export default class VoiceToTextExtension extends Extension {
             'org.gnome.shell.extensions.voice-to-text'
         );
         this._indicator = new VoiceIndicator();
-        this._binPath = GLib.find_program_in_path('voice-to-text');
-        this._recorder = null;
+        this._proxy = null;
         this._recording = false;
-        this._stopTimeoutId = null;
         this._hotkeySignalId = null;
+        this._signalIds = [];
 
         this._indicator.onStart = () => this._start();
         this._indicator.onStop = () => this._stop();
@@ -61,6 +80,8 @@ export default class VoiceToTextExtension extends Extension {
             'org.gnome.SessionManager',
             '/org/gnome/SessionManager'
         );
+
+        this._connectDBus();
     }
 
     disable() {
@@ -71,25 +92,19 @@ export default class VoiceToTextExtension extends Extension {
             this._hotkeySignalId = null;
         }
 
-        this._clearStopTimeout();
+        this._disconnectDBusSignals();
 
-        if (this._recorder) {
-            this._recorder.onAudioLevel = null;
-            this._recorder.onTranscription = null;
-            this._recorder.onStreamingText = null;
-            this._recorder.onProcessExit = null;
-            this._recorder.onError = null;
-            this._recorder.stop();
-            this._recorder = null;
+        if (this._recording) {
+            this._stop();
         }
 
         this._releaseInhibitor();
         this._sessionManager = null;
+        this._proxy = null;
 
         this._indicator?.destroy();
         this._indicator = null;
         this._settings = null;
-        this._binPath = null;
         this._recording = false;
     }
 
@@ -125,59 +140,104 @@ export default class VoiceToTextExtension extends Extension {
         }
     }
 
+    _connectDBus() {
+        try {
+            this._proxy = new VoiceToTextProxy(
+                Gio.DBus.session,
+                'com.happytomatoe.VoiceToText',
+                '/com/happytomatoe/VoiceToText'
+            );
+
+            // Connect signals
+            this._signalIds = [];
+
+            const stateId = this._proxy.connectSignal('StateChanged', (proxy, name, [state]) => {
+                console.log('VoiceToText: state changed to', state);
+                if (state === 'recording') {
+                    this._indicator.setRecordingActive();
+                } else if (state === 'processing') {
+                    this._indicator.setProcessing();
+                } else if (state === 'idle') {
+                    this._indicator.setRecording(false);
+                    this._recording = false;
+                    this._releaseInhibitor();
+                }
+            });
+            this._signalIds.push(stateId);
+
+            const levelId = this._proxy.connectSignal('AudioLevel', (proxy, name, [level]) => {
+                this._indicator.updateLevel(level);
+            });
+            this._signalIds.push(levelId);
+
+            const errorId = this._proxy.connectSignal('Error', (proxy, name, [msg]) => {
+                console.log('VoiceToText: error:', msg);
+                this._showNotification('Transcription failed: ' + msg);
+            });
+            this._signalIds.push(errorId);
+
+            const textId = this._proxy.connectSignal('TranscriptionResult', (proxy, name, [text]) => {
+                console.log('VoiceToText: transcription result received, length=' + text.length);
+            });
+            this._signalIds.push(textId);
+
+            console.log('VoiceToText: D-Bus proxy connected');
+        } catch (e) {
+            console.error('VoiceToText: failed to connect to D-Bus service:', e.message);
+            this._showNotification(
+                'Voice-to-Text D-Bus service not running. ' +
+                'Run: systemctl --user enable --now voice-to-text.service'
+            );
+        }
+    }
+
+    _disconnectDBusSignals() {
+        if (this._proxy && this._signalIds.length > 0) {
+            for (const id of this._signalIds) {
+                try {
+                    this._proxy.disconnectSignal(id);
+                } catch (e) {
+                    // ignore
+                }
+            }
+            this._signalIds = [];
+        }
+    }
+
     _start() {
         console.log('VoiceToText: _start called');
         if (this._recording) return;
 
-        if (!this._binPath) {
-            console.log('VoiceToText: executable not found in PATH');
-            this._showNotification('voice-to-text executable not found in PATH');
+        if (!this._proxy) {
+            console.log('VoiceToText: D-Bus proxy not available');
+            this._showNotification('Voice-to-Text D-Bus service not available');
             return;
         }
-        console.log('VoiceToText: executable found at', this._binPath);
 
-        resetTypedState();
         this._indicator.setProcessing();
         this._recording = true;
-        console.log('VoiceToText: recording started');
-        this._recorder = new Recorder(this._binPath, this._settings);
-        
-        let firstLevelReceived = false;
-        this._recorder.onAudioLevel = level => {
-            if (!firstLevelReceived) {
-                firstLevelReceived = true;
-                this._indicator.setRecordingActive();
-            }
-            this._indicator.updateLevel(level);
+
+        const config = {
+            provider: this._settings.get_string('provider'),
+            language: this._settings.get_string('language'),
+            mode: this._settings.get_string('mode'),
+            streaming_provider: this._settings.get_string('streaming-provider'),
+            batch_provider: this._settings.get_string('batch-provider'),
+            decrease_speaker_volume: this._settings.get_int('decrease-speaker-volume'),
+            output_method: this._settings.get_string('output-method'),
         };
-        this._recorder.onTranscription = text => {
-            const outputMethod = this._settings.get_string('output-method');
-            if (outputMethod === 'clipboard') {
-                copyToClipboard(text);
-                this._setIdle();
-                return;
-            }
-            typeTextIncremental(text);
-            this._setIdle();
-        };
-        this._recorder.onStreamingText = text => {
-            const outputMethod = this._settings.get_string('output-method');
-            if (text && outputMethod !== 'clipboard') {
-                typeTextIncremental(text);
-            }
-        };
-        this._recorder.onError = msg => {
-            console.log('VoiceToText: error:', msg);
-            this._showNotification('Transcription failed: ' + msg);
-            this._setIdle();
-        };
-        this._recorder.onProcessExit = () => {
-            if (this._recording) {
-                console.log('VoiceToText: process exited before transcription finished');
-                this._setIdle();
-            }
-        };
-        this._recorder.start();
+
+        try {
+            this._proxy.StartRecordingSync(JSON.stringify(config));
+            console.log('VoiceToText: StartRecording called via D-Bus');
+        } catch (e) {
+            console.error('VoiceToText: D-Bus StartRecording failed:', e.message);
+            this._showNotification('Failed to start recording: ' + e.message);
+            this._recording = false;
+            this._indicator.setRecording(false);
+            return;
+        }
+
         this._ensureInhibitor();
         if (this._settings.get_boolean('show-recording-notification')) {
             this._showNotification('Recording...');
@@ -188,53 +248,21 @@ export default class VoiceToTextExtension extends Extension {
         console.log('VoiceToText: _stop called');
         if (!this._recording) return;
 
-        this._recorder?.stop();
-        this._indicator?.setProcessing();
-
-        // Set a timeout to forcefully return to idle if the process doesn't exit
-        // This prevents the spinner from hanging indefinitely
-        const stopTimeoutSeconds = this._settings.get_int(
-            'stop-timeout-seconds'
-        );
-        console.log(
-            `VoiceToText: setting stop timeout for ${stopTimeoutSeconds} seconds`
-        );
-
-        this._clearStopTimeout();
-
-        this._stopTimeoutId = GLib.timeout_add_seconds(
-            GLib.PRIORITY_DEFAULT,
-            stopTimeoutSeconds,
-            () => {
-                console.log(
-                    'VoiceToText: stop timeout reached, forcing idle state'
-                );
-                this._forceStop();
-                return GLib.SOURCE_REMOVE;
-            }
-        );
-    }
-
-    _clearStopTimeout() {
-        if (this._stopTimeoutId) {
-            GLib.source_remove(this._stopTimeoutId);
-            this._stopTimeoutId = null;
-        }
-    }
-
-    _forceStop() {
-        this._clearStopTimeout();
-
-        if (this._recorder?._proc) {
-            console.log('VoiceToText: forcefully killing process');
-            const pid = this._recorder._proc;
-            Gio.Subprocess.new(['kill', '-9', String(pid)], 0).wait_async(
-                null,
-                null
-            );
+        if (!this._proxy) {
+            console.log('VoiceToText: D-Bus proxy not available');
+            this._setIdle();
+            return;
         }
 
-        this._setIdle();
+        this._indicator.setProcessing();
+
+        try {
+            this._proxy.StopRecordingSync();
+            console.log('VoiceToText: StopRecording called via D-Bus');
+        } catch (e) {
+            console.error('VoiceToText: D-Bus StopRecording failed:', e.message);
+            this._setIdle();
+        }
     }
 
     _ensureInhibitor() {
@@ -279,12 +307,9 @@ export default class VoiceToTextExtension extends Extension {
     }
 
     _setIdle() {
-        this._clearStopTimeout();
-
         this._releaseInhibitor();
         this._recording = false;
         this._indicator?.setRecording(false);
-        this._recorder = null;
     }
 
     _openPreferences() {

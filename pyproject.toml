@@ -9,13 +9,14 @@ dependencies = [
   "numpy~=2.4.4",
   "pyyaml~=6.0.3",
   "python-dotenv~=1.2.2",
-  "requests~=2.33.1",
-  "websocket-client~=1.8.0",
+  "httpx~=0.28.0",
+  "websockets~=14.0",
+  "dbus-next~=0.2.3",
   "mistralai[realtime]~=2.4,!=2.4.6",
 ]
 
 [project.scripts]
-voice-to-text = "voice_to_text.main:main"
+voice-to-text-dbus = "voice_to_text.__main__:main"
 
 [build-system]
 requires = ["hatchling"]
@@ -27,6 +28,7 @@ packages = ["src/voice_to_text"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src"]
+asyncio_mode = "auto"
 
 [tool.ruff]
 target-version = "py313"
@@ -38,9 +40,14 @@ select = ["E", "F", "I", "N", "W", "UP"]
 [tool.mypy]
 ignore_missing_imports = true
 
+[tool.pyright]
+# dbus-next, groq, and sounddevice have incomplete type stubs
+reportMissingImports = false
+
 [dependency-groups]
 dev = [
     "pytest>=9.0.3",
+    "pytest-asyncio>=0.25.0",
     "pyright>=1.1.398",
     "pre-commit>=4.2.0",
     "ruff>=0.15.0",

@@ -2,26 +2,18 @@ default:
     @just --list
 
 run *args:
-    PYTHONPATH=src .venv/bin/python -m voice_to_text.main {{args}}
+    PYTHONPATH=src .venv/bin/python -m voice_to_text.__main__ {{args}}
 
 # Benchmark: record 10s of audio, test all providers 3x each
 benchmark:
-    PYTHONPATH=src .venv/bin/python -m voice_to_text.main benchmark --duration 10
-
-# Benchmark: generate synthetic audio then test providers (no microphone needed)
-benchmark-gen:
-    python scripts/generate_test_audio.py --duration 12 --output /tmp/vtt-bench.wav
-    PYTHONPATH=src .venv/bin/python -m voice_to_text.main benchmark --audio-file /tmp/vtt-bench.wav --runs 3
-
-# Benchmark: test specific providers with an audio file
-benchmark-file path runs="3":
-    PYTHONPATH=src .venv/bin/python -m voice_to_text.main benchmark --audio-file {{path}} --runs {{runs}}
+    echo "Benchmarking moved to service; use the old CLI for now:"
+    echo "  PYTHONPATH=src .venv/bin/python -c 'import asyncio; from voice_to_text.providers import get_batch_provider; ...'"
 
 install:
     uv tool install -e .
 
 uninstall:
-    rm -f ~/.local/bin/voice-to-text
+    rm -f ~/.local/bin/voice-to-text-dbus
     uv tool uninstall voice-to-text 2>/dev/null || true
 
 # Reinstall Python package from source
@@ -30,30 +22,63 @@ reinstall:
     set -euo pipefail
     echo "Reinstalling voice-to-text from source..."
     uv tool install -e . --force
-    echo "voice-to-text reinstalled from source"
+    echo "voice-to-text-dbus reinstalled from source"
 
 build-python:
     uv build --out-dir dist
 
-build-release: build-python gnome-ext-pack
-    echo "All release artifacts built in dist/"
-    ls -la dist/
+# @category service
+# Install the D-Bus service (systemd unit + dbus activation)
+service-install:
+    uv tool install -e .
+    mkdir -p ~/.config/systemd/user ~/.local/share/dbus-1/services/
+    cp service/voice-to-text.service ~/.config/systemd/user/
+    cp service/com.happytomatoe.VoiceToText.service ~/.local/share/dbus-1/services/
+    systemctl --user daemon-reload
+    systemctl --user enable --now voice-to-text.service
 
-setup-global-hotkey:
+# @category service
+# Start the systemd unit (activate after install or manual stop)
+service-start:
+    systemctl --user start voice-to-text.service
+
+# @category service
+# Run the service directly in the foreground (for debugging)
+service-run:
+    uv run voice-to-text-dbus
+
+# @category service
+# Show service status
+service-status:
+    systemctl --user status voice-to-text.service
+
+# @category service
+# Tail service logs
+service-logs:
+    journalctl --user -u voice-to-text.service -f
+
+# @category service
+# Stop the service
+service-stop:
+    systemctl --user stop voice-to-text.service
+
+# @category service
+# Restart the service
+service-restart:
+    systemctl --user restart voice-to-text.service
+
+# @category service
+# Reinstall from source and restart (iterative dev cycle)
+service-reinstall:
     #!/usr/bin/env bash
-    KEYBINDING_PATH="/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/voice-to-text"
-    dconf write "$KEYBINDING_PATH/name" "'voice-to-text'"
-    dconf write "$KEYBINDING_PATH/command" "'alacritty -e bash -l -c voice-to-text'"
-    dconf write "$KEYBINDING_PATH/binding" "'<Super>q'"
-    CURRENT=$(dconf read /org/gnome/settings-daemon/plugins/media-keys/custom-keybindings 2>/dev/null)
-    if [ -z "$CURRENT" ] || [ "$CURRENT" = "@as []" ]; then
-        dconf write /org/gnome/settings-daemon/plugins/media-keys/custom-keybindings "['$KEYBINDING_PATH/']"
-    elif echo "$CURRENT" | grep -q "$KEYBINDING_PATH"; then
-        echo "Hotkey already configured"
-    else
-        dconf write /org/gnome/settings-daemon/plugins/media-keys/custom-keybindings "${CURRENT%]}, '$KEYBINDING_PATH/']"
-    fi
-    echo "Global hotkey Super+q configured for voice-to-text"
+    set -euo pipefail
+    echo "Reinstalling voice-to-text from source..."
+    uv tool install -e . --force
+    echo "Restarting service..."
+    systemctl --user restart voice-to-text.service || {
+        echo "Note: service not running yet — use 'just service-start' or 'just service-run'"
+    }
+    echo "Done. Tail logs with: just service-logs"
 
 # @category gnome-ext
 # Install extension, then start a nested GNOME Shell
@@ -80,10 +105,25 @@ gnome-ext-dev: reinstall gnome-ext-install
     gnome-extensions enable "$UUID" 2>/dev/null || true
     GNOME_VERSION=$(gnome-shell --version | awk '{print int($3)}')
     if [ "$GNOME_VERSION" -ge 49 ]; then
-      dbus-run-session -- gnome-shell --wayland --devkit  2>&1 | tee /tmp/gnome-shell-nested.log
+      DEVKIT_FLAG=--devkit
+      export MUTTER_DEBUG_NESTED=
     else
-      MUTTER_DEBUG_NESTED=1 dbus-run-session -- gnome-shell --wayland --nested 2>&1 | tee /tmp/gnome-shell-nested.log
+      DEVKIT_FLAG=--nested
+      export MUTTER_DEBUG_NESTED=1
     fi
+
+    # Start the D-Bus service inside the isolated session bus so the
+    # GNOME extension can find and call it on real hardware.
+    # Trap EXIT/INT/TERM to kill the background service when the shell exits,
+    # otherwise the orphaned service keeps the microphone open.
+    dbus-run-session -- sh -c "
+      voice-to-text-dbus 2>&1 | tee -a /tmp/voice-to-text.log &
+      DBUS_PID=\$!
+      sleep 1
+      trap 'kill \$DBUS_PID 2>/dev/null || true' EXIT INT TERM
+      gnome-shell --wayland $DEVKIT_FLAG
+    " 2>&1 | tee /tmp/gnome-shell-nested.log
+
 # Install extension files directly (no nested shell)
 gnome-ext-install:
     #!/usr/bin/env bash

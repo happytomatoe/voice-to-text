@@ -1,0 +1,17 @@
+[Unit]
+Description=Voice-to-Text D-Bus Service
+After=graphical-session.target pipewire.service wireplumber.service
+Requires=graphical-session.target pipewire.service wireplumber.service
+
+[Service]
+Type=dbus
+BusName=com.happytomatoe.VoiceToText
+ExecStart=%h/.local/bin/voice-to-text-dbus
+Restart=on-failure
+RestartSec=3
+# Import session environment so clipboard tools (wl-copy/xclip) can find
+# WAYLAND_DISPLAY / DISPLAY and dbus finds the session bus
+ImportEnvironment=DISPLAY WAYLAND_DISPLAY XDG_SESSION_TYPE
+
+[Install]
+WantedBy=default.target

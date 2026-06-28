@@ -189,10 +189,6 @@ export default class VoiceToTextPrefs extends ExtensionPreferences {
         });
 
         const outputMethodCombo = new Gtk.ComboBoxText();
-        outputMethodCombo.append(
-            'type-fallback-clipboard',
-            _('Type (fallback to clipboard)')
-        );
         outputMethodCombo.append('type', _('Type'));
         outputMethodCombo.append('clipboard', _('Clipboard'));
         outputMethodCombo.set_active_id(settings.get_string('output-method'));
