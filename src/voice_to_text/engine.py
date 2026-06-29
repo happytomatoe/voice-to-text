@@ -79,7 +79,8 @@ class AsyncAudioRecorder:
         self.smoothed_level: float = 0.0
         self.frame_count: int = 0
         self._stream: Any = None
-        self._queue: asyncio.Queue[bytes | None] = asyncio.Queue(maxsize=100)
+        # ~2 minutes of audio buffer (1000 chunks × 2048 samples ÷ 16kHz ≈ 128s)
+        self._queue: asyncio.Queue[bytes | None] = asyncio.Queue(maxsize=1000)
         self._wav_file = None
         self._filepath: str | None = None
 
@@ -288,6 +289,10 @@ class RecordingEngine:
 
             with SpeakerVolumeManager.with_decrease(decrease_pct):
                 if self._cancel_event.is_set():
+                    try:
+                        os.unlink(audio_path)
+                    except OSError:
+                        pass
                     return
                 await recorder.start(audio_path)
                 self.state = EngineState.RECORDING
@@ -345,6 +350,10 @@ class RecordingEngine:
                         await asyncio.to_thread(_copy_to_clipboard, text)
 
                     logger.info("Transcription result: %s", text[:200] if text else "(empty)")
+
+                    # Emit transcription result for D-Bus signal
+                    if text and self.on_transcription_result:
+                        self.on_transcription_result(text)
                 finally:
                     # Clean up temp WAV file after transcription
                     try:

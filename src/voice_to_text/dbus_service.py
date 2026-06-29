@@ -144,4 +144,9 @@ class VoiceToTextInterface(ServiceInterface):
         """Emitted when engine state changes (idle/recording/processing)."""
         return self._state
 
+    @signal()
+    def TranscriptionResult(self) -> "s":  # noqa: N802, F821  # pyright: ignore[reportUndefinedVariable]
+        """Emitted when transcription is complete with final text."""
+        return self._last_text
+
 

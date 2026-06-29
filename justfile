@@ -97,7 +97,11 @@ gnome-ext-dev: reinstall gnome-ext-install
     # Enable extension via dconf (gnome-extensions CLI needs a running session)
     CURRENT=$(dconf read /org/gnome/shell/enabled-extensions)
     if ! echo "$CURRENT" | grep -q "$UUID"; then
-      dconf write /org/gnome/shell/enabled-extensions "${CURRENT%, ]}, '$UUID']"
+      if [ -z "$CURRENT" ] || [ "$CURRENT" = "[]" ]; then
+        dconf write /org/gnome/shell/enabled-extensions "['$UUID']"
+      else
+        dconf write /org/gnome/shell/enabled-extensions "${CURRENT%]}, '$UUID']"
+      fi
     fi
     GNOME_VERSION=$(gnome-shell --version | awk '{print int($3)}')
     if [ "$GNOME_VERSION" -ge 49 ]; then
