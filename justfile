@@ -4,11 +4,8 @@ default:
 run *args:
     PYTHONPATH=src .venv/bin/python -m voice_to_text.__main__ {{args}}
 
-# Benchmark: record 10s of audio, test all providers 3x each
-benchmark:
-    @echo "Error: benchmark moved to service; use the old CLI for now" >&2
-    @exit 1
-
+test:
+  uv run pytest -n auto
 install:
     uv tool install -e .
 

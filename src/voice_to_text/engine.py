@@ -349,7 +349,7 @@ class RecordingEngine:
                         logger.info("Falling back to clipboard output")
                         await asyncio.to_thread(_copy_to_clipboard, text)
 
-                    logger.info("Transcription result: %s", text[:200] if text else "(empty)")
+                    logger.info("Transcription completed: %d characters", len(text) if text else 0)
 
 
                 finally:

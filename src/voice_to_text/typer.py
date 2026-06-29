@@ -125,22 +125,135 @@ class ContinuousTyper:
             self._usable = False
 
     async def stream_backspace(self, count: int) -> None:
-        """Backspace ``count`` characters via the dotoolc pipe."""
+        """Backspace ``count`` characters via the dotoolc pipe.
+
+        Optimized to use line-deletion (shift+home) and word-deletion (ctrl+backspace)
+        shortcuts to reduce the number of keystrokes.
+        """
         if not self._usable or not self._process or not self._process.stdin:
             return
         if count <= 0:
             return
+
         try:
+            # 1. Line-level optimization: delete whole line if count is large enough
+            lines = self._typed_text.split("\n")
+            current_line = lines[-1]
+            line_len = len(current_line)
+
+            if line_len > 0 and count >= line_len:
+                # Select to start of line and delete
+                self._process.stdin.write(b"key shift+home\nkey backspace\n")
+                
+                # Update internal state: remove the last line
+                if len(lines) > 1:
+                    self._typed_text = "\n".join(lines[:-1])
+                else:
+                    self._typed_text = ""
+                
+                remaining = count - line_len
+                # The newline itself counts as 1 character; delete it to move up
+                if remaining > 0:
+                    self._process.stdin.write(b"key backspace\n")
+                    remaining -= 1
+                    # Recurse to handle any remaining characters (previous lines)
+                    await self.stream_backspace(remaining)
+                    return
+                
+                await self._process.stdin.drain()
+                return
+
+            # 2. Word-level optimization: use ctrl+backspace for whole words
+            # We can use ctrl+backspace if the segment we are deleting ends at a word boundary
+            # and the whole word is within the 'count' limit.
+            while count > 1:
+                # Find the length of the last word in the current text
+                # A word is defined as a sequence of non-space characters
+                text_len = len(self._typed_text)
+                if text_len == 0:
+                    break
+                
+                # Find the start of the last word
+                word_end = text_len
+                word_start = word_end
+                while word_start > 0 and self._typed_text[word_start - 1] != " ":
+                    word_start -= 1
+                
+                word_len = word_end - word_start
+                
+                if word_len > 1 and word_len <= count:
+                    self._process.stdin.write(b"key ctrl+backspace\n")
+                    self._typed_text = self._typed_text[:word_start]
+                    count -= word_len
+                else:
+                    # No more whole words can be deleted safely
+                    break
+
+            # 3. Fallback: individual backspaces for the remainder
             for _ in range(count):
                 self._process.stdin.write(b"key backspace\n")
+            
+            if count > 0:
+                self._typed_text = self._typed_text[:-count]
+
             await self._process.stdin.drain()
-            self._typed_text = self._typed_text[:-count]
         except (BrokenPipeError, ConnectionResetError) as e:
             logger.warning("dotoolc pipe broken, disabling typing: %s", e)
             self._usable = False
         except Exception as e:
             logger.error("Failed to stream backspaces to dotoolc: %s", e)
             self._usable = False
+
+    async def stream_delete_word(self) -> None:
+        """Delete the previous word using a single shortcut."""
+        if not self._usable or not self._process or not self._process.stdin:
+            return
+        try:
+            self._process.stdin.write(b"key ctrl+backspace\n")
+            await self._process.stdin.drain()
+            # Note: We can't accurately update _typed_text because we don't 
+            # know exactly how many characters the app will delete.
+            # For a helper method, we just assume it's one word.
+            text_len = len(self._typed_text)
+            if text_len > 0:
+                word_start = text_len
+                while word_start > 0 and self._typed_text[word_start - 1] != " ":
+                    word_start -= 1
+                self._typed_text = self._typed_text[:word_start]
+        except Exception as e:
+            logger.error("Failed to stream delete_word: %s", e)
+            self._usable = False
+
+    async def stream_delete_line_start(self) -> None:
+        """Delete from cursor to the start of the line."""
+        if not self._usable or not self._process or not self._process.stdin:
+            return
+        try:
+            self._process.stdin.write(b"key shift+home\nkey backspace\n")
+            await self._process.stdin.drain()
+            lines = self._typed_text.split("\n")
+            if len(lines) > 1:
+                self._typed_text = "\n".join(lines[:-1])
+            else:
+                self._typed_text = ""
+        except Exception as e:
+            logger.error("Failed to stream delete_line_start: %s", e)
+            self._usable = False
+
+    async def stream_delete_line_end(self) -> None:
+        """Delete from cursor to the end of the line."""
+        if not self._usable or not self._process or not self._process.stdin:
+            return
+        try:
+            self._process.stdin.write(b"key shift+end\nkey backspace\n")
+            await self._process.stdin.drain()
+            # We don't know exactly what was deleted after the cursor
+            # unless we track cursor position. For now, we leave _typed_text.
+        except Exception as e:
+            logger.error("Failed to stream delete_line_end: %s", e)
+            self._usable = False
+
+
 
     async def stream_diff(self, new_text: str) -> None:
         """Diff ``new_text`` against the previously typed text and send only

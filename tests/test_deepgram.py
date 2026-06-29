@@ -30,7 +30,8 @@ class TestDeepgramProvider:
             if old_key is not None:
                 os.environ["DEEPGRAM_API_KEY"] = old_key
 
-    def test_transcribe_file_request_format(self):
+    @pytest.mark.asyncio
+    async def test_transcribe_file_request_format(self):
         """Test that transcribe_file sends properly formatted request."""
         from unittest.mock import Mock, patch
 
@@ -38,7 +39,7 @@ class TestDeepgramProvider:
         mock_response.raise_for_status.return_value = None
         mock_response.json.return_value = {"results": {"channels": [{"alternatives": [{"transcript": "hello world"}]}]}}
 
-        with patch("requests.post", return_value=mock_response) as mock_post:
+        with patch("httpx.AsyncClient.post", return_value=mock_response) as mock_post:
             config = {"api_key": "test_key"}
             provider = DeepgramProvider(config)
 
@@ -50,7 +51,7 @@ class TestDeepgramProvider:
                 tmp_path = tmp.name
 
             try:
-                result = provider.transcribe_file(tmp_path)
+                result = await provider.transcribe_file(tmp_path)
 
                 assert mock_post.called
                 call_args = mock_post.call_args
@@ -65,8 +66,8 @@ class TestDeepgramProvider:
                 assert headers["Authorization"] == "Token test_key"
                 assert headers["Content-Type"] == "audio/wav"
 
-                data = call_args[1]["data"]
-                assert data is not None
+                content = call_args[1]["content"]
+                assert content is not None
 
                 assert result == "hello world"
             finally:
