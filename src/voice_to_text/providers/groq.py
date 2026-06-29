@@ -1,6 +1,7 @@
 """Groq Whisper transcription provider (batch only)."""
 
 import logging
+from pathlib import Path
 from typing import Any
 
 from groq import AsyncGroq
@@ -27,10 +28,9 @@ class GroqProvider(BatchProvider):
     async def transcribe_file(self, audio_path: str, language: str = "en") -> str:
         logger.info("Transcribing %s with Groq model %s", audio_path, self.model)
         try:
-            with open(audio_path, "rb") as f:
-                transcription = await self.client.audio.transcriptions.create(
-                    model=self.model, file=f, language=language, response_format="text"
-                )
+            transcription = await self.client.audio.transcriptions.create(
+                model=self.model, file=Path(audio_path), language=language, response_format="text"
+            )
             result = str(transcription).strip()
             logger.info("Transcription result: %s", result[:100])
             return result

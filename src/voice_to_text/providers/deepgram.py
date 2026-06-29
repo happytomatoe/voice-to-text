@@ -44,6 +44,7 @@ class DeepgramProvider(BatchProvider, WebSocketStreamingProvider):
                         },
                         headers=headers,
                         content=audio_file.read(),
+                        timeout=120,
                     )
                 response.raise_for_status()
                 result = response.json()

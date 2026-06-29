@@ -69,16 +69,8 @@ service-restart:
 
 # @category service
 # Reinstall from source and restart (iterative dev cycle)
-service-reinstall:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    echo "Reinstalling voice-to-text from source..."
-    uv tool install -e . --force
-    echo "Restarting service..."
-    systemctl --user restart voice-to-text.service || {
-        echo "Note: service not running yet — use 'just service-start' or 'just service-run'"
-    }
-    echo "Done. Tail logs with: just service-logs"
+service-reinstall: reinstall service-restart
+    @echo "Done. Tail logs with: just service-logs"
 
 # @category gnome-ext
 # Install extension, then start a nested GNOME Shell

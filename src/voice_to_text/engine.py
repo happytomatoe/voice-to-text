@@ -325,25 +325,32 @@ class RecordingEngine:
             self.state = EngineState.PROCESSING
             self._notify_state()
             if filepath:
-                if transcriber:
-                    text = await transcriber.on_recording_stop(filepath, language)
-                else:
-                    assert batch_provider is not None
-                    text = await batch_provider.transcribe_file(filepath, language)
+                try:
+                    if transcriber:
+                        text = await transcriber.on_recording_stop(filepath, language)
+                    else:
+                        assert batch_provider is not None
+                        text = await batch_provider.transcribe_file(filepath, language)
 
-                # If we were typing incrementally, apply final corrections
-                if text and typer:
-                    await typer.stream_diff(text)
+                    # If we were typing incrementally, apply final corrections
+                    if text and typer:
+                        await typer.stream_diff(text)
 
-                # Handle clipboard output if configured
-                if text and output_method == "clipboard":
-                    _copy_to_clipboard(text)
-                # Fallback to clipboard if typing failed in fallback mode
-                elif text and fallback_to_clipboard:
-                    logger.info("Falling back to clipboard output")
-                    _copy_to_clipboard(text)
+                    # Handle clipboard output if configured
+                    if text and output_method == "clipboard":
+                        await asyncio.to_thread(_copy_to_clipboard, text)
+                    # Fallback to clipboard if typing failed in fallback mode
+                    elif text and fallback_to_clipboard:
+                        logger.info("Falling back to clipboard output")
+                        await asyncio.to_thread(_copy_to_clipboard, text)
 
-                logger.info("Transcription result: %s", text[:200] if text else "(empty)")
+                    logger.info("Transcription result: %s", text[:200] if text else "(empty)")
+                finally:
+                    # Clean up temp WAV file after transcription
+                    try:
+                        os.unlink(filepath)
+                    except OSError:
+                        pass
 
         except Exception as e:
             logger.exception("Recording failed")

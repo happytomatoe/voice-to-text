@@ -180,6 +180,19 @@ export default class VoiceToTextExtension extends Extension {
             this._signalIds.push(errorId);
 
             console.log('VoiceToText: D-Bus proxy connected');
+
+            // Sync state on (re)enable — engine may already be recording
+            this._proxy.GetStatusAsync().then(
+                (state) => {
+                    console.log('VoiceToText: initial state:', state);
+                    if (state === 'recording' || state === 'processing') {
+                        this._recording = true;
+                        this._indicator.setRecordingActive();
+                        this._ensureInhibitor();
+                    }
+                },
+                () => {} // ignore errors during init
+            );
         } catch (e) {
             console.error('VoiceToText: failed to connect to D-Bus service:', e.message);
             if (retryCount < 3) {
