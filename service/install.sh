@@ -8,7 +8,7 @@ DBUS_SERVICE_DIR="${HOME}/.local/share/dbus-1/services"
 mkdir -p "$INSTALL_DIR" "$SERVICE_DIR" "$DBUS_SERVICE_DIR"
 
 # Install the Python package
-uv tool install -e .
+uv tool install . --force
 
 # Copy service files
 cp service/voice-to-text.service "$SERVICE_DIR/"

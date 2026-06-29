@@ -351,9 +351,7 @@ class RecordingEngine:
 
                     logger.info("Transcription result: %s", text[:200] if text else "(empty)")
 
-                    # Emit transcription result for D-Bus signal
-                    if text and self.on_transcription_result:
-                        self.on_transcription_result(text)
+
                 finally:
                     # Clean up temp WAV file after transcription
                     try:

@@ -207,7 +207,7 @@ if command_exists secret-tool; then
   echo "  export VOXTRAL_API_KEY=<your-key>"
   echo "  # Or for systemd service, create a drop-in:"
   echo "  # mkdir -p ~/.config/systemd/user/voice-to-text.service.d"
-  echo "  # echo '[Environment]\\nVOXTRAL_API_KEY=<your-key>' > ~/.config/systemd/user/voice-to-text.service.d/env.conf"
+  echo "  # echo '[Service]\\nEnvironment=VOXTRAL_API_KEY=<your-key>' > ~/.config/systemd/user/voice-to-text.service.d/env.conf"
   echo "  # systemctl --user daemon-reload && systemctl --user restart voice-to-text.service"
 else
   echo "Install libsecret-tools for secure key storage:"
@@ -216,7 +216,7 @@ else
   echo "  export VOXTRAL_API_KEY=<your-key>"
   echo "  # Or for systemd service, create a drop-in:"
   echo "  # mkdir -p ~/.config/systemd/user/voice-to-text.service.d"
-  echo "  # echo '[Environment]\\nVOXTRAL_API_KEY=<your-key>' > ~/.config/systemd/user/voice-to-text.service.d/env.conf"
+  echo "  # echo '[Service]\\nEnvironment=VOXTRAL_API_KEY=<your-key>' > ~/.config/systemd/user/voice-to-text.service.d/env.conf"
   echo "  # systemctl --user daemon-reload && systemctl --user restart voice-to-text.service"
 fi
 echo ""

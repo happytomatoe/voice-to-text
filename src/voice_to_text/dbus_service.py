@@ -36,7 +36,7 @@ class VoiceToTextInterface(ServiceInterface):
     """D-Bus interface for voice-to-text recording service.
 
     Exposes ``StartRecording``, ``StopRecording``, ``GetStatus`` methods
-    and ``AudioLevel``, ``Error``, ``StateChanged``, ``TranscriptionResult`` signals.
+    and ``AudioLevel``, ``Error``, ``StateChanged`` signals.
 
     Signals are emitted by calling the ``@signal()`` method directly —
     e.g. ``self.StateChanged()`` — which dbus-next's decorator rewrites
@@ -49,7 +49,6 @@ class VoiceToTextInterface(ServiceInterface):
         self._state = "idle"
         self._last_level: float = 0.0
         self._last_error: str = ""
-        self._last_text: str = ""
         self._connect_engine_signals()
         self._bus: MessageBus | None = None
 
@@ -70,14 +69,9 @@ class VoiceToTextInterface(ServiceInterface):
             self._state = state.value
             self.StateChanged()
 
-        def _on_transcription(text: str):
-            self._last_text = text
-            self.TranscriptionResult()
-
         self._engine.on_audio_level = _on_level
         self._engine.on_error = _on_error
         self._engine.on_state_change = _on_state
-        self._engine.on_transcription_result = _on_transcription
 
     # ── Methods ──────────────────────────────────────────────────────────
 
@@ -143,10 +137,5 @@ class VoiceToTextInterface(ServiceInterface):
     def StateChanged(self) -> "s":  # noqa: N802, F821  # pyright: ignore[reportUndefinedVariable]
         """Emitted when engine state changes (idle/recording/processing)."""
         return self._state
-
-    @signal()
-    def TranscriptionResult(self) -> "s":  # noqa: N802, F821  # pyright: ignore[reportUndefinedVariable]
-        """Emitted when transcription is complete with final text."""
-        return self._last_text
 
 
