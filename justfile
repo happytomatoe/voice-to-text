@@ -102,7 +102,11 @@ gnome-ext-dev: reinstall gnome-ext-install
         fi
     fi
     UUID="voice-to-text@happytomatoe.com"
-    gnome-extensions enable "$UUID" 2>/dev/null || true
+    # Enable extension via dconf (gnome-extensions CLI needs a running session)
+    CURRENT=$(dconf read /org/gnome/shell/enabled-extensions)
+    if ! echo "$CURRENT" | grep -q "$UUID"; then
+      dconf write /org/gnome/shell/enabled-extensions "${CURRENT%, ]}, '$UUID']"
+    fi
     GNOME_VERSION=$(gnome-shell --version | awk '{print int($3)}')
     if [ "$GNOME_VERSION" -ge 49 ]; then
       DEVKIT_FLAG=--devkit
