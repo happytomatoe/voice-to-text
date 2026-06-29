@@ -127,8 +127,10 @@ class ContinuousTyper:
     async def stream_backspace(self, count: int) -> None:
         """Backspace ``count`` characters via the dotoolc pipe.
 
-        Optimized to use line-deletion (shift+home) and word-deletion (ctrl+backspace)
-        shortcuts to reduce the number of keystrokes.
+        To ensure compatibility across different applications (especially browsers),
+        we use individual backspaces rather than shortcuts like ctrl+backspace
+        or shift+home, which can behave inconsistently and lead to the 
+        internal typed_text state getting out of sync.
         """
         if not self._usable or not self._process or not self._process.stdin:
             return
@@ -136,66 +138,10 @@ class ContinuousTyper:
             return
 
         try:
-            # 1. Line-level optimization: delete whole line if count is large enough
-            lines = self._typed_text.split("\n")
-            current_line = lines[-1]
-            line_len = len(current_line)
-
-            if line_len > 0 and count >= line_len:
-                # Select to start of line and delete
-                self._process.stdin.write(b"key shift+home\nkey backspace\n")
-                
-                # Update internal state: remove the last line
-                if len(lines) > 1:
-                    self._typed_text = "\n".join(lines[:-1])
-                else:
-                    self._typed_text = ""
-                
-                remaining = count - line_len
-                # The newline itself counts as 1 character; delete it to move up
-                if remaining > 0:
-                    self._process.stdin.write(b"key backspace\n")
-                    remaining -= 1
-                    # Recurse to handle any remaining characters (previous lines)
-                    await self.stream_backspace(remaining)
-                    return
-                
-                await self._process.stdin.drain()
-                return
-
-            # 2. Word-level optimization: use ctrl+backspace for whole words
-            # We can use ctrl+backspace if the segment we are deleting ends at a word boundary
-            # and the whole word is within the 'count' limit.
-            while count > 1:
-                # Find the length of the last word in the current text
-                # A word is defined as a sequence of non-space characters
-                text_len = len(self._typed_text)
-                if text_len == 0:
-                    break
-                
-                # Find the start of the last word
-                word_end = text_len
-                word_start = word_end
-                while word_start > 0 and self._typed_text[word_start - 1] != " ":
-                    word_start -= 1
-                
-                word_len = word_end - word_start
-                
-                if word_len > 1 and word_len <= count:
-                    self._process.stdin.write(b"key ctrl+backspace\n")
-                    self._typed_text = self._typed_text[:word_start]
-                    count -= word_len
-                else:
-                    # No more whole words can be deleted safely
-                    break
-
-            # 3. Fallback: individual backspaces for the remainder
             for _ in range(count):
                 self._process.stdin.write(b"key backspace\n")
             
-            if count > 0:
-                self._typed_text = self._typed_text[:-count]
-
+            self._typed_text = self._typed_text[:-count]
             await self._process.stdin.drain()
         except (BrokenPipeError, ConnectionResetError) as e:
             logger.warning("dotoolc pipe broken, disabling typing: %s", e)
