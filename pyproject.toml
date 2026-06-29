@@ -48,6 +48,7 @@ reportMissingTypeStubs = false
 dev = [
     "pytest>=9.0.3",
     "pytest-asyncio>=0.25.0",
+    "pytest-xdist>=3.5.0",
     "pyright>=1.1.398",
     "pre-commit>=4.2.0",
     "ruff>=0.15.0",
