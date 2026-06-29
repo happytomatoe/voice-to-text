@@ -39,7 +39,7 @@ async def run_service() -> None:
     if reply != RequestNameReply.PRIMARY_OWNER:
         logger.error("Failed to own D-Bus name %s (reply=%s)", SERVICE_NAME, reply)
         bus.disconnect()
-        return
+        raise SystemExit(1)
     logger.info("Service registered: %s at %s", SERVICE_NAME, OBJECT_PATH)
 
     # Keep running until SIGTERM/SIGINT

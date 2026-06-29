@@ -131,7 +131,7 @@ if [ -z "$LATEST_TAG" ]; then
   echo "WARNING: No releases found for $REPO; installing from source."
   REPO_DIR=$(mktemp -d)
   git clone --depth 1 "https://github.com/$REPO.git" "$REPO_DIR"
-  uv tool install -e "$REPO_DIR" --force
+  uv tool install "$REPO_DIR" --force
   rm -rf "$REPO_DIR"
 else
   echo "Installing version $LATEST_TAG..."
@@ -201,15 +201,23 @@ echo "--- API Key Configuration ---"
 if command_exists secret-tool; then
   echo "Setting up API key..."
   echo "Run the following to configure your API key:"
-  echo "  voice-to-text-dbus setup-key"
+  echo "  secret-tool store --label='Voice-to-Text API Key' com.happytomatoe.VoiceToText api_key"
   echo ""
   echo "Or set the environment variable in your shell profile:"
   echo "  export VOXTRAL_API_KEY=<your-key>"
+  echo "  # Or for systemd service, create a drop-in:"
+  echo "  # mkdir -p ~/.config/systemd/user/voice-to-text.service.d"
+  echo "  # echo '[Environment]\\nVOXTRAL_API_KEY=<your-key>' > ~/.config/systemd/user/voice-to-text.service.d/env.conf"
+  echo "  # systemctl --user daemon-reload && systemctl --user restart voice-to-text.service"
 else
   echo "Install libsecret-tools for secure key storage:"
   echo "  sudo dnf install libsecret  # or equivalent"
   echo "Then set API keys via environment variables:"
   echo "  export VOXTRAL_API_KEY=<your-key>"
+  echo "  # Or for systemd service, create a drop-in:"
+  echo "  # mkdir -p ~/.config/systemd/user/voice-to-text.service.d"
+  echo "  # echo '[Environment]\\nVOXTRAL_API_KEY=<your-key>' > ~/.config/systemd/user/voice-to-text.service.d/env.conf"
+  echo "  # systemctl --user daemon-reload && systemctl --user restart voice-to-text.service"
 fi
 echo ""
 

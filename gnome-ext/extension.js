@@ -187,7 +187,11 @@ export default class VoiceToTextExtension extends Extension {
                     console.log('VoiceToText: initial state:', state);
                     if (state === 'recording' || state === 'processing') {
                         this._recording = true;
-                        this._indicator.setRecordingActive();
+                        if (state === 'processing') {
+                            this._indicator.setProcessing();
+                        } else {
+                            this._indicator.setRecordingActive();
+                        }
                         this._ensureInhibitor();
                     }
                 },
@@ -255,6 +259,7 @@ export default class VoiceToTextExtension extends Extension {
                 console.error('VoiceToText: D-Bus StartRecording failed:', e.message);
                 this._showNotification('Failed to start recording: ' + e.message);
                 this._recording = false;
+                this._releaseInhibitor();
                 this._indicator.setRecording(false);
             }
         );

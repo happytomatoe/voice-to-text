@@ -79,7 +79,11 @@ class ContinuousTyper:
             logger.warning("dotoolc pipe broken (dotoold not running?), disabling typing")
             await self.stop()
             self._usable = False
-            return
+            raise DotoolcNotFoundError(
+                "dotoolc pipe broken (dotoold not running?). "
+                "Install dotool: https://git.sr.ht/~geb/dotool\n"
+                "dotoolc requires dotoold running (dotool-quickstart.sh)"
+            )
 
         logger.info("Continuous dotoolc pipe opened (pid=%d)", self._process.pid)
 
@@ -123,6 +127,8 @@ class ContinuousTyper:
     async def stream_backspace(self, count: int) -> None:
         """Backspace ``count`` characters via the dotoolc pipe."""
         if not self._usable or not self._process or not self._process.stdin:
+            return
+        if count <= 0:
             return
         try:
             for _ in range(count):

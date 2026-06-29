@@ -96,11 +96,12 @@ class VoxtralProvider(BatchProvider, StreamingProvider):
 
         # Start the event loop thread if not already running
         if self._thread is None or not self._thread.is_alive():
+            self._loop = None
             self._ready_event.clear()
             self._thread = threading.Thread(target=self._run_event_loop, daemon=True)
             self._thread.start()
-            await asyncio.get_event_loop().run_in_executor(None, self._ready_event.wait, 5.0)
-            if self._loop is None:
+            ready = await asyncio.get_event_loop().run_in_executor(None, self._ready_event.wait, 5.0)
+            if not ready or self._loop is None:
                 raise RuntimeError("Failed to start event loop thread")
 
         # Create audio queue for this stream

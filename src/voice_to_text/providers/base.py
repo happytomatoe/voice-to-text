@@ -164,9 +164,14 @@ class WebSocketStreamingProvider(StreamingProvider):
                                     self._finalized_text = (self._finalized_text + " " + transcript).strip()
             except TimeoutError:
                 pass
-            await self._ws.close()
         except Exception as e:
             logger.warning("Error closing %s stream: %s", self.name, e)
+        finally:
+            if self._ws is not None:
+                try:
+                    await self._ws.close()
+                except Exception:
+                    pass
 
         result = self._finalized_text
         self._ws = None
