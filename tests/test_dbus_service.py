@@ -72,8 +72,6 @@ class MockRecordingEngine:
         self.on_audio_level = None  # Callable[[float], None]
         self.on_error = None  # Callable[[str], None]
         self.on_state_change = None  # Callable[[EngineState], None]
-        self.on_transcription_result = None  # Callable[[str], None]
-
         self.started_config: dict | None = None
         """:meth:`start` was called with this config (``None`` otherwise)."""
 
@@ -328,19 +326,6 @@ class TestSignals:
 
         assert len(levels) >= 1
         assert levels[0] == pytest.approx(0.42)
-
-    # ── TranscriptionResult ───────────────────────────────────────
-
-    async def test_transcription_result_signal(self, dbus_test_env):
-        """:data:`TranscriptionResult` delivers text from the engine."""
-        mock_engine, proxy = dbus_test_env
-        texts = []
-        proxy.on_transcription_result(texts.append)
-
-        mock_engine.on_transcription_result("hello world")
-        await asyncio.sleep(_SIGNAL_WAIT)
-
-        assert texts == ["hello world"]
 
     # ── Error ─────────────────────────────────────────────────────
 

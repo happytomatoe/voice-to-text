@@ -177,21 +177,16 @@ class RecordingEngine:
         self.on_audio_level: Callable[[float], None] | None = None
         self.on_error: Callable[[str], None] | None = None
         self.on_state_change: Callable[[EngineState], None] | None = None
-        self.on_transcription_result: Callable[[str], None] | None = None
 
     async def start(self, config: dict[str, Any]) -> None:
         """Start recording and transcription."""
         if self.state != EngineState.IDLE:
             raise RuntimeError(f"Cannot start: engine is {self.state.value}")
         self._cancel_event.clear()
-        self.state = EngineState.RECORDING
-        self._notify_state()
         self._task = asyncio.create_task(self._run(config))
 
     async def stop(self) -> None:
         """Stop recording gracefully."""
-        if self.state == EngineState.IDLE:
-            return
         self._cancel_event.set()
         task = self._task
         if task and not task.done():
@@ -236,11 +231,12 @@ class RecordingEngine:
                         logger.info("Will fall back to clipboard output")
             self._typer = typer
 
-            # 3. Activate BT headset mic if configured
-            try:
-                activate_headset_mic()
-            except Exception as e:
-                logger.debug("BT headset activation skipped: %s", e)
+            # 3. Activate BT headset mic if enabled in config
+            if config.get("bluetooth_headset_change_to_handsfree_to_record", True):
+                try:
+                    activate_headset_mic()
+                except Exception as e:
+                    logger.debug("BT headset activation skipped: %s", e)
 
             # 4. Set up providers
             provider = config.get("provider", "voxtral")
@@ -286,7 +282,11 @@ class RecordingEngine:
             self._recorder = recorder
 
             with SpeakerVolumeManager.with_decrease(decrease_pct):
+                if self._cancel_event.is_set():
+                    return
                 await recorder.start(audio_path)
+                self.state = EngineState.RECORDING
+                self._notify_state()
 
                 # Start streaming if in hybrid mode
                 if transcriber:
@@ -315,11 +315,10 @@ class RecordingEngine:
                     elif transcriber:
                         await transcriber.on_audio_chunk(chunk)
 
-            # 6. Transcribe final result
+            # 6. Stop microphone before transitioning to processing
+            filepath = recorder.stop()
             self.state = EngineState.PROCESSING
             self._notify_state()
-
-            filepath = recorder.stop()
             if filepath:
                 if transcriber:
                     text = await transcriber.on_recording_stop(filepath, language)
@@ -338,10 +337,6 @@ class RecordingEngine:
                 elif text and fallback_to_clipboard:
                     logger.info("Falling back to clipboard output")
                     _copy_to_clipboard(text)
-
-                # Notify caller of transcription result
-                if text and self.on_transcription_result:
-                    self.on_transcription_result(text)
 
                 logger.info("Transcription result: %s", text[:200] if text else "(empty)")
 

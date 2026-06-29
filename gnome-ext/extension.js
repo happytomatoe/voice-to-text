@@ -26,9 +26,6 @@ const VoiceToTextIface = `
     <signal name="StateChanged">
       <arg type="s" name="state"/>
     </signal>
-    <signal name="TranscriptionResult">
-      <arg type="s" name="text"/>
-    </signal>
   </interface>
 </node>`;
 
@@ -176,11 +173,6 @@ export default class VoiceToTextExtension extends Extension {
             });
             this._signalIds.push(errorId);
 
-            const textId = this._proxy.connectSignal('TranscriptionResult', (proxy, name, [text]) => {
-                console.log('VoiceToText: transcription result received, length=' + text.length);
-            });
-            this._signalIds.push(textId);
-
             console.log('VoiceToText: D-Bus proxy connected');
         } catch (e) {
             console.error('VoiceToText: failed to connect to D-Bus service:', e.message);
@@ -225,6 +217,7 @@ export default class VoiceToTextExtension extends Extension {
             batch_provider: this._settings.get_string('batch-provider'),
             decrease_speaker_volume: this._settings.get_int('decrease-speaker-volume'),
             output_method: this._settings.get_string('output-method'),
+            bluetooth_headset_change_to_handsfree_to_record: this._settings.get_boolean('bluetooth-headset-change-to-handsfree-to-record'),
         };
 
         this._proxy.StartRecordingAsync(JSON.stringify(config)).then(
