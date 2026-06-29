@@ -169,9 +169,13 @@ class ContinuousTyper:
         if self._process and self._process.stdin:
             try:
                 self._process.stdin.close()
+                await asyncio.wait_for(self._process.wait(), timeout=2.0)
+            except TimeoutError:
+                logger.warning("dotoolc did not exit after stdin close; killing")
+                self._process.kill()
                 await self._process.wait()
             except Exception:
-                pass
+                logger.exception("Failed to close dotoolc cleanly")
             finally:
                 logger.info("Continuous dotoolc pipe closed")
                 self._process = None

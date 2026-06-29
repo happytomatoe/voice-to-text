@@ -42,7 +42,7 @@ ignore_missing_imports = true
 
 [tool.pyright]
 # dbus-next, groq, and sounddevice have incomplete type stubs
-reportMissingImports = false
+reportMissingTypeStubs = false
 
 [dependency-groups]
 dev = [

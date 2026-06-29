@@ -129,7 +129,10 @@ LATEST_TAG=$(
 )
 if [ -z "$LATEST_TAG" ]; then
   echo "WARNING: No releases found for $REPO; installing from source."
-  uv tool install -e . --force
+  REPO_DIR=$(mktemp -d)
+  git clone --depth 1 "https://github.com/$REPO.git" "$REPO_DIR"
+  uv tool install -e "$REPO_DIR" --force
+  rm -rf "$REPO_DIR"
 else
   echo "Installing version $LATEST_TAG..."
   uv tool install "git+https://github.com/$REPO.git@$LATEST_TAG" --force
@@ -161,7 +164,7 @@ else
 fi
 
 systemctl --user daemon-reload
-systemctl --user enable --now voice-to-text.service || true
+systemctl --user enable --now voice-to-text.service
 echo "D-Bus service enabled."
 echo "  Status: systemctl --user status voice-to-text.service"
 echo "  Logs:   journalctl --user -u voice-to-text.service -f"

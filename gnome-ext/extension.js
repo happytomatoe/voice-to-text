@@ -227,16 +227,15 @@ export default class VoiceToTextExtension extends Extension {
             output_method: this._settings.get_string('output-method'),
         };
 
-        try {
-            this._proxy.StartRecordingSync(JSON.stringify(config));
-            console.log('VoiceToText: StartRecording called via D-Bus');
-        } catch (e) {
-            console.error('VoiceToText: D-Bus StartRecording failed:', e.message);
-            this._showNotification('Failed to start recording: ' + e.message);
-            this._recording = false;
-            this._indicator.setRecording(false);
-            return;
-        }
+        this._proxy.StartRecordingAsync(JSON.stringify(config)).then(
+            () => console.log('VoiceToText: StartRecording called via D-Bus'),
+            e => {
+                console.error('VoiceToText: D-Bus StartRecording failed:', e.message);
+                this._showNotification('Failed to start recording: ' + e.message);
+                this._recording = false;
+                this._indicator.setRecording(false);
+            }
+        );
 
         this._ensureInhibitor();
         if (this._settings.get_boolean('show-recording-notification')) {

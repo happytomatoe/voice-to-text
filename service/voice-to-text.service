@@ -11,7 +11,7 @@ Restart=on-failure
 RestartSec=3
 # Import session environment so clipboard tools (wl-copy/xclip) can find
 # WAYLAND_DISPLAY / DISPLAY and dbus finds the session bus
-ImportEnvironment=DISPLAY WAYLAND_DISPLAY XDG_SESSION_TYPE
+PassEnvironment=DISPLAY WAYLAND_DISPLAY XDG_SESSION_TYPE
 
 [Install]
 WantedBy=default.target

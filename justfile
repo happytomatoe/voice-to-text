@@ -121,7 +121,7 @@ gnome-ext-dev: reinstall gnome-ext-install
     # Trap EXIT/INT/TERM to kill the background service when the shell exits,
     # otherwise the orphaned service keeps the microphone open.
     dbus-run-session -- sh -c "
-      voice-to-text-dbus 2>&1 | tee -a /tmp/voice-to-text.log &
+      voice-to-text-dbus > /tmp/voice-to-text.log 2>&1 &
       DBUS_PID=\$!
       sleep 1
       trap 'kill \$DBUS_PID 2>/dev/null || true' EXIT INT TERM

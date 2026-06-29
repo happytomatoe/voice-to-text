@@ -112,7 +112,7 @@ class WebSocketStreamingProvider(StreamingProvider):
             except Exception:
                 pass
         ws_headers = list(headers.items())
-        self._ws = await websockets.connect(ws_url, extra_headers=ws_headers)
+        self._ws = await websockets.connect(ws_url, additional_headers=ws_headers)
         self._partial_result = None
         self._finalized_text = ""
 
