@@ -16,6 +16,8 @@ dependencies = [
 
 [project.scripts]
 voice-to-text = "voice_to_text.main:main"
+voice-to-text-ibus-engine = "voice_to_text.ibus.engine:main"
+voice-to-text-ibus-bridge = "voice_to_text.ibus.bridge:main"
 
 [build-system]
 requires = ["hatchling"]

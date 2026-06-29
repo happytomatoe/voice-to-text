@@ -23,7 +23,7 @@ class VoxtralProvider(BatchProvider, StreamingProvider):
     and real-time streaming via the Mistral SDK.
     """
 
-    def __init__(self, config: dict[str, Any]):
+    def __init__(self, config: dict[str, Any], event_callback=None):
         self.api_key = resolve_api_key(config, "VOXTRAL_API_KEY", extra_envs=("MISTRAL_API_KEY",))
         self._api_url = config.get("api_url", "https://api.mistral.ai")
         # Batch model
@@ -43,6 +43,9 @@ class VoxtralProvider(BatchProvider, StreamingProvider):
         self._loop: asyncio.AbstractEventLoop | None = None
         self._thread: threading.Thread | None = None
         self._ready_event = threading.Event()
+        
+        # Optional callback for real-time events (used by bridge)
+        self._event_callback = event_callback
 
     # ── Batch ──────────────────────────────────────────────────────────
 
@@ -199,6 +202,12 @@ class VoxtralProvider(BatchProvider, StreamingProvider):
             self._partial_tokens.append(token)
             self._partial_result = "".join(self._partial_tokens)
             logger.info("Partial result: %s", self._partial_result[:80])
+            # Notify callback if set
+            if self._event_callback:
+                try:
+                    self._event_callback("preedit", self._partial_result)
+                except Exception:
+                    logger.exception("Event callback failed")
 
         elif kind == "transcription.segment":
             sid = getattr(event, "speaker_id", None)
@@ -207,6 +216,12 @@ class VoxtralProvider(BatchProvider, StreamingProvider):
             self._partial_result = text
             self._partial_tokens = [text]
             logger.info("Segment: %s", text[:50])
+            # Notify callback if set (segment = commit)
+            if self._event_callback:
+                try:
+                    self._event_callback("commit", text)
+                except Exception:
+                    logger.exception("Event callback failed")
 
         elif kind == "transcription.done":
             if getattr(event, "text", None):
@@ -214,6 +229,12 @@ class VoxtralProvider(BatchProvider, StreamingProvider):
             usage = getattr(event, "usage", None)
             if usage:
                 logger.info("transcription.done usage: %s", usage)
+            # Notify callback if set (done = commit final)
+            if self._event_callback and self._partial_result:
+                try:
+                    self._event_callback("commit", self._partial_result)
+                except Exception:
+                    logger.exception("Event callback failed")
 
         elif kind == "error":
             detail = getattr(getattr(event, "error", None), "message", str(event))

@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<component type="inputmethod">
+  <name>io.github.happytomatoe.voxtral</name>
+  <description>Voxtral Speech-to-Text Engine</description>
+  <exec>/usr/bin/python3 /var/home/l/git/voice-to-text-ibus/src/voice_to_text/ibus/engine.py --ibus</exec>
+  <version>1.0</version>
+  <author>Voice-to-Text Project</author>
+  <license>MIT</license>
+  <engines>
+    <engine>
+      <name>voxtral</name>
+      <language>en</language>
+      <icon>audio-input-microphone</icon>
+      <layout>us</layout>
+      <symbol>🎤</symbol>
+      <longname>Voxtral</longname>
+      <description>Voxtral real-time speech-to-text</description>
+      <rank>0</rank>
+    </engine>
+  </engines>
+</component>
