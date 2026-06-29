@@ -189,10 +189,6 @@ export default class VoiceToTextPrefs extends ExtensionPreferences {
         });
 
         const outputMethodCombo = new Gtk.ComboBoxText();
-        outputMethodCombo.append(
-            'type-fallback-clipboard',
-            _('Type (fallback to clipboard)')
-        );
         outputMethodCombo.append('type', _('Type'));
         outputMethodCombo.append('clipboard', _('Clipboard'));
         outputMethodCombo.set_active_id(settings.get_string('output-method'));
@@ -238,6 +234,19 @@ export default class VoiceToTextPrefs extends ExtensionPreferences {
             Gio.SettingsBindFlags.DEFAULT
         );
         group.add(decreaseVolumeRow);
+
+        // Bluetooth mic toggle
+        const bluetoothMicRow = new Adw.SwitchRow({
+            title: _('Bluetooth Headset Mic'),
+            subtitle: _('Automatically switch Bluetooth headset to HSP/HFP mode and set as default mic during recording'),
+        });
+        settings.bind(
+            'bluetooth-headset-change-to-handsfree-to-record',
+            bluetoothMicRow,
+            'active',
+            Gio.SettingsBindFlags.DEFAULT
+        );
+        group.add(bluetoothMicRow);
 
         // Language setting
         const languageRow = new Adw.ActionRow({

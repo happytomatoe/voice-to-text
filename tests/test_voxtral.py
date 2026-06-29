@@ -34,33 +34,38 @@ class TestVoxtralProvider:
             if old_mistral_key is not None:
                 os.environ["MISTRAL_API_KEY"] = old_mistral_key
 
-    def test_transcribe_file_request_format(self):
+    @pytest.mark.asyncio
+    async def test_transcribe_file_request_format(self):
         """Test that transcribe_file sends properly formatted request."""
-        from unittest.mock import Mock, patch
+        import os
+        import tempfile
+        from unittest.mock import AsyncMock, MagicMock, patch
 
-        # Mock the requests.post method
-        mock_response = Mock()
+        # Mock the httpx.AsyncClient context manager and post method
+        mock_response = MagicMock()
         mock_response.raise_for_status.return_value = None
         mock_response.json.return_value = {"text": "test transcription"}
 
-        with patch("requests.post", return_value=mock_response) as mock_post:
+        mock_client = AsyncMock()
+        mock_client.post.return_value = mock_response
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=None)
+
+        with patch("voice_to_text.providers.voxtral.httpx.AsyncClient", return_value=mock_client):
             config = {"api_key": "test_key"}
             provider = VoxtralProvider(config)
 
             # Create a temporary audio file for testing
-            import os
-            import tempfile
-
             with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
                 tmp.write(b"RIFF....WAVEfmt ")  # Minimal WAV header
                 tmp_path = tmp.name
 
             try:
-                result = provider.transcribe_file(tmp_path)
+                result = await provider.transcribe_file(tmp_path)
 
                 # Verify the request was made correctly
-                assert mock_post.called
-                call_args = mock_post.call_args
+                assert mock_client.post.called
+                call_args = mock_client.post.call_args
 
                 # Check URL
                 assert call_args[0][0] == "https://api.mistral.ai/v1/audio/transcriptions"

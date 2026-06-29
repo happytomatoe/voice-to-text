@@ -1,9 +1,10 @@
 """Groq Whisper transcription provider (batch only)."""
 
 import logging
+from pathlib import Path
 from typing import Any
 
-from groq import Groq
+from groq import AsyncGroq
 
 from .base import BatchProvider, resolve_api_key
 
@@ -15,20 +16,21 @@ class GroqProvider(BatchProvider):
 
     Note: Groq does not support WebSocket streaming for audio transcription.
     Their API is REST-only. Use batch transcription with fast inference.
+
+    Uses ``AsyncGroq`` SDK (built on httpx) for async batch transcription.
     """
 
     def __init__(self, config: dict[str, Any]):
         self.api_key = resolve_api_key(config, "GROQ_API_KEY")
         self.model = config.get("model", "whisper-large-v3-turbo")
-        self.client = Groq(api_key=self.api_key)
+        self.client = AsyncGroq(api_key=self.api_key)  # pyright: ignore[reportCallIssue]
 
-    def transcribe_file(self, audio_path: str, language: str = "en") -> str:
+    async def transcribe_file(self, audio_path: str, language: str = "en") -> str:
         logger.info("Transcribing %s with Groq model %s", audio_path, self.model)
         try:
-            with open(audio_path, "rb") as f:
-                transcription = self.client.audio.transcriptions.create(
-                    model=self.model, file=f, language=language, response_format="text"
-                )
+            transcription = await self.client.audio.transcriptions.create(
+                model=self.model, file=Path(audio_path), language=language, response_format="text"
+            )
             result = str(transcription).strip()
             logger.info("Transcription result: %s", result[:100])
             return result

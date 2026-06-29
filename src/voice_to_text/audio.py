@@ -17,13 +17,7 @@ logger = logging.getLogger(__name__)
 SAMPLE_RATE = 16000
 BLOCK_SIZE = 2048
 
-METER_WIDTH = 50
-GREY = "\033[90m"
-GREEN = "\033[32m"
-YELLOW = "\033[33m"
-RED = "\033[31m"
-RESET = "\033[0m"
-BLOCK = "\u2588"
+
 
 
 class AudioRecorder:
@@ -109,19 +103,7 @@ class AudioRecorder:
                 logger.exception("on_audio_data callback failed")
 
 
-def format_level_bar(level: float, elapsed: float) -> str:
-    level = min(1.0, level)
-    filled = int(level * METER_WIDTH)
-    if level < 0.13:
-        color = GREY
-    elif level < 0.5:
-        color = GREEN
-    elif level < 0.7:
-        color = YELLOW
-    else:
-        color = RED
-    bar = BLOCK * filled + " " * (METER_WIDTH - filled)
-    return f"\r[{color}{bar}{RESET}] {elapsed:.1f}s   "
+
 
 
 class SpeakerVolumeManager:

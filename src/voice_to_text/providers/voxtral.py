@@ -7,9 +7,7 @@ import os
 import threading
 from typing import Any
 
-import requests
-from mistralai.client import Mistral
-from mistralai.extra.realtime import AudioFormat
+import httpx
 
 from .base import BatchProvider, StreamingProvider, resolve_api_key
 
@@ -21,6 +19,9 @@ class VoxtralProvider(BatchProvider, StreamingProvider):
 
     Uses Mistral's Voxtral models for both file transcription (batch)
     and real-time streaming via the Mistral SDK.
+
+    Batch: uses ``httpx.AsyncClient`` (replaces ``requests``).
+    Streaming: already uses asyncio internally via Mistral SDK realtime.
     """
 
     def __init__(self, config: dict[str, Any]):
@@ -46,26 +47,27 @@ class VoxtralProvider(BatchProvider, StreamingProvider):
 
     # ── Batch ──────────────────────────────────────────────────────────
 
-    def transcribe_file(self, audio_path: str, language: str = "en") -> str:
+    async def transcribe_file(self, audio_path: str, language: str = "en") -> str:
         """Transcribe audio file using Voxtral batch transcription API."""
         logger.info("Transcribing %s with Voxtral model %s", audio_path, self.model)
         try:
-            with open(audio_path, "rb") as audio_file:
-                files = {"file": (os.path.basename(audio_path), audio_file)}
-                data = {"model": self.model, "language": language}
-                response = requests.post(
-                    f"{self._api_url}/v1/audio/transcriptions",
-                    headers={"Authorization": f"Bearer {self.api_key}"},
-                    files=files,
-                    data=data,
-                    timeout=120,
-                )
-            response.raise_for_status()
-            result = response.json()
-            text = result.get("text", "").strip()
-            logger.info("Transcription result: %s", text[:100])
-            return text
-        except requests.exceptions.RequestException as e:
+            async with httpx.AsyncClient() as client:
+                with open(audio_path, "rb") as audio_file:
+                    files = {"file": (os.path.basename(audio_path), audio_file)}
+                    data = {"model": self.model, "language": language}
+                    response = await client.post(
+                        f"{self._api_url}/v1/audio/transcriptions",
+                        headers={"Authorization": f"Bearer {self.api_key}"},
+                        files=files,
+                        data=data,
+                        timeout=120,
+                    )
+                response.raise_for_status()
+                result = response.json()
+                text = result.get("text", "").strip()
+                logger.info("Transcription result: %s", text[:100])
+                return text
+        except httpx.HTTPStatusError as e:
             logger.exception("Voxtral transcription API call failed")
             detail = ""
             if e.response is not None:
@@ -87,18 +89,19 @@ class VoxtralProvider(BatchProvider, StreamingProvider):
         self._ready_event.set()
         self._loop.run_forever()
 
-    def start_stream(self, language: str = "en", sample_rate: int = 16000) -> None:
+    async def start_stream(self, language: str = "en", sample_rate: int = 16000) -> None:
         """Initialize a streaming session via Voxtral SDK."""
         # Ensure the SDK sees the correct key even if only VOXTRAL_API_KEY is set
         os.environ.setdefault("MISTRAL_API_KEY", self.api_key)
 
         # Start the event loop thread if not already running
         if self._thread is None or not self._thread.is_alive():
+            self._loop = None
             self._ready_event.clear()
             self._thread = threading.Thread(target=self._run_event_loop, daemon=True)
             self._thread.start()
-            self._ready_event.wait(timeout=5.0)
-            if self._loop is None:
+            ready = await asyncio.get_event_loop().run_in_executor(None, self._ready_event.wait, 5.0)
+            if not ready or self._loop is None:
                 raise RuntimeError("Failed to start event loop thread")
 
         # Create audio queue for this stream
@@ -117,6 +120,9 @@ class VoxtralProvider(BatchProvider, StreamingProvider):
 
     async def _stream(self, language: str, sample_rate: int) -> None:
         """Run the Voxtral realtime streaming in the event loop thread."""
+        from mistralai.client import Mistral
+        from mistralai.extra.realtime import AudioFormat
+
         client = Mistral(api_key=self.api_key)
         rt = client.audio.realtime
 
@@ -157,27 +163,28 @@ class VoxtralProvider(BatchProvider, StreamingProvider):
         except asyncio.QueueFull:
             logger.warning("Audio queue full, dropping chunk")
 
-    def send_audio(self, audio_chunk: bytes) -> None:
+    async def send_audio(self, audio_chunk: bytes) -> None:
         """Send an audio chunk for processing - queues it for the async stream."""
         if self._audio_queue is not None and self._loop is not None:
             self._loop.call_soon_threadsafe(self._enqueue_chunk, audio_chunk)
 
-    def get_partial_result(self) -> str | None:
+    async def get_partial_result(self) -> str | None:
         """Get latest partial transcript."""
         return self._partial_result
 
-    def finalize_stream(self) -> str:
+    async def finalize_stream(self) -> str:
         """End stream and return final transcript."""
         self._closed = True
         if self._audio_queue is not None and self._loop is not None:
             try:
-                asyncio.run_coroutine_threadsafe(self._audio_queue.put(None), self._loop).result(timeout=1.0)
+                fut = asyncio.run_coroutine_threadsafe(self._audio_queue.put(None), self._loop)
+                await asyncio.wait_for(asyncio.wrap_future(fut), timeout=1.0)
             except Exception:
                 logger.debug("Failed to signal stream shutdown", exc_info=True)
 
         if self._stream_task is not None:
             try:
-                self._stream_task.result(timeout=5.0)
+                await asyncio.wait_for(asyncio.wrap_future(self._stream_task), timeout=5.0)
             except Exception:
                 logger.debug("Stream task did not exit cleanly", exc_info=True)
             self._stream_task = None
