@@ -107,6 +107,11 @@ class VoiceToTextInterface(ServiceInterface):
                 "com.happytomatoe.VoiceToText.Error.InvalidConfig",
                 f"Invalid JSON config: {e}",
             )
+        if not isinstance(parsed_config, dict):
+            raise DBusError(
+                "com.happytomatoe.VoiceToText.Error.InvalidConfig",
+                f"Expected JSON object, got {type(parsed_config).__name__}",
+            )
         logger.info("D-Bus StartRecording received config: %s", parsed_config)
         loop = asyncio.get_running_loop()
         loop.create_task(self._engine.start(parsed_config))

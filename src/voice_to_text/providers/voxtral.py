@@ -99,7 +99,7 @@ class VoxtralProvider(BatchProvider, StreamingProvider):
             self._ready_event.clear()
             self._thread = threading.Thread(target=self._run_event_loop, daemon=True)
             self._thread.start()
-            self._ready_event.wait(timeout=5.0)
+            await asyncio.get_event_loop().run_in_executor(None, self._ready_event.wait, 5.0)
             if self._loop is None:
                 raise RuntimeError("Failed to start event loop thread")
 
@@ -176,13 +176,14 @@ class VoxtralProvider(BatchProvider, StreamingProvider):
         self._closed = True
         if self._audio_queue is not None and self._loop is not None:
             try:
-                asyncio.run_coroutine_threadsafe(self._audio_queue.put(None), self._loop).result(timeout=1.0)
+                fut = asyncio.run_coroutine_threadsafe(self._audio_queue.put(None), self._loop)
+                await asyncio.wait_for(asyncio.wrap_future(fut), timeout=1.0)
             except Exception:
                 logger.debug("Failed to signal stream shutdown", exc_info=True)
 
         if self._stream_task is not None:
             try:
-                self._stream_task.result(timeout=5.0)
+                await asyncio.wait_for(asyncio.wrap_future(self._stream_task), timeout=5.0)
             except Exception:
                 logger.debug("Stream task did not exit cleanly", exc_info=True)
             self._stream_task = None

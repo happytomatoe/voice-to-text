@@ -58,6 +58,7 @@ export default class VoiceToTextExtension extends Extension {
         this._recording = false;
         this._hotkeySignalId = null;
         this._signalIds = [];
+        this._dbusRetrySourceId = null;
 
         this._indicator.onStart = () => this._start();
         this._indicator.onStop = () => this._stop();
@@ -87,6 +88,11 @@ export default class VoiceToTextExtension extends Extension {
         if (this._hotkeySignalId) {
             this._settings.disconnect(this._hotkeySignalId);
             this._hotkeySignalId = null;
+        }
+
+        if (this._dbusRetrySourceId) {
+            GLib.source_remove(this._dbusRetrySourceId);
+            this._dbusRetrySourceId = null;
         }
 
         this._disconnectDBusSignals();
@@ -137,7 +143,7 @@ export default class VoiceToTextExtension extends Extension {
         }
     }
 
-    _connectDBus() {
+    _connectDBus(retryCount = 0) {
         try {
             this._proxy = new VoiceToTextProxy(
                 Gio.DBus.session,
@@ -176,10 +182,20 @@ export default class VoiceToTextExtension extends Extension {
             console.log('VoiceToText: D-Bus proxy connected');
         } catch (e) {
             console.error('VoiceToText: failed to connect to D-Bus service:', e.message);
-            this._showNotification(
-                'Voice-to-Text D-Bus service not running. ' +
-                'Run: systemctl --user enable --now voice-to-text.service'
-            );
+            if (retryCount < 3) {
+                const delay = (retryCount + 1) * 2000;
+                console.log(`VoiceToText: retrying D-Bus connection in ${delay}ms (attempt ${retryCount + 1}/3)`);
+                this._dbusRetrySourceId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, delay, () => {
+                    this._dbusRetrySourceId = null;
+                    this._connectDBus(retryCount + 1);
+                    return GLib.SOURCE_REMOVE;
+                });
+            } else {
+                this._showNotification(
+                    'Voice-to-Text D-Bus service not running. ' +
+                    'Run: systemctl --user enable --now voice-to-text.service'
+                );
+            }
         }
     }
 

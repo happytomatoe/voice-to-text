@@ -6,8 +6,8 @@ run *args:
 
 # Benchmark: record 10s of audio, test all providers 3x each
 benchmark:
-    echo "Benchmarking moved to service; use the old CLI for now:"
-    echo "  PYTHONPATH=src .venv/bin/python -c 'import asyncio; from voice_to_text.providers import get_batch_provider; ...'"
+    @echo "Error: benchmark moved to service; use the old CLI for now" >&2
+    @exit 1
 
 install:
     uv tool install -e .

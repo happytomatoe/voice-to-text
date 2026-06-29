@@ -10,7 +10,7 @@ import signal
 import sys
 
 from dbus_next.aio import MessageBus
-from dbus_next.constants import BusType
+from dbus_next.constants import BusType, RequestNameReply
 
 from voice_to_text.dbus_service import OBJECT_PATH, SERVICE_NAME, VoiceToTextInterface
 
@@ -36,7 +36,11 @@ async def run_service() -> None:
     interface.set_bus(bus)
 
     bus.export(OBJECT_PATH, interface)
-    await bus.request_name(SERVICE_NAME)
+    reply = await bus.request_name(SERVICE_NAME)
+    if reply != RequestNameReply.PRIMARY_OWNER:
+        logger.error("Failed to own D-Bus name %s (reply=%s)", SERVICE_NAME, reply)
+        bus.disconnect()
+        return
     logger.info("Service registered: %s at %s", SERVICE_NAME, OBJECT_PATH)
 
     # Keep running until SIGTERM/SIGINT
@@ -59,7 +63,7 @@ async def run_service() -> None:
     # Wait for the engine to finish cancelling before disconnecting
     if engine_stop_task:
         try:
-            await asyncio.wait_for(engine_stop_task, timeout=5.0)
+            await asyncio.wait_for(engine_stop_task, timeout=16.0)
         except (TimeoutError, asyncio.CancelledError):
             logger.warning("Engine did not stop in time, disconnecting anyway")
 

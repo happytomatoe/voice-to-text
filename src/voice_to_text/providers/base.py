@@ -162,7 +162,7 @@ class WebSocketStreamingProvider(StreamingProvider):
                                 transcript = alternatives[0].get("transcript", "") if alternatives else ""
                                 if transcript:
                                     self._finalized_text = (self._finalized_text + " " + transcript).strip()
-            except (TimeoutError, asyncio.CancelledError):  # noqa: UP041
+            except TimeoutError:
                 pass
             await self._ws.close()
         except Exception as e:

@@ -79,7 +79,7 @@ class AsyncAudioRecorder:
         self.smoothed_level: float = 0.0
         self.frame_count: int = 0
         self._stream: Any = None
-        self._queue: asyncio.Queue[bytes | None] = asyncio.Queue()
+        self._queue: asyncio.Queue[bytes | None] = asyncio.Queue(maxsize=100)
         self._wav_file = None
         self._filepath: str | None = None
 
@@ -125,7 +125,12 @@ class AsyncAudioRecorder:
         float_data = indata[:, 0].astype(np.float32) / 32768.0
         rms = float(np.sqrt(np.mean(float_data**2)))
         self.smoothed_level = 0.7 * self.smoothed_level + 0.3 * rms
-        self._loop.call_soon_threadsafe(self._queue.put_nowait, raw)
+        def _safe_put():
+            try:
+                self._queue.put_nowait(raw)
+            except asyncio.QueueFull:
+                pass  # drop frame if consumer is too slow
+        self._loop.call_soon_threadsafe(_safe_put)
 
     async def read_chunk(self) -> bytes | None:
         """Await the next audio chunk (or None if stopped)."""
