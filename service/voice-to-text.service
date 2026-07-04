@@ -1,11 +1,10 @@
 [Unit]
 Description=Voice-to-Text D-Bus Service
 After=graphical-session.target pipewire.service wireplumber.service
-Requires=graphical-session.target pipewire.service wireplumber.service
+Wants=graphical-session.target pipewire.service wireplumber.service
 
 [Service]
-Type=dbus
-BusName=com.happytomatoe.VoiceToText
+Type=exec
 ExecStart=%h/.local/bin/voice-to-text-dbus
 Restart=on-failure
 RestartSec=3
