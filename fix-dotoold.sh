@@ -17,6 +17,8 @@ cat > ~/.config/systemd/user/dotoold.service <<EOF
 [Unit]
 Description=dotoold daemon for keyboard input
 After=graphical-session.target
+StartLimitBurst=3
+StartLimitIntervalSec=60
 
 [Service]
 Type=simple
@@ -24,8 +26,6 @@ ExecStart=$HOME/.local/bin/dotoold-wrapper
 Environment=DOTOOL_PIPE=$PIPE_PATH
 Restart=always
 RestartSec=3
-StartLimitBurst=3
-StartLimitIntervalSec=60
 StandardOutput=journal
 StandardError=journal
 
