@@ -84,9 +84,7 @@ class ContinuousTyper:
         self._pipe_path = self._find_pipe_path()
         if not self._pipe_path:
             raise DotoolcNotFoundError(
-                "dotool pipe not found. dotoold is not running.\n\n"
-                "Start it with:\n"
-                "  systemctl --user enable --now dotoold.service"
+                "dotool pipe not found. dotoold is not running."
             )
         logger.info("Using dotool pipe: %s", self._pipe_path)
 
