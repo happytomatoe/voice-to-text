@@ -238,7 +238,7 @@ else
 fi
 
 # --- Configure dotool daemon ---
-PIPE_PATH="/run/user/$(id -u)/dotool_pipe"
+PIPE_PATH="/run/user/$(id -u)/dotool-pipe"
 
 if [ -p "$PIPE_PATH" ] && systemctl is-active --quiet dotool.service 2>/dev/null; then
   echo "dotool pipe already present at $PIPE_PATH."

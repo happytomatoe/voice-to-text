@@ -2,7 +2,7 @@
 set -euo pipefail
 
 UID_ACTUAL="${SUDO_UID:-$(id -u)}"
-PIPE_PATH="/run/user/$UID_ACTUAL/dotool_pipe"
+PIPE_PATH="/run/user/$UID_ACTUAL/dotool-pipe"
 
 # Create the directory for the pipe
 sudo mkdir -p "$(dirname "$PIPE_PATH")"
