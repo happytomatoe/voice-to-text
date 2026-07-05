@@ -8,7 +8,9 @@ Cloud:
 
 - Voxtral
 - Groq
-  Local
+- Deppgram
+
+Local:
 - Parakeet
 
 This repo contains gnome extension and python application
@@ -20,7 +22,7 @@ This repo contains gnome extension and python application
 - Python 3.13+
 - [uv](https://docs.astral.sh/uv/getting-started/installation/)
 - [Groq API key](https://console.groq.com/keys) OR [Voxtral API key](https://mistral.ai)
-- Linux with `xclip`/`xsel` (X11) for clipboard functionality
+- Linux with `xclip`/`xsel` (X11) if you'll use clipboard functionality
 
 ## Installation
 
@@ -40,65 +42,19 @@ If you want to use Parakeet check out [this script](./parakeet-v2.sh)
 
 ### API Keys
 
-The voice-to-text service runs as a systemd user service and needs API keys to be available in its environment.
+The voice-to-text service runs as a systemd user service and needs API keys to be available in its environment. There are different options. This is recomended:
 
-**Option 1: Using `~/.bash_secrets` (recommended)**
-
-Add your API keys to `~/.bash_secrets` and source it from `~/.profile`:
+Using `~/.profie`
 
 ```bash
-# ~/.bash_secrets
 export VOXTRAL_API_KEY=your-key-here
 export DEEPGRAM_API_KEY=your-key-here
 export GROQ_API_KEY=your-key-here
-
-# Import into systemd environment
 systemctl --user import-environment VOXTRAL_API_KEY DEEPGRAM_API_KEY GROQ_API_KEY
 ```
-
-Then ensure `~/.profile` sources it:
-
-```bash
-# ~/.profile
-if [ -f ~/.bash_secrets ]; then
-  . ~/.bash_secrets
-fi
-```
-
-After logging out and back in, restart the service:
-
+Restart service for it to pickup new keys:
 ```bash
 systemctl --user restart voice-to-text.service
-```
-
-**Option 2: Using `environment.d`**
-
-Create a file in `~/.config/environment.d/`:
-
-```bash
-mkdir -p ~/.config/environment.d
-cat > ~/.config/environment.d/30-voice-to-text.conf << 'EOF'
-VOXTRAL_API_KEY=your-key-here
-DEEPGRAM_API_KEY=your-key-here
-GROQ_API_KEY=your-key-here
-EOF
-```
-
-Then reload and restart:
-
-```bash
-systemctl --user daemon-reload
-systemctl --user restart voice-to-text.service
-```
-
-**Verify the keys are set:**
-
-```bash
-# Check systemd environment
-systemctl --user show-environment | grep -E "VOXTRAL|DEEPGRAM|GROQ"
-
-# Check service logs
-journalctl --user -u voice-to-text.service -f
 ```
 
 ### Other Settings
