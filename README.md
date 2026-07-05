@@ -44,7 +44,7 @@ If you want to use Parakeet check out [this script](./parakeet-v2.sh)
 
 The voice-to-text service runs as a systemd user service and needs API keys to be available in its environment. There are different options. This is recomended:
 
-Using `~/.profie`
+Using `~/.profile`
 
 ```bash
 export VOXTRAL_API_KEY=your-key-here
