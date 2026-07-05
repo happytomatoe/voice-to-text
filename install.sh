@@ -240,6 +240,22 @@ fi
 # --- Configure dotool daemon (user service) ---
 PIPE_PATH="/run/user/$(id -u)/dotool-pipe"
 
+# Create dotoold-wrapper if it doesn't exist
+WRAPPER_PATH="$HOME/.local/bin/dotoold-wrapper"
+if [ ! -f "$WRAPPER_PATH" ]; then
+  echo "Creating dotoold-wrapper..."
+  mkdir -p "$HOME/.local/bin"
+  cat > "$WRAPPER_PATH" << 'WRAPPER_EOF'
+#!/bin/bash
+# Wrapper to ensure proper group membership for dotoold
+exec sg input -c "PATH=$HOME/.local/bin:\$PATH $HOME/.local/bin/dotoold \$@"
+WRAPPER_EOF
+  chmod +x "$WRAPPER_PATH"
+  echo "dotoold-wrapper created at $WRAPPER_PATH"
+else
+  echo "dotoold-wrapper already exists, skipping."
+fi
+
 if [ -p "$PIPE_PATH" ] && systemctl --user is-active --quiet dotoold.service 2>/dev/null; then
   echo "dotoold pipe already present at $PIPE_PATH."
 else
