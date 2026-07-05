@@ -18,7 +18,8 @@ if [ ! -f "$WRAPPER_PATH" ]; then
   cat > "$WRAPPER_PATH" << 'WRAPPER_EOF'
 #!/bin/bash
 # Wrapper to ensure proper group membership for dotoold
-exec sg input -c "PATH=$HOME/.local/bin:\$PATH $HOME/.local/bin/dotoold \$@"
+export PATH="$HOME/.local/bin:$PATH"
+exec sg input "$HOME/.local/bin/dotoold" "$@"
 WRAPPER_EOF
   chmod +x "$WRAPPER_PATH"
   echo "dotoold-wrapper created at $WRAPPER_PATH"
