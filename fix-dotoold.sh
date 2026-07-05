@@ -23,8 +23,8 @@ Type=simple
 ExecStart=$HOME/.local/bin/dotoold-wrapper
 Environment=DOTOOL_PIPE=$PIPE_PATH
 Restart=always
-RestartSec=2
-StartLimitBurst=5
+RestartSec=3
+StartLimitBurst=3
 StartLimitIntervalSec=60
 StandardOutput=journal
 StandardError=journal
