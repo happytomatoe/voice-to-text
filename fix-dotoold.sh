@@ -10,6 +10,22 @@ mkdir -p "$(dirname "$PIPE_PATH")" 2>/dev/null || true
 # Set the environment variable for dotoold
 export DOTOOL_PIPE="$PIPE_PATH"
 
+# Create dotoold-wrapper if it doesn't exist
+WRAPPER_PATH="$HOME/.local/bin/dotoold-wrapper"
+if [ ! -f "$WRAPPER_PATH" ]; then
+  echo "Creating dotoold-wrapper..."
+  mkdir -p "$HOME/.local/bin"
+  cat > "$WRAPPER_PATH" << 'WRAPPER_EOF'
+#!/bin/bash
+# Wrapper to ensure proper group membership for dotoold
+exec sg input -c "PATH=$HOME/.local/bin:\$PATH $HOME/.local/bin/dotoold \$@"
+WRAPPER_EOF
+  chmod +x "$WRAPPER_PATH"
+  echo "dotoold-wrapper created at $WRAPPER_PATH"
+else
+  echo "dotoold-wrapper already exists, skipping."
+fi
+
 # Create systemd user service for dotoold
 mkdir -p ~/.config/systemd/user
 
