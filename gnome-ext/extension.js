@@ -194,8 +194,7 @@ export default class VoiceToTextExtension extends Extension {
         } catch (e) {
             console.error('VoiceToText: failed to connect to D-Bus service:', e.message);
             this._showNotification(
-                'Voice-to-Text D-Bus service not running. ' +
-                'Run: systemctl --user enable --now voice-to-text.service'
+                'Voice-to-Text D-Bus service not running. '
             );
         }
     }
