@@ -45,6 +45,31 @@ class ContinuousTyper:
         self._dotoolc_path: str | None = None
         self._typed_text: str = ""
         self._usable: bool = True  # set to False after first write failure
+        self._pipe_path: str | None = None
+
+    def _find_pipe_path(self) -> str | None:
+        """Find the dotool pipe path, checking in order:
+        1. $DOTOOL_PIPE environment variable
+        2. $XDG_RUNTIME_DIR/dotool-pipe (proper per-user location)
+        3. /tmp/dotool-pipe (legacy fallback)
+        """
+        # 1. Check environment variable
+        env_pipe = os.environ.get("DOTOOL_PIPE")
+        if env_pipe and os.path.exists(env_pipe):
+            return env_pipe
+
+        # 2. Check XDG_RUNTIME_DIR (proper location per XDG spec)
+        xdg_runtime = os.environ.get("XDG_RUNTIME_DIR", "/run/user/1000")
+        xdg_pipe = os.path.join(xdg_runtime, "dotool-pipe")
+        if os.path.exists(xdg_pipe):
+            return xdg_pipe
+
+        # 3. Legacy fallback
+        legacy_pipe = "/tmp/dotool-pipe"
+        if os.path.exists(legacy_pipe):
+            return legacy_pipe
+
+        return None
 
     async def start(self) -> None:
         """Start a persistent dotoolc process and keep stdin open."""
@@ -61,11 +86,26 @@ class ContinuousTyper:
                     "dotoolc requires dotoold running (dotool-quickstart.sh)"
                 )
 
+        # Find the pipe path
+        self._pipe_path = self._find_pipe_path()
+        if not self._pipe_path:
+            raise DotoolcNotFoundError(
+                "dotool pipe not found. dotoold is not running.\n\n"
+                "Start it with:\n"
+                "  systemctl --user enable --now dotoold.service"
+            )
+        logger.info("Using dotool pipe: %s", self._pipe_path)
+
+        # Pass pipe path to dotoolc via environment
+        env = os.environ.copy()
+        env["DOTOOL_PIPE"] = self._pipe_path
+
         self._process = await asyncio.create_subprocess_exec(
             self._dotoolc_path,
             stdin=asyncio.subprocess.PIPE,
             stdout=asyncio.subprocess.DEVNULL,
-            stderr=asyncio.subprocess.DEVNULL,
+            stderr=asyncio.subprocess.PIPE,
+            env=env,
         )
         self._typed_text = ""
 
@@ -76,16 +116,60 @@ class ContinuousTyper:
             await self._process.stdin.drain()
         except (BrokenPipeError, ConnectionResetError):
             # dotoold not running — process started but pipe is dead
-            logger.warning("dotoolc pipe broken (dotoold not running?), disabling typing")
+            stderr_output = await self._process.stderr.read()
+            error_msg = stderr_output.decode("utf-8", errors="replace").strip()
+            logger.warning("dotoolc pipe broken (dotoold not running?): %s", error_msg)
             await self.stop()
             self._usable = False
-            raise DotoolcNotFoundError(
-                "dotoolc pipe broken (dotoold not running?). "
-                "Install dotool: https://git.sr.ht/~geb/dotool\n"
-                "dotoolc requires dotoold running (dotool-quickstart.sh)"
+            formatted_msg = self._format_dotoolc_error(error_msg) if error_msg else (
+                "dotoolc pipe broken (dotoold not running?)\n\n"
+                "dotoold is not running. Start it with:\n"
+                "  systemctl --user enable --now dotoold.service"
             )
+            raise DotoolcNotFoundError(formatted_msg)
+
+        # Wait briefly for dotoolc to exit if it fails immediately (e.g., dotoold not running)
+        try:
+            await asyncio.wait_for(self._process.wait(), timeout=0.5)
+        except asyncio.TimeoutError:
+            pass  # process still running, that's good
+
+        # Check if dotoolc exited with error
+        if self._process.returncode is not None and self._process.returncode != 0:
+            returncode = self._process.returncode
+            stderr_output = await self._process.stderr.read()
+            error_msg = stderr_output.decode("utf-8", errors="replace").strip()
+            logger.warning("dotoolc exited with code %d: %s", returncode, error_msg)
+            await self.stop()
+            self._usable = False
+            raise DotoolcNotFoundError(self._format_dotoolc_error(error_msg))
 
         logger.info("Continuous dotoolc pipe opened (pid=%d)", self._process.pid)
+
+    def _format_dotoolc_error(self, error_msg: str) -> str:
+        """Format dotoolc error with specific guidance based on the error type."""
+        base_url = "https://git.sr.ht/~geb/dotool"
+        
+        if "no dotoold instance" in error_msg:
+            return (
+                f"{error_msg}\n\n"
+                "dotoold is not running. Start it with:\n"
+                "  systemctl --user enable --now dotoold.service"
+            )
+        elif "does not grant write permission" in error_msg:
+            return (
+                f"{error_msg}\n\n"
+                "Your user doesn't have permission to write to the dotool pipe.\n"
+                "Add yourself to the 'input' group:\n"
+                "  sudo usermod -aG input $USER\n"
+                "  # Then log out and back in, or reboot"
+            )
+        else:
+            return (
+                f"{error_msg}\n\n"
+                f"Install dotool: {base_url}\n"
+                "dotoolc requires dotoold running (dotool-quickstart.sh)"
+            )
 
     async def stream_type(self, text: str) -> None:
         """Push text instantly into the open dotoolc pipe.
