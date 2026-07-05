@@ -8,7 +8,7 @@ Cloud:
 
 - Voxtral
 - Groq
-- Deppgram
+- Deepgram
 
 Local:
 - Parakeet
