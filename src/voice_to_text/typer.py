@@ -50,8 +50,7 @@ class ContinuousTyper:
     def _find_pipe_path(self) -> str | None:
         """Find the dotool pipe path, checking in order:
         1. $DOTOOL_PIPE environment variable
-        2. $XDG_RUNTIME_DIR/dotool-pipe (proper per-user location)
-        3. /tmp/dotool-pipe (legacy fallback)
+        2. $XDG_RUNTIME_DIR/dotool-pipe (proper per-user location per XDG spec)
         """
         # 1. Check environment variable
         env_pipe = os.environ.get("DOTOOL_PIPE")
@@ -63,11 +62,6 @@ class ContinuousTyper:
         xdg_pipe = os.path.join(xdg_runtime, "dotool-pipe")
         if os.path.exists(xdg_pipe):
             return xdg_pipe
-
-        # 3. Legacy fallback
-        legacy_pipe = "/tmp/dotool-pipe"
-        if os.path.exists(legacy_pipe):
-            return legacy_pipe
 
         return None
 
