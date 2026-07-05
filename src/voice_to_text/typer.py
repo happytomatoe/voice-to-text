@@ -110,7 +110,10 @@ class ContinuousTyper:
             await self._process.stdin.drain()
         except (BrokenPipeError, ConnectionResetError):
             # dotoold not running — process started but pipe is dead
-            stderr_output = await self._process.stderr.read()
+            try:
+                stderr_output = await asyncio.wait_for(self._process.stderr.read(), timeout=2.0)
+            except asyncio.TimeoutError:
+                stderr_output = b""
             error_msg = stderr_output.decode("utf-8", errors="replace").strip()
             logger.warning("dotoolc pipe broken (dotoold not running?): %s", error_msg)
             await self.stop()
