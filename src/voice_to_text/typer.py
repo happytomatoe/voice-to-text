@@ -58,7 +58,7 @@ class ContinuousTyper:
             return env_pipe
 
         # 2. Check XDG_RUNTIME_DIR (proper location per XDG spec)
-        xdg_runtime = os.environ.get("XDG_RUNTIME_DIR", "/run/user/1000")
+        xdg_runtime = os.environ.get("XDG_RUNTIME_DIR", f"/run/user/{os.getuid()}")
         xdg_pipe = os.path.join(xdg_runtime, "dotool-pipe")
         if os.path.exists(xdg_pipe):
             return xdg_pipe

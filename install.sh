@@ -237,29 +237,36 @@ else
   fi
 fi
 
-# --- Configure dotool daemon ---
+# --- Configure dotool daemon (user service) ---
 PIPE_PATH="/run/user/$(id -u)/dotool-pipe"
 
-if [ -p "$PIPE_PATH" ] && systemctl is-active --quiet dotool.service 2>/dev/null; then
-  echo "dotool pipe already present at $PIPE_PATH."
+if [ -p "$PIPE_PATH" ] && systemctl --user is-active --quiet dotoold.service 2>/dev/null; then
+  echo "dotoold pipe already present at $PIPE_PATH."
 else
-  echo "dotool pipe missing. Initializing configuration..."
+  echo "dotoold pipe missing. Creating user service..."
 
-  sudo mkdir -p /etc/systemd/system/dotool.service.d
+  mkdir -p ~/.config/systemd/user
 
-  sudo tee /etc/systemd/system/dotool.service.d/override.conf >/dev/null <<EOF
+  cat > ~/.config/systemd/user/dotoold.service <<EOF
 [Unit]
-After=user-runtime-dir@$(id -u).service
-Requires=user-runtime-dir@$(id -u).service
+Description=dotoold daemon for keyboard input
+After=graphical-session.target
 
 [Service]
-ExecStart=
-ExecStart=/usr/bin/dotoold
+Type=simple
+ExecStart=$HOME/.local/bin/dotoold-wrapper
 Environment=DOTOOL_PIPE=$PIPE_PATH
+Restart=always
+RestartSec=2
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=default.target
 EOF
 
-  sudo systemctl daemon-reload
-  sudo systemctl restart dotool.service
+  systemctl --user daemon-reload
+  systemctl --user enable --now dotoold.service
   sleep 1
 
   if [ -p "$PIPE_PATH" ]; then
@@ -267,7 +274,7 @@ EOF
     echo "type voice-to-text service installed" | DOTOOL_PIPE="$PIPE_PATH" dotoolc
   else
     echo "ERROR: Pipe not found at $PIPE_PATH"
-    sudo journalctl -u dotool.service --no-pager -n 20
+    journalctl --user -u dotoold.service --no-pager -n 20
     exit 1
   fi
 fi
