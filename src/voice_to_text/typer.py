@@ -83,9 +83,7 @@ class ContinuousTyper:
         # Find the pipe path
         self._pipe_path = self._find_pipe_path()
         if not self._pipe_path:
-            raise DotoolcNotFoundError(
-                "dotool pipe not found. dotoold is not running."
-            )
+            raise DotoolcNotFoundError("dotool pipe not found. dotoold is not running.")
         logger.info("Using dotool pipe: %s", self._pipe_path)
 
         # Pass pipe path to dotoolc via environment
@@ -116,10 +114,8 @@ class ContinuousTyper:
             logger.warning("dotoolc pipe broken (dotoold not running?): %s", error_msg)
             await self.stop()
             self._usable = False
-            formatted_msg = self._format_dotoolc_error(error_msg) if error_msg else (
-                "dotoolc pipe broken (dotoold not running?)\n\n"
-                "dotoold is not running. Start it with:\n"
-                "  systemctl --user enable --now dotoold.service"
+            formatted_msg = (
+                self._format_dotoolc_error(error_msg) if error_msg else ("dotoolc pipe broken (dotoold not running?)")
             )
             raise DotoolcNotFoundError(formatted_msg)
 
@@ -144,13 +140,9 @@ class ContinuousTyper:
     def _format_dotoolc_error(self, error_msg: str) -> str:
         """Format dotoolc error with specific guidance based on the error type."""
         base_url = "https://git.sr.ht/~geb/dotool"
-        
+
         if "no dotoold instance" in error_msg:
-            return (
-                f"{error_msg}\n\n"
-                "dotoold is not running. Start it with:\n"
-                "  systemctl --user enable --now dotoold.service"
-            )
+            return f"{error_msg}\n\ndotoold is not running"
         elif "does not grant write permission" in error_msg:
             return (
                 f"{error_msg}\n\n"
@@ -160,11 +152,7 @@ class ContinuousTyper:
                 "  # Then log out and back in, or reboot"
             )
         else:
-            return (
-                f"{error_msg}\n\n"
-                f"Install dotool: {base_url}\n"
-                "dotoolc requires dotoold running (dotool-quickstart.sh)"
-            )
+            return f"{error_msg}\n\nInstall dotool: {base_url}\ndotoolc requires dotoold running (dotool-quickstart.sh)"
 
     async def stream_type(self, text: str) -> None:
         """Push text instantly into the open dotoolc pipe.
@@ -223,13 +211,13 @@ class ContinuousTyper:
             if line_len > 0 and count >= line_len:
                 # Select to start of line and delete
                 self._process.stdin.write(b"key shift+home\nkey backspace\n")
-                
+
                 # Update internal state: remove the last line
                 if len(lines) > 1:
                     self._typed_text = "\n".join(lines[:-1])
                 else:
                     self._typed_text = ""
-                
+
                 remaining = count - line_len
                 # The newline itself counts as 1 character; delete it to move up
                 if remaining > 0:
@@ -238,7 +226,7 @@ class ContinuousTyper:
                     # Recurse to handle any remaining characters (previous lines)
                     await self.stream_backspace(remaining)
                     return
-                
+
                 await self._process.stdin.drain()
                 return
 
@@ -251,15 +239,15 @@ class ContinuousTyper:
                 text_len = len(self._typed_text)
                 if text_len == 0:
                     break
-                
+
                 # Find the start of the last word
                 word_end = text_len
                 word_start = word_end
                 while word_start > 0 and self._typed_text[word_start - 1] != " ":
                     word_start -= 1
-                
+
                 word_len = word_end - word_start
-                
+
                 if word_len > 1 and word_len <= count:
                     self._process.stdin.write(b"key ctrl+backspace\n")
                     self._typed_text = self._typed_text[:word_start]
@@ -271,7 +259,7 @@ class ContinuousTyper:
             # 3. Fallback: individual backspaces for the remainder
             for _ in range(count):
                 self._process.stdin.write(b"key backspace\n")
-            
+
             if count > 0:
                 self._typed_text = self._typed_text[:-count]
 
@@ -290,7 +278,7 @@ class ContinuousTyper:
         try:
             self._process.stdin.write(b"key ctrl+backspace\n")
             await self._process.stdin.drain()
-            # Note: We can't accurately update _typed_text because we don't 
+            # Note: We can't accurately update _typed_text because we don't
             # know exactly how many characters the app will delete.
             # For a helper method, we just assume it's one word.
             text_len = len(self._typed_text)
@@ -331,8 +319,6 @@ class ContinuousTyper:
         except Exception as e:
             logger.error("Failed to stream delete_line_end: %s", e)
             self._usable = False
-
-
 
     async def stream_diff(self, new_text: str) -> None:
         """Diff ``new_text`` against the previously typed text and send only
