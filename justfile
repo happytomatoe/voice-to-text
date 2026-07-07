@@ -88,7 +88,7 @@ service-status:
 # @category service
 # Tail service logs
 service-logs:
-    journalctl --user | grep voice -f
+    journalctl --user -f | grep voice
 
 # @category service
 # Restart the service by stopping it (D-Bus activation restarts on next extension use)
