@@ -63,3 +63,6 @@ coverage.xml
 build/
 
 src/voice_to_text/_build_info.py
+.pi/
+docs/
+thoughts/
