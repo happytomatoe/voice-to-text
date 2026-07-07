@@ -2,26 +2,27 @@
 set -euo pipefail
 
 INSTALL_DIR="${HOME}/.local/bin"
-SERVICE_DIR="${HOME}/.config/systemd/user"
 DBUS_SERVICE_DIR="${HOME}/.local/share/dbus-1/services"
 
-mkdir -p "$INSTALL_DIR" "$SERVICE_DIR" "$DBUS_SERVICE_DIR"
+mkdir -p "$INSTALL_DIR" "$DBUS_SERVICE_DIR"
 
 # Install the Python package
 uv tool install . --force
 
-# Copy service files
-cp service/voice-to-text.service "$SERVICE_DIR/"
+# Copy D-Bus service file
 cp service/com.happytomatoe.VoiceToText.service "$DBUS_SERVICE_DIR/"
 
-# Reload systemd
-systemctl --user daemon-reload
+# Install wrapper script
+cp service/voice-to-text-dbus-wrapper "$INSTALL_DIR/"
+chmod +x "$INSTALL_DIR/voice-to-text-dbus-wrapper"
 
-echo "Service installed. Enable with:"
-echo "  systemctl --user enable --now voice-to-text.service"
+echo "Service installed."
 echo ""
-echo "Check status with:"
-echo "  systemctl --user status voice-to-text.service"
+echo "The D-Bus service will auto-start when the GNOME extension requests it."
+echo "No manual start needed - just use the extension!"
 echo ""
-echo "View logs with:"
-echo "  journalctl --user -u voice-to-text.service -f"
+echo "To check if service is running:"
+echo "  pgrep -af voice-to-text-dbus"
+echo ""
+echo "To view logs:"
+echo "  journalctl --user | grep voice -f"

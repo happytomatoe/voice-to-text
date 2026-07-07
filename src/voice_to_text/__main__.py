@@ -33,7 +33,6 @@ async def run_service() -> None:
     bus = await MessageBus(bus_type=BusType.SESSION).connect()
     interface = VoiceToTextInterface()
     interface.set_bus(bus)
-
     bus.export(OBJECT_PATH, interface)
     reply = await bus.request_name(SERVICE_NAME)
     if reply != RequestNameReply.PRIMARY_OWNER:
@@ -59,7 +58,6 @@ async def run_service() -> None:
 
     await stop_event.wait()
 
-    # Wait for the engine to finish cancelling before disconnecting
     if engine_stop_task:
         try:
             await asyncio.wait_for(engine_stop_task, timeout=16.0)
@@ -71,7 +69,6 @@ async def run_service() -> None:
 
 def main() -> None:
     setup_logging()
-    logger.info("Starting voice-to-text D-Bus service")
     asyncio.run(run_service())
 
 

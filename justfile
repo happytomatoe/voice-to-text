@@ -25,19 +25,50 @@ build-python:
     uv build --out-dir dist
 
 # @category service
-# Install the D-Bus service (systemd unit + dbus activation)
+# Install the D-Bus service (D-Bus activation only, no systemd)
 service-install:
     uv tool install -e .
-    mkdir -p ~/.config/systemd/user ~/.local/share/dbus-1/services/
-    cp service/voice-to-text.service ~/.config/systemd/user/
+    mkdir -p ~/.local/share/dbus-1/services/ ~/.local/bin/
     cp service/com.happytomatoe.VoiceToText.service ~/.local/share/dbus-1/services/
-    systemctl --user daemon-reload
-    systemctl --user enable --now voice-to-text.service
+    cp service/voice-to-text-dbus-wrapper ~/.local/bin/
+    chmod +x ~/.local/bin/voice-to-text-dbus-wrapper
+    @echo "Service installed. D-Bus activation handles startup automatically."
 
 # @category service
-# Start the systemd unit (activate after install or manual stop)
+# Uninstall the D-Bus service
+service-uninstall:
+    rm -f ~/.local/share/dbus-1/services/com.happytomatoe.VoiceToText.service
+    rm -f ~/.local/bin/voice-to-text-dbus-wrapper
+    @echo "D-Bus service uninstalled."
+
+# @category service
+# Start the service (runs in background via D-Bus activation or directly)
 service-start:
-    systemctl --user start voice-to-text.service
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if pgrep -f voice-to-text-dbus >/dev/null 2>&1; then
+        echo "Service already running"
+    else
+        "$HOME/.local/bin/voice-to-text-dbus-wrapper" &
+        sleep 1
+        if pgrep -f voice-to-text-dbus >/dev/null 2>&1; then
+            echo "Service started"
+        else
+            echo "Failed to start service"
+            exit 1
+        fi
+    fi
+
+# @category service
+# Stop the running service (D-Bus activation will restart on next request)
+service-stop:
+    #!/usr/bin/env bash
+    if pgrep -f voice-to-text-dbus >/dev/null 2>&1; then
+        pkill -f voice-to-text-dbus
+        echo "Service stopped"
+    else
+        echo "Service not running"
+    fi
 
 # @category service
 # Run the service directly in the foreground (for debugging)
@@ -45,29 +76,29 @@ service-run:
     uv run voice-to-text-dbus
 
 # @category service
-# Show service status
+# Show service process status
 service-status:
-    systemctl --user status voice-to-text.service
+    #!/usr/bin/env bash
+    if pgrep -f voice-to-text-dbus >/dev/null 2>&1; then
+        ps aux | grep voice-to-text-dbus | grep -v grep
+    else
+        echo "Service not running"
+    fi
 
 # @category service
 # Tail service logs
 service-logs:
-    journalctl --user -u voice-to-text.service -f
+    journalctl --user -f | grep voice
 
 # @category service
-# Stop the service
-service-stop:
-    systemctl --user stop voice-to-text.service
+# Restart the service by stopping it (D-Bus activation restarts on next extension use)
+service-restart: service-stop
+    @echo "Service stopped. It will auto-start when GNOME extension requests it."
 
 # @category service
-# Restart the service
-service-restart:
-    systemctl --user restart voice-to-text.service
-
-# @category service
-# Reinstall from source and restart (iterative dev cycle)
-service-reinstall: reinstall service-restart
-    @echo "Done. Tail logs with: just service-logs"
+# Reinstall from source
+service-reinstall: reinstall
+    @echo "Done. Service will auto-start on next extension use."
 
 # @category gnome-ext
 # Install extension, then start a nested GNOME Shell

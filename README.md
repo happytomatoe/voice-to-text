@@ -42,19 +42,28 @@ If you want to use Parakeet check out [this script](./parakeet-v2.sh)
 
 ### API Keys
 
-The voice-to-text service runs as a systemd user service and needs API keys to be available in its environment. There are different options. This is recomended:
+The voice-to-text service loads API keys from your system keyring at startup using `secret-tool`.
 
-Using `~/.profile`
+**Store only the key for the provider you use:**
 
 ```bash
-export VOXTRAL_API_KEY=your-key-here
-export DEEPGRAM_API_KEY=your-key-here
-export GROQ_API_KEY=your-key-here
-systemctl --user import-environment VOXTRAL_API_KEY DEEPGRAM_API_KEY GROQ_API_KEY
+# For Voxtral/Mistral (default provider)
+secret-tool store --label="Mistral API Key" service mistral_api_key account $USER
+
+# For Deepgram (if using deepgram provider)
+secret-tool store --label="Deepgram API Key" application voice-to-text provider deepgram
+
+# For Groq (if using groq provider)
+secret-tool store --label="Groq API Key" application voice-to-text provider groq
 ```
-Restart service for it to pickup new keys:
+
+Check which provider you're using in `~/.config/voice-to-text/config.yaml`.
+
+#### Reload keys
+
 ```bash
-systemctl --user restart voice-to-text.service
+# Stop the service — it will auto-restart on next use with fresh keys
+just service-stop
 ```
 
 ### Other Settings
