@@ -30,10 +30,34 @@ service-install:
     uv tool install -e .
     mkdir -p ~/.local/share/dbus-1/services/ ~/.local/bin/
     cp service/com.happytomatoe.VoiceToText.service ~/.local/share/dbus-1/services/
-    cp service/voice-to-text-env ~/.local/bin/
     cp service/voice-to-text-dbus-wrapper ~/.local/bin/
-    chmod +x ~/.local/bin/voice-to-text-env ~/.local/bin/voice-to-text-dbus-wrapper
+    chmod +x ~/.local/bin/voice-to-text-dbus-wrapper
     @echo "Service installed. D-Bus activation handles startup automatically."
+
+# @category service
+# Uninstall the D-Bus service
+service-uninstall:
+    rm -f ~/.local/share/dbus-1/services/com.happytomatoe.VoiceToText.service
+    rm -f ~/.local/bin/voice-to-text-dbus-wrapper
+    @echo "D-Bus service uninstalled."
+
+# @category service
+# Start the service (runs in background via D-Bus activation or directly)
+service-start:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if pgrep -f voice-to-text-dbus >/dev/null 2>&1; then
+        echo "Service already running"
+    else
+        voice-to-text-dbus-wrapper &
+        sleep 1
+        if pgrep -f voice-to-text-dbus >/dev/null 2>&1; then
+            echo "Service started"
+        else
+            echo "Failed to start service"
+            exit 1
+        fi
+    fi
 
 # @category service
 # Stop the running service (D-Bus activation will restart on next request)
