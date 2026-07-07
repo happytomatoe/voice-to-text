@@ -49,7 +49,7 @@ service-start:
     if pgrep -f voice-to-text-dbus >/dev/null 2>&1; then
         echo "Service already running"
     else
-        voice-to-text-dbus-wrapper &
+        "$HOME/.local/bin/voice-to-text-dbus-wrapper" &
         sleep 1
         if pgrep -f voice-to-text-dbus >/dev/null 2>&1; then
             echo "Service started"

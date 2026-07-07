@@ -17,4 +17,4 @@ if [ -z "$VOXTRAL_API_KEY" ] && [ -z "$DEEPGRAM_API_KEY" ] && [ -z "$GROQ_API_KE
     echo "Run: secret-tool store --label='Mistral API Key' service mistral_api_key account $USER" >&2
 fi
 
-exec voice-to-text-dbus
+exec $(command -v voice-to-text-dbus || echo $HOME/.local/bin/voice-to-text-dbus)

@@ -142,14 +142,24 @@ echo "Python D-Bus service installed (voice-to-text-dbus)."
 echo ""
 echo "--- Installing D-Bus service files ---"
 mkdir -p "$DBUS_SERVICE_DIR"
-
-# Only install D-Bus service (not systemd)
-cp service/com.happytomatoe.VoiceToText.service "$DBUS_SERVICE_DIR/"
-
-# Install wrapper script
 mkdir -p "$HOME/.local/bin"
-cp service/voice-to-text-dbus-wrapper "$HOME/.local/bin/"
+
+# Install wrapper script - check local or download from repo
+if [ -f "service/voice-to-text-dbus-wrapper" ]; then
+  cp service/voice-to-text-dbus-wrapper "$HOME/.local/bin/"
+else
+  echo "Downloading wrapper script from repository..."
+  curl -sL "https://raw.githubusercontent.com/$REPO/main/service/voice-to-text-dbus-wrapper" -o "$HOME/.local/bin/voice-to-text-dbus-wrapper"
+fi
 chmod +x "$HOME/.local/bin/voice-to-text-dbus-wrapper"
+
+# Copy D-Bus service file - check local or download from repo
+if [ -f "service/com.happytomatoe.VoiceToText.service" ]; then
+  cp service/com.happytomatoe.VoiceToText.service "$DBUS_SERVICE_DIR/"
+else
+  echo "Downloading D-Bus service file from repository..."
+  curl -sL "https://raw.githubusercontent.com/$REPO/main/service/com.happytomatoe.VoiceToText.service" -o "$DBUS_SERVICE_DIR/com.happytomatoe.VoiceToText.service"
+fi
 
 # D-Bus service auto-activates when extension requests the name
 # No systemd daemon-reload or enable needed
