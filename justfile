@@ -25,19 +25,20 @@ build-python:
     uv build --out-dir dist
 
 # @category service
-# Install the D-Bus service (systemd unit + dbus activation)
+# Install the D-Bus service (D-Bus activation only, no systemd)
 service-install:
     uv tool install -e .
-    mkdir -p ~/.config/systemd/user ~/.local/share/dbus-1/services/
-    cp service/voice-to-text.service ~/.config/systemd/user/
+    mkdir -p ~/.local/share/dbus-1/services/ ~/.local/bin/
     cp service/com.happytomatoe.VoiceToText.service ~/.local/share/dbus-1/services/
-    systemctl --user daemon-reload
-    systemctl --user enable --now voice-to-text.service
+    cp service/voice-to-text-env ~/.local/bin/
+    cp service/voice-to-text-dbus-wrapper ~/.local/bin/
+    chmod +x ~/.local/bin/voice-to-text-env ~/.local/bin/voice-to-text-dbus-wrapper
+    @echo "Service installed. D-Bus activation handles startup automatically."
 
 # @category service
-# Start the systemd unit (activate after install or manual stop)
-service-start:
-    systemctl --user start voice-to-text.service
+# Stop the running service (D-Bus activation will restart on next request)
+service-stop:
+    pkill -f voice-to-text-dbus || @echo "Service not running"
 
 # @category service
 # Run the service directly in the foreground (for debugging)
@@ -45,29 +46,24 @@ service-run:
     uv run voice-to-text-dbus
 
 # @category service
-# Show service status
+# Show service process status
 service-status:
-    systemctl --user status voice-to-text.service
+    ps aux | grep voice-to-text-dbus | grep -v grep || @echo "Service not running"
 
 # @category service
 # Tail service logs
 service-logs:
-    journalctl --user -u voice-to-text.service -f
+    journalctl --user | grep voice -f
 
 # @category service
-# Stop the service
-service-stop:
-    systemctl --user stop voice-to-text.service
+# Restart the service by stopping it (D-Bus activation restarts on next extension use)
+service-restart: service-stop
+    @echo "Service stopped. It will auto-start when GNOME extension requests it."
 
 # @category service
-# Restart the service
-service-restart:
-    systemctl --user restart voice-to-text.service
-
-# @category service
-# Reinstall from source and restart (iterative dev cycle)
-service-reinstall: reinstall service-restart
-    @echo "Done. Tail logs with: just service-logs"
+# Reinstall from source
+service-reinstall: reinstall
+    @echo "Done. Service will auto-start on next extension use."
 
 # @category gnome-ext
 # Install extension, then start a nested GNOME Shell

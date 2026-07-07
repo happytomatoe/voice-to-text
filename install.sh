@@ -3,7 +3,6 @@ set -euo pipefail
 REPO="happytomatoe/voice-to-text"
 EXT_UUID="voice-to-text@happytomatoe.com"
 INSTALL_DIR="$HOME/.local/share/gnome-shell/extensions/$EXT_UUID"
-SERVICE_DIR="$HOME/.config/systemd/user"
 DBUS_SERVICE_DIR="$HOME/.local/share/dbus-1/services"
 
 # --- Helper: check if a command is available ---
@@ -142,32 +141,18 @@ echo "Python D-Bus service installed (voice-to-text-dbus)."
 # --- Install D-Bus service files ---
 echo ""
 echo "--- Installing D-Bus service files ---"
-mkdir -p "$SERVICE_DIR" "$DBUS_SERVICE_DIR"
+mkdir -p "$DBUS_SERVICE_DIR"
 
-# Copy service files from the installed package
-if [ -d "service" ]; then
-  cp service/voice-to-text.service "$SERVICE_DIR/"
-  cp service/com.happytomatoe.VoiceToText.service "$DBUS_SERVICE_DIR/"
-else
-  # Try to find them relative to the installed tool
-  TOOL_PATH=$(command -v voice-to-text-dbus || echo "")
-  if [ -n "$TOOL_PATH" ]; then
-    TOOL_DIR=$(dirname "$(dirname "$TOOL_PATH")")
-    SHARE_DIR="$TOOL_DIR/share/voice-to-text"
-    if [ -f "$SHARE_DIR/voice-to-text.service" ]; then
-      cp "$SHARE_DIR/voice-to-text.service" "$SERVICE_DIR/"
-      cp "$SHARE_DIR/com.happytomatoe.VoiceToText.service" "$DBUS_SERVICE_DIR/"
-    else
-      echo "WARNING: Could not find service files. You may need to install them manually."
-    fi
-  fi
-fi
+# Only install D-Bus service (not systemd)
+cp service/com.happytomatoe.VoiceToText.service "$DBUS_SERVICE_DIR/"
 
-systemctl --user daemon-reload
-systemctl --user enable --now voice-to-text.service
-echo "D-Bus service enabled."
-echo "  Status: systemctl --user status voice-to-text.service"
-echo "  Logs:   journalctl --user -u voice-to-text.service -f"
+# Install wrapper script
+mkdir -p "$HOME/.local/bin"
+cp service/voice-to-text-dbus-wrapper "$HOME/.local/bin/"
+chmod +x "$HOME/.local/bin/voice-to-text-dbus-wrapper"
+
+# D-Bus service auto-activates when extension requests the name
+# No systemd daemon-reload or enable needed
 
 # --- Install GNOME extension ---
 echo ""
@@ -201,23 +186,12 @@ echo "--- API Key Configuration ---"
 if command_exists secret-tool; then
   echo "Setting up API key..."
   echo "Run the following to configure your API key:"
-  echo "  secret-tool store --label='Voice-to-Text API Key' com.happytomatoe.VoiceToText api_key"
-  echo ""
-  echo "Or set the environment variable in your shell profile:"
-  echo "  export VOXTRAL_API_KEY=<your-key>"
-  echo "  # Or for systemd service, create a drop-in:"
-  echo "  # mkdir -p ~/.config/systemd/user/voice-to-text.service.d"
-  echo "  # echo '[Service]\\nEnvironment=VOXTRAL_API_KEY=<your-key>' > ~/.config/systemd/user/voice-to-text.service.d/env.conf"
-  echo "  # systemctl --user daemon-reload && systemctl --user restart voice-to-text.service"
+  echo "  secret-tool store --label='Voice-to-Text API Key' service mistral_api_key account $USER"
 else
   echo "Install libsecret-tools for secure key storage:"
   echo "  sudo dnf install libsecret  # or equivalent"
   echo "Then set API keys via environment variables:"
   echo "  export VOXTRAL_API_KEY=<your-key>"
-  echo "  # Or for systemd service, create a drop-in:"
-  echo "  # mkdir -p ~/.config/systemd/user/voice-to-text.service.d"
-  echo "  # echo '[Service]\\nEnvironment=VOXTRAL_API_KEY=<your-key>' > ~/.config/systemd/user/voice-to-text.service.d/env.conf"
-  echo "  # systemctl --user daemon-reload && systemctl --user restart voice-to-text.service"
 fi
 echo ""
 
@@ -308,6 +282,6 @@ echo "  2. Set your API keys in environment variables or via secret-tool"
 echo "  3. Use the hotkey (default: Super+Q) to start/stop recording"
 echo ""
 echo "Useful commands:"
-echo "  systemctl --user status voice-to-text.service   # Service status"
-echo "  journalctl --user -u voice-to-text.service -f   # Service logs"
-echo "  gnome-extensions prefs $EXT_UUID                # Extension settings"
+echo "  ps aux | grep voice-to-text-dbus    # Check if service is running"
+echo "  journalctl --user | grep voice      # Service logs"
+echo "  gnome-extensions prefs $EXT_UUID    # Extension settings"
