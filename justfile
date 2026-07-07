@@ -62,7 +62,13 @@ service-start:
 # @category service
 # Stop the running service (D-Bus activation will restart on next request)
 service-stop:
-    pkill -f voice-to-text-dbus || @echo "Service not running"
+    #!/usr/bin/env bash
+    if pgrep -f voice-to-text-dbus >/dev/null 2>&1; then
+        pkill -f voice-to-text-dbus
+        echo "Service stopped"
+    else
+        echo "Service not running"
+    fi
 
 # @category service
 # Run the service directly in the foreground (for debugging)
@@ -72,7 +78,12 @@ service-run:
 # @category service
 # Show service process status
 service-status:
-    ps aux | grep voice-to-text-dbus | grep -v grep || @echo "Service not running"
+    #!/usr/bin/env bash
+    if pgrep -f voice-to-text-dbus >/dev/null 2>&1; then
+        ps aux | grep voice-to-text-dbus | grep -v grep
+    else
+        echo "Service not running"
+    fi
 
 # @category service
 # Tail service logs
