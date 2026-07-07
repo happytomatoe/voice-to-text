@@ -42,26 +42,28 @@ If you want to use Parakeet check out [this script](./parakeet-v2.sh)
 
 ### API Keys
 
-The voice-to-text service runs as a D-Bus activated service and loads API keys from your keyring at startup. Use `secret-tool` to store keys securely and the service will retrieve them automatically via `secret-tool`.
+The voice-to-text service loads API keys from your system keyring at startup using `secret-tool`.
 
-#### Store keys with secret-tool
+**Store only the key for the provider you use:**
 
 ```bash
-# Store Mistral/Voxtral key (you'll be prompted to type it securely)
-secret-tool store --label="Mistral API Key" service mistral_api_key account $(whoami)
+# For Voxtral/Mistral (default provider)
+secret-tool store --label="Mistral API Key" service mistral_api_key account $USER
 
-# Store Deepgram key (optional)
+# For Deepgram (if using deepgram provider)
 secret-tool store --label="Deepgram API Key" application voice-to-text provider deepgram
 
-# Store Groq key (optional)
+# For Groq (if using groq provider)
 secret-tool store --label="Groq API Key" application voice-to-text provider groq
 ```
+
+Check which provider you're using in `~/.config/voice-to-text/config.yaml`.
 
 #### Reload keys
 
 ```bash
 # Stop the service — it will auto-restart on next use with fresh keys
-pkill -f voice-to-text-dbus
+just service-stop
 ```
 
 ### Other Settings
