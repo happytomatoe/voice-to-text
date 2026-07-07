@@ -1,8 +1,20 @@
 #!/bin/bash
 # Wrapper script that loads secrets from keyring before starting voice-to-text-dbus
 
+# Check secret-tool is available
+if ! command -v secret-tool &>/dev/null; then
+    echo "ERROR: secret-tool not found. Install libsecret-tools." >&2
+    exit 1
+fi
+
 export VOXTRAL_API_KEY=$(secret-tool lookup service mistral_api_key account "$USER" 2>/dev/null)
 export DEEPGRAM_API_KEY=$(secret-tool lookup application voice-to-text provider deepgram 2>/dev/null)
 export GROQ_API_KEY=$(secret-tool lookup application voice-to-text provider groq 2>/dev/null)
+
+# Warn if no API keys found
+if [ -z "$VOXTRAL_API_KEY" ] && [ -z "$DEEPGRAM_API_KEY" ] && [ -z "$GROQ_API_KEY" ]; then
+    echo "WARNING: No API keys found in keyring. Service will fail with 401 errors." >&2
+    echo "Run: secret-tool store --label='Mistral API Key' service mistral_api_key account $USER" >&2
+fi
 
 exec voice-to-text-dbus
