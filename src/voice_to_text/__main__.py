@@ -41,16 +41,29 @@ async def run_service() -> None:
         raise SystemExit(1)
     logger.info("Service registered: %s at %s", SERVICE_NAME, OBJECT_PATH)
 
+    # Keep running until SIGTERM/SIGINT
     stop_event = asyncio.Event()
+    engine_stop_task: asyncio.Task | None = None
     loop = asyncio.get_event_loop()
 
     def _shutdown() -> None:
+        logger.info("Shutting down voice-to-text service")
+        # Cancel any active recording gracefully before exit
+        nonlocal engine_stop_task
+        engine_stop_task = asyncio.create_task(interface._engine.stop())
         stop_event.set()
 
     for sig in (signal.SIGTERM, signal.SIGINT):
         loop.add_signal_handler(sig, _shutdown)
 
     await stop_event.wait()
+
+    if engine_stop_task:
+        try:
+            await asyncio.wait_for(engine_stop_task, timeout=16.0)
+        except (TimeoutError, asyncio.CancelledError):
+            logger.warning("Engine did not stop in time, disconnecting anyway")
+
     bus.disconnect()
 
 
