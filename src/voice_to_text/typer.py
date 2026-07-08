@@ -120,15 +120,7 @@ class ContinuousTyper:
             )
             raise DotoolcNotFoundError(formatted_msg)
 
-        # Wait briefly for dotoolc to exit if it fails immediately (e.g., dotoold not running)
-        start_wait = time.time()
-        try:
-            await asyncio.wait_for(self._process.wait(), timeout=0.5)
-        except asyncio.TimeoutError:
-            pass  # process still running, that's good
-        logger.info("dotoolc health check (wait_for) took %.3fs", time.time() - start_wait)
-
-        # Check if dotoolc exited with error
+        # Check if dotoolc exited with error (no health check wait — errors caught by BrokenPipeError + returncode)
         if self._process.returncode is not None and self._process.returncode != 0:
             returncode = self._process.returncode
             stderr_output = await self._process.stderr.read()

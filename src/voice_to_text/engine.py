@@ -213,11 +213,29 @@ class RecordingEngine:
 
     async def _run(self, config: dict[str, Any]) -> None:
         """Full recording + transcription pipeline."""
+        import time as _time
+
+        # Check if profiling is enabled
+        config_mgr = ConfigManager()
+        profiling_enabled = config_mgr.config.get("profiling", False)
+
+        _t0 = _time.monotonic()
+        timings: list[tuple[str, float]] = []  # (label, elapsed)
+
+        def _step(label: str) -> None:
+            if not profiling_enabled:
+                return
+            now = _time.monotonic()
+            elapsed = now - _t0
+            timings.append((label, elapsed))
+            logger.info("[PROFIL] %.3fs total, step=%s", elapsed, label)
+
         try:
             # 1. Determine output method
             output_method = config.get("output_method", "none")
             use_typing = output_method in ("type", "type-fallback-clipboard")
             logger.info("Engine config: output_method=%s, use_typing=%s", output_method, use_typing)
+            _step("config_parsed")
 
             # 2. Open dotoolc pipe early if typing
             typer: ContinuousTyper | None = None
@@ -236,6 +254,7 @@ class RecordingEngine:
                         fallback_to_clipboard = True
                         logger.info("Will fall back to clipboard output")
             self._typer = typer
+            _step("dotoolc_opened")
 
             # 3. Activate BT headset mic if enabled in config
             if config.get("bluetooth_headset_change_to_handsfree_to_record", True):
@@ -243,6 +262,7 @@ class RecordingEngine:
                     activate_headset_mic()
                 except Exception as e:
                     logger.debug("BT headset activation skipped: %s", e)
+            _step("bt_headset_activated")
 
             # 4. Set up providers
             provider = config.get("provider", "voxtral")
@@ -275,6 +295,7 @@ class RecordingEngine:
 
             self._transcriber = transcriber
             self._batch_provider = batch_provider
+            _step("providers_initialized")
 
             # 5. Record audio via InputStream + Queue
             decrease_pct = config.get("decrease_speaker_volume", 50)
@@ -297,10 +318,12 @@ class RecordingEngine:
                 await recorder.start(audio_path)
                 self.state = EngineState.RECORDING
                 self._notify_state()
+                _step("recorder_started")
 
                 # Start streaming if in hybrid mode
                 if transcriber:
                     await transcriber.start_stream(language, sample_rate=recorder.sample_rate)
+                    _step("stream_started")
 
                 # Recording loop — read chunks from the queue
                 # Use a short timeout so cancellation is responsive even
@@ -327,6 +350,7 @@ class RecordingEngine:
 
             # 6. Stop microphone before transitioning to processing
             filepath = recorder.stop()
+            _step("recording_stopped")
             self.state = EngineState.PROCESSING
             self._notify_state()
             if filepath:
@@ -336,6 +360,7 @@ class RecordingEngine:
                     else:
                         assert batch_provider is not None
                         text = await batch_provider.transcribe_file(filepath, language)
+                    _step("transcription_done")
 
                     # If we were typing incrementally, apply final corrections
                     if text and typer:
@@ -348,6 +373,7 @@ class RecordingEngine:
                     elif text and fallback_to_clipboard:
                         logger.info("Falling back to clipboard output")
                         await asyncio.to_thread(_copy_to_clipboard, text)
+                    _step("output_done")
 
                     logger.info("Transcription completed: %d characters", len(text) if text else 0)
 
@@ -364,6 +390,17 @@ class RecordingEngine:
             if self.on_error:
                 self.on_error(str(e))
         finally:
+            # Log timing summary only if profiling enabled
+            if profiling_enabled and timings:
+                _step("done")
+                logger.info("[PROFIL] STARTUP TIMING SUMMARY:")
+                prev_t = 0.0
+                for label, elapsed in timings:
+                    delta = elapsed - prev_t
+                    logger.info("[PROFIL]   %s: %.3fs (delta +%.3fs)", label, elapsed, delta)
+                    prev_t = elapsed
+                logger.info("[PROFIL]   TOTAL: %.3fs", timings[-1][1])
+
             # Close dotoolc pipe
             if self._typer:
                 try:

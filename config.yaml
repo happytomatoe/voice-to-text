@@ -57,3 +57,6 @@ audio:
 logging:
   file: "/tmp/voice-to-text.log"
   level: "info"
+
+# Performance profiling (logs timing for each startup step)
+profiling: false

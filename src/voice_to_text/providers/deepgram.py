@@ -87,6 +87,8 @@ class DeepgramProvider(BatchProvider, WebSocketStreamingProvider):
             raise RuntimeError(f"Deepgram transcription failed: {e}")
 
     async def start_stream(self, language: str = "en", sample_rate: int = 16000) -> None:
+        import time as _time
+        _t0 = _time.monotonic()
         ws_url = (
             f"{self.api_url.replace('https://', 'wss://').replace('http://', 'ws://')}/v1/listen"
             f"?model={self.model}"
@@ -101,7 +103,7 @@ class DeepgramProvider(BatchProvider, WebSocketStreamingProvider):
         )
         headers = {"Authorization": f"Token {self.api_key}"}
         await self._connect_ws(ws_url, headers)
-        logger.info("Deepgram stream started (sample_rate=%d)", sample_rate)
+        logger.info("[PROFIL] Deepgram WS connect: %.3fs (sample_rate=%d)", _time.monotonic() - _t0, sample_rate)
 
     @property
     def name(self) -> str:
