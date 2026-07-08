@@ -144,6 +144,11 @@ gnome-ext-dev: reinstall gnome-ext-install
     # GNOME extension can find and call it on real hardware.
     # Trap EXIT/INT/TERM to kill the background service when the shell exits,
     # otherwise the orphaned service keeps the microphone open.
+    # Pre-fetch secrets from host keyring before nested session
+    export MISTRAL_API_KEY=$(secret-tool lookup service mistral_api_key account "$(whoami)" 2>/dev/null || true)
+    export DEEPGRAM_API_KEY=$(secret-tool lookup application voice-to-text provider deepgram 2>/dev/null || true)
+    export GROQ_API_KEY=$(secret-tool lookup application voice-to-text provider groq 2>/dev/null || true)
+    export VOXTRAL_API_KEY="$MISTRAL_API_KEY"
     dbus-run-session -- sh -c "
       voice-to-text-dbus > /tmp/voice-to-text.log 2>&1 &
       DBUS_PID=\$!
