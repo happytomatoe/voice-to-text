@@ -19,6 +19,18 @@ class TestVoxtralProvider:
         assert provider.model == "voxtral-mini-latest"
         assert provider._api_url == "https://api.mistral.ai"
 
+    def test_provider_name_passed_to_resolve(self):
+        """Verify provider_name='voxtral' is passed to resolve_api_key."""
+        from unittest.mock import patch
+
+        with patch("voice_to_text.providers.voxtral.resolve_api_key") as mock_resolve:
+            mock_resolve.return_value = "test_key"
+            config = {"api_key": "test_key"}
+            VoxtralProvider(config)
+            mock_resolve.assert_called_once_with(
+                config, "VOXTRAL_API_KEY", extra_envs=("MISTRAL_API_KEY",), provider_name="voxtral"
+            )
+
     def test_missing_api_key(self):
         # Unset the environment variables for this test
         import os

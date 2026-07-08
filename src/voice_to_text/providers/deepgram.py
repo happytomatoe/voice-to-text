@@ -18,45 +18,61 @@ class DeepgramProvider(BatchProvider, WebSocketStreamingProvider):
     """
 
     def __init__(self, config: dict[str, Any]):
-        self.api_key = resolve_api_key(config, "DEEPGRAM_API_KEY")
+        self.api_key = resolve_api_key(config, "DEEPGRAM_API_KEY", provider_name="deepgram")
         self.model = config.get("model", "nova-3")
         self.api_url = config.get("api_url", "https://api.deepgram.com")
+
+        # Default batch options as required by the plan
+        self.batch_options = {
+            "filler_words": False,
+            "mip_opt_out": True,
+        }
+        # Merge with config options
+        self.batch_options.update(config.get("batch_options", {}))
+
+        self._client = httpx.AsyncClient(timeout=120)
         self._init_ws_state()
 
     async def transcribe_file(self, audio_path: str, language: str = "en") -> str:
         logger.info("Transcribing %s with Deepgram model %s", audio_path, self.model)
         try:
-            headers = {
-                "Authorization": f"Token {self.api_key}",
-                "Content-Type": "audio/wav",
+            params = {
+                "model": self.model,
+                "language": language,
             }
-            async with httpx.AsyncClient() as client:
+            params.update(self.batch_options)
+
+            if audio_path.startswith(("http://", "https://")):
+                headers = {"Authorization": f"Token {self.api_key}"}
+                content = None
+                json_data = {"url": audio_path}
+            else:
+                headers = {
+                    "Authorization": f"Token {self.api_key}",
+                    "Content-Type": "audio/wav",
+                }
                 with open(audio_path, "rb") as audio_file:
-                    response = await client.post(
-                        f"{self.api_url}/v1/listen",
-                        params={
-                            "model": self.model,
-                            "language": language,
-                            "smart_format": "true",
-                            "punctuate": "true",
-                            "numerals": "true",
-                            "filler_words": "true",
-                        },
-                        headers=headers,
-                        content=audio_file.read(),
-                        timeout=120,
-                    )
-                response.raise_for_status()
-                result = response.json()
-                text = (
-                    result.get("results", {})
-                    .get("channels", [{}])[0]
-                    .get("alternatives", [{}])[0]
-                    .get("transcript", "")
-                    .strip()
-                )
-                logger.info("Transcription result: %s", text[:100])
-                return text
+                    content = audio_file.read()
+                json_data = None
+
+            response = await self._client.post(
+                f"{self.api_url}/v1/listen",
+                params=params,
+                headers=headers,
+                content=content,
+                json=json_data,
+            )
+            response.raise_for_status()
+            result = response.json()
+            text = (
+                result.get("results", {})
+                .get("channels", [{}])[0]
+                .get("alternatives", [{}])[0]
+                .get("transcript", "")
+                .strip()
+            )
+            logger.info("Transcription result: %s", text[:100])
+            return text
         except httpx.HTTPStatusError as e:
             logger.exception("Deepgram transcription API call failed")
             detail = ""

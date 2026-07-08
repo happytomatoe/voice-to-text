@@ -42,22 +42,54 @@ If you want to use Parakeet check out [this script](./parakeet-v2.sh)
 
 ### API Keys
 
-The voice-to-text service loads API keys from your system keyring at startup using `secret-tool`.
+You can provide API keys in two ways:
 
-**Store only the key for the provider you use:**
+#### 1. Environment Variables (Default)
 
 ```bash
-# For Voxtral/Mistral (default provider)
-secret-tool store --label="Mistral API Key" service mistral_api_key account $USER
-
-# For Deepgram (if using deepgram provider)
-secret-tool store --label="Deepgram API Key" application voice-to-text provider deepgram
-
-# For Groq (if using groq provider)
-secret-tool store --label="Groq API Key" application voice-to-text provider groq
+export VOXTRAL_API_KEY="your-api-key-here"
+export DEEPGRAM_API_KEY="your-api-key-here"
+export GROQ_API_KEY="your-api-key-here"
 ```
 
-Check which provider you're using in `~/.config/voice-to-text/config.yaml`.
+#### 2. OS Keyring
+
+Store keys securely in your OS keyring (GNOME Keyring, KDE Wallet, etc.):
+
+```bash
+# Store keys
+keyring set voice-to-text deepgram
+keyring set voice-to-text groq
+keyring set voice-to-text voxtral
+```
+
+Then enable keyring in your config:
+
+```yaml
+transcription:
+  api_key_source: "keyring"
+```
+
+Or per-provider:
+
+```yaml
+deepgram:
+  api_key_source: "keyring"
+```
+
+The app reads from the keyring service `voice-to-text` with the provider name as username.
+
+#### 3. Configuration File
+
+Put the keys in `~/.config/voice-to-text/config.yaml`:
+
+```yaml
+voxtral:
+  api_key: "your-api-key-here"
+
+deepgram:
+  api_key: "your-api-key-here"
+```
 
 #### Reload keys
 

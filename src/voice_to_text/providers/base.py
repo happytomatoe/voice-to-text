@@ -7,6 +7,8 @@ import os
 from abc import ABC, abstractmethod
 from typing import Any
 
+import keyring as keyring_lib
+
 logger = logging.getLogger(__name__)
 
 
@@ -65,23 +67,47 @@ def resolve_api_key(
     config: dict[str, Any],
     default_env: str,
     extra_envs: tuple[str, ...] = (),
+    provider_name: str | None = None,
 ) -> str:
-    """Resolve API key from config or environment variables.
+    """Resolve API key from keyring, environment variable, or config.
+
+    Resolution order:
+    1. Keyring (if api_key_source == "keyring")
+    2. Environment variable (via api_key_env or default_env)
+    3. Config file api_key field (plain value only)
 
     Raises ValueError if not found.
     """
-    key = config.get("api_key")
-    if not key:
-        env_var = config.get("api_key_env", default_env)
-        key = os.getenv(env_var)
+    api_key_source = config.get("api_key_source", "env")
+
+    # 1. Keyring
+    if api_key_source == "keyring" and provider_name:
+        try:
+            key = keyring_lib.get_password("voice-to-text", provider_name)
+            if key:
+                logger.debug("Resolved API key for %s from keyring", provider_name)
+                return key
+            logger.debug("No keyring entry for %s, falling back", provider_name)
+        except Exception as e:
+            logger.warning("Keyring lookup failed for %s: %s, falling back", provider_name, e)
+
+    # 2. Environment variable
+    env_var = config.get("api_key_env", default_env)
+    key = os.getenv(env_var)
     if not key:
         for env in extra_envs:
             key = os.getenv(env)
             if key:
                 break
+
+    # 3. Config file
+    if not key:
+        key = config.get("api_key")
+
     if not key:
         all_vars = (config.get("api_key_env", default_env),) + extra_envs
-        raise ValueError(f"None of {all_vars} are set")
+        raise ValueError(f"No API key found in keyring, environment ({all_vars}), or config")
+
     return key
 
 

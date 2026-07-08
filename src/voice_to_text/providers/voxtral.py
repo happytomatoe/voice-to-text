@@ -25,7 +25,9 @@ class VoxtralProvider(BatchProvider, StreamingProvider):
     """
 
     def __init__(self, config: dict[str, Any]):
-        self.api_key = resolve_api_key(config, "VOXTRAL_API_KEY", extra_envs=("MISTRAL_API_KEY",))
+        self.api_key = resolve_api_key(
+            config, "VOXTRAL_API_KEY", extra_envs=("MISTRAL_API_KEY",), provider_name="voxtral"
+        )
         self._api_url = config.get("api_url", "https://api.mistral.ai")
         # Batch model
         self.model = config.get("model", "voxtral-mini-latest")
