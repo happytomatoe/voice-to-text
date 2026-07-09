@@ -58,5 +58,9 @@ logging:
   file: "/tmp/voice-to-text.log"
   level: "info"
 
+# Engine configuration
+engine:
+  stop_timeout: 120  # seconds to wait for transcription to complete after stop
+
 # Performance profiling (logs timing for each startup step)
 profiling: false

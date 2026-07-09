@@ -193,13 +193,19 @@ class RecordingEngine:
 
     async def stop(self) -> None:
         """Stop recording gracefully."""
+        # Read configurable timeout from config
+        config_mgr = ConfigManager()
+        engine_cfg = config_mgr.config.get("engine", {})
+        stop_timeout = engine_cfg.get("stop_timeout", 120)
+        logger.info("Stopping recording (timeout=%ds)", stop_timeout)
+
         self._cancel_event.set()
         task = self._task
         if task and not task.done():
             try:
-                await asyncio.wait_for(task, timeout=10.0)
+                await asyncio.wait_for(task, timeout=stop_timeout)
             except (TimeoutError, asyncio.CancelledError):
-                logger.warning("Recording task did not finish in time")
+                logger.warning("Recording task did not finish in time (timeout=%ds)", stop_timeout)
                 task.cancel()
                 # If the task's finally block already nulled self._task,
                 # that's fine — our local reference still lets us wait

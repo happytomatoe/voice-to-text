@@ -56,11 +56,21 @@ export GROQ_API_KEY="your-api-key-here"
 
 Store keys securely in your OS keyring (GNOME Keyring, KDE Wallet, etc.):
 
+Requires `libsecret-tools` (Linux) or `keyring` Python package. The app reads from the keyring with `service=voice-to-text` and `username=<provider>`.
+
 ```bash
-# Store keys
-keyring set voice-to-text deepgram
-keyring set voice-to-text groq
-keyring set voice-to-text voxtral
+# Store API keys using secret-tool (Linux/GNOME Keyring)
+secret-tool store --label="Deepgram API Key" service voice-to-text username deepgram
+secret-tool store --label="Voxtral API Key"   service voice-to-text username voxtral
+secret-tool store --label="Groq API Key"      service voice-to-text username groq
+```
+
+Or using the Python `keyring` library:
+
+```bash
+python3 -c "import keyring; keyring.set_password('voice-to-text', 'deepgram', input('Deepgram key: '))"
+python3 -c "import keyring; keyring.set_password('voice-to-text', 'voxtral', input('Voxtral key: '))"
+python3 -c "import keyring; keyring.set_password('voice-to-text', 'groq', input('Groq key: '))"
 ```
 
 Then enable keyring in your config:
@@ -76,8 +86,6 @@ Or per-provider:
 deepgram:
   api_key_source: "keyring"
 ```
-
-The app reads from the keyring service `voice-to-text` with the provider name as username.
 
 #### 3. Configuration File
 

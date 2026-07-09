@@ -21,6 +21,11 @@ reinstall:
     uv tool install -e . --force
     echo "voice-to-text-dbus reinstalled from source"
 
+# @category setup
+# Store an API key in the OS keyring (service=voice-to-text)
+store-secret: PATH="$HOME/go/bin:$PATH"
+    ./scripts/store-api-keys.sh
+
 build-python:
     uv build --out-dir dist
 
