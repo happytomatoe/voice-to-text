@@ -236,18 +236,47 @@ export default class VoiceToTextPrefs extends ExtensionPreferences {
         );
         group.add(decreaseVolumeRow);
 
-        // Bluetooth mic toggle
-        const bluetoothMicRow = new Adw.SwitchRow({
-            title: _('Bluetooth Headset Mic'),
-            subtitle: _('Automatically switch Bluetooth headset to HSP/HFP mode and set as default mic during recording'),
+        // Microphone selection
+        const micRow = new Adw.ActionRow({
+            title: _('Microphone'),
+            subtitle: _('Select audio input device (default uses system default)'),
         });
-        settings.bind(
-            'bluetooth-headset-change-to-handsfree-to-record',
-            bluetoothMicRow,
-            'active',
-            Gio.SettingsBindFlags.DEFAULT
-        );
-        group.add(bluetoothMicRow);
+
+        const micCombo = new Gtk.ComboBoxText();
+        micCombo.append('', _('System Default'));
+        micCombo.set_active_id(settings.get_string('audio-device'));
+
+        // Load available devices
+        const loadMicDevices = () => {
+            // Remove all but first item (System Default)
+            while (micCombo.get_model().iter_n_children(null) > 1) {
+                micCombo.remove(1);
+            }
+
+            const devicesJson = settings.get_string('available-audio-devices');
+            if (devicesJson) {
+                try {
+                    const devices = JSON.parse(devicesJson);
+                    for (const dev of devices) {
+                        if (!dev.is_default) {
+                            micCombo.append(String(dev.index), dev.name);
+                        }
+                    }
+                } catch (e) {
+                    console.error('Failed to parse audio devices:', e);
+                }
+            }
+
+            // Re-set active after adding items
+            micCombo.set_active_id(settings.get_string('audio-device'));
+        };
+        loadMicDevices();
+
+        micCombo.connect('changed', () => {
+            settings.set_string('audio-device', micCombo.get_active_id());
+        });
+        micRow.add_suffix(micCombo);
+        group.add(micRow);
 
         // Language setting
         const languageRow = new Adw.ActionRow({

@@ -17,6 +17,12 @@ const VoiceToTextIface = `
     <method name="GetStatus">
       <arg type="s" direction="out"/>
     </method>
+    <method name="GetAudioDevices">
+      <arg type="s" direction="out"/>
+    </method>
+    <method name="GetAudioDevice">
+      <arg type="s" direction="out"/>
+    </method>
     <signal name="AudioLevel">
       <arg type="d" name="level"/>
     </signal>
@@ -145,6 +151,8 @@ export default class VoiceToTextExtension extends Extension {
                 '/com/happytomatoe/VoiceToText'
             );
 
+            this._loadAudioDevices();
+
             // Connect signals
             this._signalIds = [];
 
@@ -199,6 +207,18 @@ export default class VoiceToTextExtension extends Extension {
         }
     }
 
+    _loadAudioDevices() {
+        if (!this._proxy) return;
+
+        this._proxy.GetAudioDevicesAsync().then(
+            (devicesJson) => {
+                this._settings.set_string('available-audio-devices', devicesJson);
+                console.log('VoiceToText: loaded audio devices');
+            },
+            (e) => console.error('VoiceToText: failed to load audio devices:', e.message)
+        );
+    }
+
     _disconnectDBusSignals() {
         if (this._proxy && this._signalIds.length > 0) {
             for (const id of this._signalIds) {
@@ -233,7 +253,7 @@ export default class VoiceToTextExtension extends Extension {
             batch_provider: this._settings.get_string('batch-provider'),
             decrease_speaker_volume: this._settings.get_int('decrease-speaker-volume'),
             output_method: this._settings.get_string('output-method'),
-            bluetooth_headset_change_to_handsfree_to_record: this._settings.get_boolean('bluetooth-headset-change-to-handsfree-to-record'),
+            device: this._settings.get_string('audio-device'),
         };
 
         this._proxy.StartRecordingAsync(JSON.stringify(config)).then(

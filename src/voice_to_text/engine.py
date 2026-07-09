@@ -22,7 +22,6 @@ import numpy as np
 import sounddevice as sd
 
 from voice_to_text.audio import SpeakerVolumeManager
-from voice_to_text.bluetooth import activate_headset_mic
 from voice_to_text.config import ConfigManager
 from voice_to_text.hybrid import HybridTranscriber
 from voice_to_text.providers import get_batch_provider, get_streaming_provider
@@ -262,15 +261,7 @@ class RecordingEngine:
             self._typer = typer
             _step("dotoolc_opened")
 
-            # 3. Activate BT headset mic if enabled in config
-            if config.get("bluetooth_headset_change_to_handsfree_to_record", True):
-                try:
-                    activate_headset_mic()
-                except Exception as e:
-                    logger.debug("BT headset activation skipped: %s", e)
-            _step("bt_headset_activated")
-
-            # 4. Set up providers
+            # 3. Set up providers
             provider = config.get("provider", "voxtral")
             mode = config.get("mode", "batch")
             language = config.get("language", "en")

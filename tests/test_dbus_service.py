@@ -8,6 +8,7 @@ directly, bypassing the D-Bus transport layer.
 
 import asyncio
 import json
+from unittest.mock import patch
 
 import pytest
 from dbus_next import DBusError
@@ -216,3 +217,53 @@ class TestSignals:
         mock_engine.on_error("test error")
 
         assert "test error" in errors
+
+
+class TestGetAudioDevices:
+    """GetAudioDevices method."""
+
+    def test_returns_json_list_of_input_devices(self, interface):
+        """Returns only input devices as JSON."""
+        mock_devices = [
+            {"name": "Built-in Audio", "index": 0, "max_input_channels": 2, "default_samplerate": 48000.0},
+            {"name": "USB Mic", "index": 1, "max_input_channels": 1, "default_samplerate": 44100.0},
+            {"name": "Speaker", "index": 2, "max_input_channels": 0, "max_output_channels": 2},
+        ]
+
+        with patch("voice_to_text.dbus_service.sd.query_devices", return_value=mock_devices):
+            with patch("voice_to_text.dbus_service.sd.default.device", (0, 0)):
+                # Call the underlying function directly (bypasses @method decorator)
+                devices = json.loads(VoiceToTextInterface.GetAudioDevices.__wrapped__(interface))
+
+                assert len(devices) == 2
+                assert devices[0]["name"] == "Built-in Audio"
+                assert devices[1]["name"] == "USB Mic"
+
+    def test_marks_correct_default_device(self, interface):
+        """Marks the correct device as default."""
+        mock_devices = [
+            {"name": "Built-in Audio", "index": 0, "max_input_channels": 2, "default_samplerate": 48000.0},
+            {"name": "USB Mic", "index": 1, "max_input_channels": 1, "default_samplerate": 44100.0},
+        ]
+
+        with patch("voice_to_text.dbus_service.sd.query_devices", return_value=mock_devices):
+            with patch("voice_to_text.dbus_service.sd.default.device", (1, 0)):
+                devices = json.loads(VoiceToTextInterface.GetAudioDevices.__wrapped__(interface))
+
+                assert devices[0]["is_default"] is False
+                assert devices[1]["is_default"] is True
+
+
+class TestGetAudioDevice:
+    """GetAudioDevice method."""
+
+    def test_returns_empty_string_for_default(self, interface):
+        """Returns empty string when no device is set."""
+        result = VoiceToTextInterface.GetAudioDevice.__wrapped__(interface)
+        assert result == ""
+
+    def test_returns_device_index(self, interface):
+        """Returns device index as string when set."""
+        interface._current_device = 3
+        result = VoiceToTextInterface.GetAudioDevice.__wrapped__(interface)
+        assert result == "3"

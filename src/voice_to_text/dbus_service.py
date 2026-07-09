@@ -15,6 +15,8 @@ import asyncio
 import json
 import logging
 
+import sounddevice as sd
+
 from dbus_next.aio import MessageBus
 from dbus_next.errors import DBusError
 from dbus_next.service import ServiceInterface, method, signal
@@ -49,6 +51,7 @@ class VoiceToTextInterface(ServiceInterface):
         self._state = "idle"
         self._last_level: float = 0.0
         self._last_error: str = ""
+        self._current_device: int | None = None
         self._connect_engine_signals()
         self._bus: MessageBus | None = None
 
@@ -107,6 +110,15 @@ class VoiceToTextInterface(ServiceInterface):
                 f"Expected JSON object, got {type(parsed_config).__name__}",
             )
         logger.info("D-Bus StartRecording received config: %s", parsed_config)
+        # Track selected device for GetAudioDevice method
+        device_val = parsed_config.get('device')
+        if device_val is not None and device_val != '':
+            try:
+                self._current_device = int(device_val)
+            except (ValueError, TypeError):
+                self._current_device = None
+        else:
+            self._current_device = None
         loop = asyncio.get_running_loop()
         loop.create_task(self._engine.start(parsed_config))
 
@@ -120,6 +132,32 @@ class VoiceToTextInterface(ServiceInterface):
     def GetStatus(self) -> "s":  # noqa: N802, F821  # pyright: ignore[reportUndefinedVariable]
         """Return current state: idle/recording/processing."""
         return self._state
+
+    @method()
+    def GetAudioDevices(self) -> "s":  # noqa: N802, F821  # pyright: ignore[reportUndefinedVariable]
+        """Return JSON list of available audio input devices.
+
+        Each device has: name, index, channels, default_samplerate, is_default
+        """
+        devices = []
+        default_idx = sd.default.device[0]  # input device
+
+        for i, dev in enumerate(sd.query_devices()):
+            if dev["max_input_channels"] > 0:
+                devices.append({
+                    "name": dev["name"],
+                    "index": i,
+                    "channels": dev["max_input_channels"],
+                    "default_samplerate": dev["default_samplerate"],
+                    "is_default": i == default_idx,
+                })
+
+        return json.dumps(devices)
+
+    @method()
+    def GetAudioDevice(self) -> "s":  # noqa: N802, F821  # pyright: ignore[reportUndefinedVariable]
+        """Return the current audio device index or empty string for default."""
+        return str(self._current_device) if self._current_device is not None else ""
 
     # ── Signals ──────────────────────────────────────────────────────────
 
