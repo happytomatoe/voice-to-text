@@ -23,7 +23,7 @@ reinstall:
 
 # @category setup
 # Store an API key in the OS keyring (service=voice-to-text)
-store-secret: PATH="$HOME/go/bin:$PATH"
+store-secret:
     ./scripts/store-api-keys.sh
 
 build-python:
@@ -35,8 +35,6 @@ service-install:
     uv tool install -e .
     mkdir -p ~/.local/share/dbus-1/services/ ~/.local/bin/
     cp service/com.happytomatoe.VoiceToText.service ~/.local/share/dbus-1/services/
-    cp service/voice-to-text-dbus-wrapper ~/.local/bin/
-    chmod +x ~/.local/bin/voice-to-text-dbus-wrapper
     @echo "Service installed. D-Bus activation handles startup automatically."
 
 # @category service
