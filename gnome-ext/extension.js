@@ -253,7 +253,9 @@ export default class VoiceToTextExtension extends Extension {
             batch_provider: this._settings.get_string('batch-provider'),
             decrease_speaker_volume: this._settings.get_int('decrease-speaker-volume'),
             output_method: this._settings.get_string('output-method'),
-            device: this._settings.get_string('audio-device'),
+            device: this._settings.get_string('audio-device') === ''
+                ? null
+                : Number.parseInt(this._settings.get_string('audio-device'), 10),
         };
 
         this._proxy.StartRecordingAsync(JSON.stringify(config)).then(

@@ -10,7 +10,8 @@ import signal
 import sys
 
 from dbus_next.aio import MessageBus
-from dbus_next import BusType, RequestNameReply, NameFlag
+from dbus_next import BusType, RequestNameReply
+from dbus_next.constants import NameFlag
 
 from voice_to_text.dbus_service import OBJECT_PATH, SERVICE_NAME, VoiceToTextInterface
 

@@ -110,13 +110,18 @@ class VoiceToTextInterface(ServiceInterface):
                 f"Expected JSON object, got {type(parsed_config).__name__}",
             )
         logger.info("D-Bus StartRecording received config: %s", parsed_config)
-        # Track selected device for GetAudioDevice method
+        # Normalize device to int or None before passing to engine
         device_val = parsed_config.get('device')
         if device_val is not None and device_val != '':
             try:
-                self._current_device = int(device_val)
+                parsed_config["device"] = int(device_val)
+                self._current_device = parsed_config["device"]
             except (ValueError, TypeError):
+                parsed_config["device"] = None
                 self._current_device = None
+        elif 'device' in parsed_config:
+            parsed_config["device"] = None
+            self._current_device = None
         else:
             self._current_device = None
         loop = asyncio.get_running_loop()

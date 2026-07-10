@@ -1,6 +1,7 @@
 """Deepgram Nova-3 transcription provider (batch and streaming)."""
 
 import logging
+import os
 from typing import Any
 
 import httpx
@@ -47,9 +48,13 @@ class DeepgramProvider(BatchProvider, WebSocketStreamingProvider):
                 content = None
                 json_data = {"url": audio_path}
             else:
+                _ext_map = {".wav": "audio/wav", ".mp3": "audio/mpeg", ".flac": "audio/flac",
+                            ".ogg": "audio/ogg", ".webm": "audio/webm", ".m4a": "audio/mp4"}
+                ext = os.path.splitext(audio_path)[1].lower()
+                content_type = _ext_map.get(ext, "audio/wav")
                 headers = {
                     "Authorization": f"Token {self.api_key}",
-                    "Content-Type": "audio/wav",
+                    "Content-Type": content_type,
                 }
                 with open(audio_path, "rb") as audio_file:
                     content = audio_file.read()

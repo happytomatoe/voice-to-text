@@ -13,6 +13,7 @@ the callback thread into the async event loop.
 import asyncio
 import logging
 import os
+import time
 import tempfile
 from collections.abc import Callable
 from enum import Enum
@@ -178,6 +179,11 @@ class RecordingEngine:
         self._cancel_event = asyncio.Event()
         self._typer: ContinuousTyper | None = None
 
+        # Cache engine config once at construction
+        config_mgr = ConfigManager()
+        engine_cfg = config_mgr.config.get("engine", {})
+        self._stop_timeout: int = engine_cfg.get("stop_timeout", 120)
+
         # Callbacks set by the D-Bus service to emit signals
         self.on_audio_level: Callable[[float], None] | None = None
         self.on_error: Callable[[str], None] | None = None
@@ -192,10 +198,7 @@ class RecordingEngine:
 
     async def stop(self) -> None:
         """Stop recording gracefully."""
-        # Read configurable timeout from config
-        config_mgr = ConfigManager()
-        engine_cfg = config_mgr.config.get("engine", {})
-        stop_timeout = engine_cfg.get("stop_timeout", 120)
+        stop_timeout = self._stop_timeout
         logger.info("Stopping recording (timeout=%ds)", stop_timeout)
 
         self._cancel_event.set()
@@ -218,19 +221,18 @@ class RecordingEngine:
 
     async def _run(self, config: dict[str, Any]) -> None:
         """Full recording + transcription pipeline."""
-        import time as _time
 
         # Check if profiling is enabled
         config_mgr = ConfigManager()
         profiling_enabled = config_mgr.config.get("profiling", False)
 
-        _t0 = _time.monotonic()
+        _t0 = time.monotonic()
         timings: list[tuple[str, float]] = []  # (label, elapsed)
 
         def _step(label: str) -> None:
             if not profiling_enabled:
                 return
-            now = _time.monotonic()
+            now = time.monotonic()
             elapsed = now - _t0
             timings.append((label, elapsed))
             logger.info("[PROFIL] %.3fs total, step=%s", elapsed, label)

@@ -4,10 +4,12 @@ import asyncio
 import json
 import logging
 import os
+import time
 from abc import ABC, abstractmethod
 from typing import Any
 
 import keyring as keyring_lib
+import websockets
 
 logger = logging.getLogger(__name__)
 
@@ -130,10 +132,7 @@ class WebSocketStreamingProvider(StreamingProvider):
 
     async def _connect_ws(self, ws_url: str, headers: dict[str, str]) -> None:
         """Open a persistent WebSocket connection."""
-        import time as _time
-        import websockets
-
-        _t0 = _time.monotonic()
+        _t0 = time.monotonic()
         if self._ws is not None:
             try:
                 await self._ws.close()
@@ -143,7 +142,7 @@ class WebSocketStreamingProvider(StreamingProvider):
         self._ws = await websockets.connect(ws_url, additional_headers=ws_headers)
         self._partial_result = None
         self._finalized_text = ""
-        logger.info("[PROFIL] WS connect to %s: %.3fs", ws_url.split("?")[0], _time.monotonic() - _t0)
+        logger.info("[PROFIL] WS connect to %s: %.3fs", ws_url.split("?")[0], time.monotonic() - _t0)
 
     async def send_audio(self, audio_chunk: bytes) -> None:
         if self._ws is None:

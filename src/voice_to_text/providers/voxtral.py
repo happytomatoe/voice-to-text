@@ -5,6 +5,7 @@ import concurrent.futures
 import logging
 import os
 import threading
+import time
 from typing import Any
 
 import httpx
@@ -93,8 +94,7 @@ class VoxtralProvider(BatchProvider, StreamingProvider):
 
     async def start_stream(self, language: str = "en", sample_rate: int = 16000) -> None:
         """Initialize a streaming session via Voxtral SDK."""
-        import time as _time
-        _t0 = _time.monotonic()
+        _t0 = time.monotonic()
         # Ensure the SDK sees the correct key even if only VOXTRAL_API_KEY is set
         os.environ.setdefault("MISTRAL_API_KEY", self.api_key)
 
@@ -107,7 +107,7 @@ class VoxtralProvider(BatchProvider, StreamingProvider):
             ready = await asyncio.get_event_loop().run_in_executor(None, self._ready_event.wait, 5.0)
             if not ready or self._loop is None:
                 raise RuntimeError("Failed to start event loop thread")
-        _t_loop = _time.monotonic()
+        _t_loop = time.monotonic()
 
         # Create audio queue for this stream
         self._audio_queue = asyncio.Queue(maxsize=100)
@@ -119,7 +119,7 @@ class VoxtralProvider(BatchProvider, StreamingProvider):
         self._stream_task = asyncio.run_coroutine_threadsafe(self._stream(language, sample_rate), self._loop)
         logger.info(
             "[PROFIL] Voxtral stream start: %.3fs total (event_loop %.3fs, model=%s delay=%sms)",
-            _time.monotonic() - _t0,
+            time.monotonic() - _t0,
             _t_loop - _t0,
             self._realtime_model,
             self._target_delay_ms,

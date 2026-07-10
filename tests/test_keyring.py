@@ -25,7 +25,7 @@ class TestResolveApiKey:
 
     def test_env_var_extra(self):
         """Resolve from extra env vars."""
-        with patch.dict(os.environ, {"MISTRAL_API_KEY": "mistral-key"}):
+        with patch.dict(os.environ, {"MISTRAL_API_KEY": "mistral-key"}, clear=True):
             result = resolve_api_key({}, "VOXTRAL_API_KEY", extra_envs=("MISTRAL_API_KEY",))
             assert result == "mistral-key"
 

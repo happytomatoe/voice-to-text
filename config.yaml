@@ -28,7 +28,7 @@ deepgram:
     dictation: false
 
 groq:
-  # api_key_source: "env" (default) or "keyring"
+  api_key_source: "env"
   # Add key: secret-tool store --label="Groq API key" application voice-to-text provider groq
 
 voxtral:
