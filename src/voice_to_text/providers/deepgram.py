@@ -1,4 +1,32 @@
-"""Deepgram Nova-3 transcription provider (batch and streaming)."""
+"""Deepgram Nova-3 transcription provider (batch and streaming).
+
+API reference: https://developers.deepgram.com/reference
+- Pre-recorded: https://developers.deepgram.com/reference/pre-recorded
+- Streaming:    https://developers.deepgram.com/reference/streaming
+
+Available query parameters (set via deepgram.batch_options in config.yaml):
+- model:           Model to use (default: nova-3)
+- language:        Language code (default: en)
+- punctuate:       Add punctuation to transcript
+- smart_format:    Format dates, times, numbers, etc.
+- paragraphs:      Split transcript into paragraphs with blank-line breaks
+- numerals:        Convert numbers from words to digits
+- filler_words:    Include filler words (uh, um)
+- utterances:      Split transcript by speaker utterance
+- diarize:         Speaker diarization
+- multichannel:    Transcribe each channel separately
+- profanity_filter: Mask profanity
+- redact:          Redact PII (credit_cards, ssn, etc.)
+- search:          Search for specific terms
+- replace:         Find-and-replace words
+- callback:        Callback URL for async results
+- endpointing:     Endpoint detection sensitivity for streaming
+- interim_results: Return interim results during streaming
+- encoding:        Audio encoding format
+- sample_rate:     Audio sample rate
+- channels:        Number of audio channels
+- mip_opt_out:     Opt out of the Model Improvement Program
+"""
 
 import logging
 from typing import Any
@@ -22,10 +50,11 @@ class DeepgramProvider(BatchProvider, WebSocketStreamingProvider):
         self.model = config.get("model", "nova-3")
         self.api_url = config.get("api_url", "https://api.deepgram.com")
 
-        # Default batch options as required by the plan
+        # Default batch options
         self.batch_options = {
             "filler_words": False,
             "mip_opt_out": True,
+            "paragraphs": True,
         }
         # Merge with config options
         self.batch_options.update(config.get("batch_options", {}))
@@ -99,6 +128,7 @@ class DeepgramProvider(BatchProvider, WebSocketStreamingProvider):
             f"&smart_format=true"
             f"&punctuate=true"
             f"&numerals=true"
+            f"&paragraphs=true"
             f"&filler_words=true"
         )
         headers = {"Authorization": f"Token {self.api_key}"}
