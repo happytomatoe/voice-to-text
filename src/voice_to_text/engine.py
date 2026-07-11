@@ -292,18 +292,31 @@ class RecordingEngine:
                     batch_name = config.get("batch_provider") or hybrid_cfg.get("batch_provider", "voxtral")
                     streaming_config = config_mgr.get_provider_config(streaming_name)
                     batch_config = config_mgr.get_provider_config(batch_name)
-                    streaming_provider = get_streaming_provider(streaming_name, streaming_config)
-                    batch_provider = get_batch_provider(batch_name, batch_config)
+                    # Construct providers in a worker thread: their __init__
+                    # performs a (now timeout-bounded) keyring lookup that must
+                    # not block the asyncio event loop.
+                    streaming_provider = await asyncio.to_thread(
+                        get_streaming_provider, streaming_name, streaming_config
+                    )
+                    batch_provider = await asyncio.to_thread(
+                        get_batch_provider, batch_name, batch_config
+                    )
                 else:
                     # streaming mode — use streaming provider as both
                     streaming_config = config_mgr.get_provider_config(streaming_name)
-                    streaming_provider = get_streaming_provider(streaming_name, streaming_config)
+                    streaming_provider = await asyncio.to_thread(
+                        get_streaming_provider, streaming_name, streaming_config
+                    )
                     batch_provider = None  # no batch in pure streaming mode
                 transcriber = HybridTranscriber(streaming_provider, batch_provider or streaming_provider)  # type: ignore[arg-type]
             else:
                 config_mgr = ConfigManager()
                 provider_config = config_mgr.get_provider_config(provider)
-                batch_provider = get_batch_provider(provider, provider_config)
+                # Construct the provider in a worker thread: its __init__ does a
+                # (timeout-bounded) keyring lookup that must not block the loop.
+                batch_provider = await asyncio.to_thread(
+                    get_batch_provider, provider, provider_config
+                )
 
             self._transcriber = transcriber
             self._batch_provider = batch_provider
