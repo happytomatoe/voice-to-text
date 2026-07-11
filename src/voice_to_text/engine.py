@@ -51,6 +51,7 @@ def _copy_to_clipboard(text: str) -> bool:
     logger.warning("No clipboard tool found (tried: wl-copy, xclip, xsel)")
     return False
 
+
 SAMPLE_RATE = 16000
 BLOCK_SIZE = 2048
 
@@ -126,11 +127,13 @@ class AsyncAudioRecorder:
         float_data = indata[:, 0].astype(np.float32) / 32768.0
         rms = float(np.sqrt(np.mean(float_data**2)))
         self.smoothed_level = 0.7 * self.smoothed_level + 0.3 * rms
+
         def _safe_put():
             try:
                 self._queue.put_nowait(raw)
             except asyncio.QueueFull:
                 pass  # drop frame if consumer is too slow
+
         self._loop.call_soon_threadsafe(_safe_put)
 
     async def read_chunk(self) -> bytes | None:
@@ -382,7 +385,6 @@ class RecordingEngine:
                     _step("output_done")
 
                     logger.info("Transcription completed: %d characters", len(text) if text else 0)
-
 
                 finally:
                     # Clean up temp WAV file after transcription

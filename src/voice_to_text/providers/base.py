@@ -22,6 +22,7 @@ class BatchProvider(ABC):
     @abstractmethod
     async def transcribe_file(self, audio_path: str, language: str = "en") -> str:
         """Transcribe audio file (batch processing)."""
+
     @abstractmethod
     async def close(self) -> None:
         """Close provider resources (e.g. HTTP clients)."""
@@ -58,6 +59,7 @@ class StreamingProvider(ABC):
     @abstractmethod
     async def finalize_stream(self) -> str:
         """End stream and return final transcript."""
+
     @abstractmethod
     async def close(self) -> None:
         """Close provider resources (e.g. HTTP clients)."""
@@ -137,6 +139,7 @@ class WebSocketStreamingProvider(StreamingProvider):
     async def _connect_ws(self, ws_url: str, headers: dict[str, str]) -> None:
         """Open a persistent WebSocket connection."""
         import time as _time
+
         import websockets
 
         _t0 = _time.monotonic()

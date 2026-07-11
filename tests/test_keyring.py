@@ -25,7 +25,7 @@ class TestResolveApiKey:
 
     def test_env_var_extra(self):
         """Resolve from extra env vars."""
-        with patch.dict(os.environ, {"MISTRAL_API_KEY": "mistral-key"}):
+        with patch.dict(os.environ, {"MISTRAL_API_KEY": "mistral-key"}, clear=True):
             result = resolve_api_key({}, "VOXTRAL_API_KEY", extra_envs=("MISTRAL_API_KEY",))
             assert result == "mistral-key"
 
@@ -44,9 +44,7 @@ class TestResolveApiKey:
     def test_keyring_source(self):
         """Resolve from keyring when api_key_source is 'keyring'."""
         with patch("voice_to_text.providers.base.keyring_lib.get_password", return_value="keyring-key"):
-            result = resolve_api_key(
-                {"api_key_source": "keyring"}, "DEEPGRAM_API_KEY", provider_name="deepgram"
-            )
+            result = resolve_api_key({"api_key_source": "keyring"}, "DEEPGRAM_API_KEY", provider_name="deepgram")
             assert result == "keyring-key"
 
     def test_keyring_fallback_to_env(self):
@@ -55,9 +53,7 @@ class TestResolveApiKey:
             patch("voice_to_text.providers.base.keyring_lib.get_password", return_value=None),
             patch.dict(os.environ, {"DEEPGRAM_API_KEY": "env-key"}),
         ):
-            result = resolve_api_key(
-                {"api_key_source": "keyring"}, "DEEPGRAM_API_KEY", provider_name="deepgram"
-            )
+            result = resolve_api_key({"api_key_source": "keyring"}, "DEEPGRAM_API_KEY", provider_name="deepgram")
             assert result == "env-key"
 
     def test_keyring_fallback_to_config(self):
@@ -82,9 +78,7 @@ class TestResolveApiKey:
             ),
             patch.dict(os.environ, {"DEEPGRAM_API_KEY": "env-key"}),
         ):
-            result = resolve_api_key(
-                {"api_key_source": "keyring"}, "DEEPGRAM_API_KEY", provider_name="deepgram"
-            )
+            result = resolve_api_key({"api_key_source": "keyring"}, "DEEPGRAM_API_KEY", provider_name="deepgram")
             assert result == "env-key"
 
     def test_keyring_no_provider_name_skips_keyring(self):

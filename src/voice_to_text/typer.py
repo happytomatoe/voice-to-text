@@ -19,7 +19,6 @@ import asyncio
 import logging
 import os
 import shutil
-import time
 
 logger = logging.getLogger(__name__)
 
@@ -109,7 +108,7 @@ class ContinuousTyper:
             # dotoold not running — process started but pipe is dead
             try:
                 stderr_output = await asyncio.wait_for(self._process.stderr.read(), timeout=2.0)
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 stderr_output = b""
             error_msg = stderr_output.decode("utf-8", errors="replace").strip()
             logger.warning("dotoolc pipe broken (dotoold not running?): %s", error_msg)

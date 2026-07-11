@@ -63,7 +63,10 @@ class TestVoxtralProvider:
         mock_client.__aenter__ = AsyncMock(return_value=mock_client)
         mock_client.__aexit__ = AsyncMock(return_value=None)
 
-        with patch("voice_to_text.providers.voxtral.httpx.AsyncClient", return_value=mock_client):
+        with (
+            patch("voice_to_text.providers.voxtral.httpx.AsyncClient", return_value=mock_client),
+            patch.dict(os.environ, {}, clear=True),
+        ):
             config = {"api_key": "test_key"}
             provider = VoxtralProvider(config)
 

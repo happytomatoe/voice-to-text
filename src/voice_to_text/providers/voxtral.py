@@ -94,6 +94,7 @@ class VoxtralProvider(BatchProvider, StreamingProvider):
     async def start_stream(self, language: str = "en", sample_rate: int = 16000) -> None:
         """Initialize a streaming session via Voxtral SDK."""
         import time as _time
+
         _t0 = _time.monotonic()
         # Ensure the SDK sees the correct key even if only VOXTRAL_API_KEY is set
         os.environ.setdefault("MISTRAL_API_KEY", self.api_key)
@@ -246,16 +247,14 @@ class VoxtralProvider(BatchProvider, StreamingProvider):
         self._closed = True
         if self._audio_queue is not None and self._loop is not None:
             self._loop.call_soon_threadsafe(self._audio_queue.put_nowait, None)
-        
+
         if self._loop is not None:
             try:
                 # Use run_in_executor to stop the loop in its own thread
-                await asyncio.get_event_loop().run_in_executor(
-                    None, lambda: self._loop.stop()
-                )
+                await asyncio.get_event_loop().run_in_executor(None, lambda: self._loop.stop())
             except Exception:
                 pass
-        
+
         if self._thread is not None:
             self._thread.join(timeout=1.0)
             self._thread = None

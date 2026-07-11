@@ -32,6 +32,7 @@ OBJECT_PATH = "/com/happytomatoe/VoiceToText"
 # dbus-next signals: the @signal() method's return value is emitted.
 # We stash the current value on the interface and the signal method reads it.
 
+
 class VoiceToTextInterface(ServiceInterface):
     """D-Bus interface for voice-to-text recording service.
 
@@ -57,9 +58,10 @@ class VoiceToTextInterface(ServiceInterface):
 
     def _connect_engine_signals(self):
         """Wire up engine callbacks to D-Bus signal emission."""
+
         def _on_level(level: float):
             self._last_level = level
-            self.AudioLevel()   # calls @signal() method → emits via dbus-next
+            self.AudioLevel()  # calls @signal() method → emits via dbus-next
 
         def _on_error(msg: str):
             self._last_error = msg
@@ -137,5 +139,3 @@ class VoiceToTextInterface(ServiceInterface):
     def StateChanged(self) -> "s":  # noqa: N802, F821  # pyright: ignore[reportUndefinedVariable]
         """Emitted when engine state changes (idle/recording/processing)."""
         return self._state
-
-

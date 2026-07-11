@@ -135,6 +135,7 @@ class TestDeepgramProvider:
         }
 
         import os
+
         with (
             patch("httpx.AsyncClient.post", return_value=mock_response) as mock_post,
             patch.dict(os.environ, {}, clear=True),
@@ -161,6 +162,7 @@ class TestDeepgramProvider:
         mock_response.json.return_value = {"results": {"channels": [{"alternatives": [{"transcript": "param world"}]}]}}
 
         import os
+
         with (
             patch("httpx.AsyncClient.post", return_value=mock_response) as mock_post,
             patch.dict(os.environ, {}, clear=True),
@@ -171,8 +173,8 @@ class TestDeepgramProvider:
                     "smart_format": False,
                     "filler_words": True,
                     "mip_opt_out": True,
-                    "custom_param": "custom_val"
-                }
+                    "custom_param": "custom_val",
+                },
             }
             provider = DeepgramProvider(config)
 

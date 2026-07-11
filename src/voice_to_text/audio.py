@@ -18,8 +18,6 @@ SAMPLE_RATE = 16000
 BLOCK_SIZE = 2048
 
 
-
-
 class AudioRecorder:
     """Records audio directly to a WAV file with level smoothing."""
 
@@ -101,9 +99,6 @@ class AudioRecorder:
                 self.on_audio_data(raw)
             except Exception:
                 logger.exception("on_audio_data callback failed")
-
-
-
 
 
 class SpeakerVolumeManager:

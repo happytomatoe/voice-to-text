@@ -117,6 +117,7 @@ class DeepgramProvider(BatchProvider, WebSocketStreamingProvider):
 
     async def start_stream(self, language: str = "en", sample_rate: int = 16000) -> None:
         import time as _time
+
         _t0 = _time.monotonic()
         ws_url = (
             f"{self.api_url.replace('https://', 'wss://').replace('http://', 'ws://')}/v1/listen"
