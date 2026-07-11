@@ -245,6 +245,7 @@ class RecordingEngine:
             use_typing = output_method in ("type", "type-fallback-clipboard")
             logger.info("Engine config: output_method=%s, use_typing=%s", output_method, use_typing)
             _step("config_parsed")
+            logger.info("Engine: config parsed, opening dotoolc...")
 
             # 2. Open dotoolc pipe early if typing
             typer: ContinuousTyper | None = None
@@ -264,14 +265,16 @@ class RecordingEngine:
                         logger.info("Will fall back to clipboard output")
             self._typer = typer
             _step("dotoolc_opened")
+            logger.info("Engine: dotoolc opened, activating headset...")
 
             # 3. Activate BT headset mic if enabled in config
             if config.get("bluetooth_headset_change_to_handsfree_to_record", True):
                 try:
-                    activate_headset_mic()
+                    await asyncio.to_thread(activate_headset_mic)
                 except Exception as e:
                     logger.debug("BT headset activation skipped: %s", e)
             _step("bt_headset_activated")
+            logger.info("Engine: headset activated, initializing providers...")
 
             # 4. Set up providers
             provider = config.get("provider", "voxtral")
@@ -305,6 +308,7 @@ class RecordingEngine:
             self._transcriber = transcriber
             self._batch_provider = batch_provider
             _step("providers_initialized")
+            logger.info("Engine: providers initialized, starting recorder...")
 
             # 5. Record audio via InputStream + Queue
             decrease_pct = config.get("decrease_speaker_volume", 50)
@@ -328,6 +332,7 @@ class RecordingEngine:
                 self.state = EngineState.RECORDING
                 self._notify_state()
                 _step("recorder_started")
+                logger.info("Engine: recording started")
 
                 # Start streaming if in hybrid mode
                 if transcriber:
