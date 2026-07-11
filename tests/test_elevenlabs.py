@@ -16,21 +16,6 @@ class TestElevenLabsProvider:
         assert isinstance(provider, ElevenLabsProvider)
         assert provider.name == "elevenlabs"
 
-    def test_initialization(self):
-        provider = ElevenLabsProvider({"api_key": "test_key"})
-        assert provider.model == "scribe_v2"
-        assert provider.api_url == "https://api.elevenlabs.io"
-        assert provider.tag_audio_events is False
-
-    def test_missing_api_key(self):
-        old_key = os.environ.pop("ELEVENLABS_API_KEY", None)
-        try:
-            with pytest.raises(ValueError):
-                ElevenLabsProvider({})
-        finally:
-            if old_key is not None:
-                os.environ["ELEVENLABS_API_KEY"] = old_key
-
     @pytest.mark.asyncio
     async def test_transcribe_file_request_format(self):
         mock_response = Mock()
@@ -53,7 +38,7 @@ class TestElevenLabsProvider:
                 data = call_args[1]["data"]
                 assert data["model_id"] == "scribe_v2"
                 assert data["tag_audio_events"] == "false"
-                assert "language_code" not in data  # default "en" is 2-letter -> omitted
+                assert data["language_code"] == "en"  # default "en" is forwarded (ISO-639-1)
                 assert call_args[1]["files"]["file"] is not None
                 assert result == "hello world"
             finally:

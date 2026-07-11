@@ -38,10 +38,10 @@ class ElevenLabsProvider(BatchProvider):
             "timestamps_granularity": "none",
             "tag_audio_events": str(self.tag_audio_events).lower(),
         }
-        # ElevenLabs expects ISO-639-3 (3-letter) language codes, e.g. "eng".
-        # The app default is the 2-letter "en"; only pass language_code when it is
-        # already a 3-letter code, otherwise let ElevenLabs auto-detect.
-        if language and len(language) == 3:
+        # ElevenLabs accepts ISO-639-1 (2-letter, e.g. "en") and ISO-639-3
+        # (3-letter, e.g. "eng") language codes. Forward the configured language
+        # when present so the user's choice is respected instead of auto-detecting.
+        if language and len(language) in (2, 3):
             data["language_code"] = language
         try:
             async with httpx.AsyncClient() as client:
@@ -69,7 +69,7 @@ class ElevenLabsProvider(BatchProvider):
             raise RuntimeError(f"ElevenLabs API request failed: {e}{detail}") from e
         except Exception as e:
             logger.exception("ElevenLabs transcription failed")
-            raise RuntimeError(f"ElevenLabs transcription failed: {e}")
+            raise RuntimeError(f"ElevenLabs transcription failed: {e}") from e
 
     @property
     def name(self) -> str:
