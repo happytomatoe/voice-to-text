@@ -109,6 +109,13 @@ gnome-ext-dev: reinstall gnome-ext-install
         echo "Error: Cannot start a development GNOME Shell from within a toolbox container. Run this command on the host system." >&2
         exit 1
     fi
+    if command -v secret-tool &>/dev/null; then
+        export VOXTRAL_API_KEY=$(secret-tool lookup service mistral_api_key account "$USER" 2>/dev/null)
+        export DEEPGRAM_API_KEY=$(secret-tool lookup application voice-to-text provider deepgram 2>/dev/null)
+        export GROQ_API_KEY=$(secret-tool lookup application voice-to-text provider groq 2>/dev/null)
+        export ELEVENLABS_API_KEY=$(secret-tool lookup application voice-to-text provider elevenlabs 2>/dev/null)
+        export SIXTYDB_API_KEY=$(secret-tool lookup application voice-to-text provider 60db 2>/dev/null)
+    fi
     echo "" > /tmp/gnome-shell-nested.log
     echo "" > /tmp/voice-to-text.log
     if ! rpm -q mutter-devkit &>/dev/null; then

@@ -101,6 +101,7 @@ export default class VoiceToTextPrefs extends ExtensionPreferences {
         providerCombo.append('groq', 'Groq');
         providerCombo.append('voxtral', 'Voxtral');
         providerCombo.append('parakeet', 'Parakeet');
+        providerCombo.append('60db', '60db');
         providerCombo.set_active_id(settings.get_string('provider'));
         providerCombo.connect('changed', () => {
             settings.set_string('provider', providerCombo.get_active_id());
@@ -133,6 +134,7 @@ export default class VoiceToTextPrefs extends ExtensionPreferences {
         const streamingProviderCombo = new Gtk.ComboBoxText();
         streamingProviderCombo.append('deepgram', 'Deepgram');
         streamingProviderCombo.append('voxtral', 'Voxtral');
+        streamingProviderCombo.append('60db', '60db');
         streamingProviderCombo.set_active_id(
             settings.get_string('streaming-provider')
         );
@@ -158,6 +160,7 @@ export default class VoiceToTextPrefs extends ExtensionPreferences {
         batchProviderCombo.append('groq', 'Groq');
         batchProviderCombo.append('voxtral', 'Voxtral');
         batchProviderCombo.append('parakeet', 'Parakeet');
+        batchProviderCombo.append('60db', '60db');
         batchProviderCombo.set_active_id(settings.get_string('batch-provider'));
         batchProviderCombo.connect('changed', () => {
             settings.set_string(

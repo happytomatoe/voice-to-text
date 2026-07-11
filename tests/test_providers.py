@@ -2,8 +2,9 @@
 
 import pytest
 
-from voice_to_text.providers import get_batch_provider
+from voice_to_text.providers import get_batch_provider, get_streaming_provider
 from voice_to_text.providers.groq import GroqProvider
+from voice_to_text.providers.sixty import SixtyProvider
 
 
 class TestProviderFactory:
@@ -35,3 +36,34 @@ class TestGroqProvider:
         finally:
             if old_key is not None:
                 os.environ["GROQ_API_KEY"] = old_key
+
+
+class TestSixtyProvider:
+    def test_get_sixty_provider(self):
+        config = {"api_key": "test_key"}
+        provider = get_batch_provider("60db", config)
+        assert isinstance(provider, SixtyProvider)
+        assert provider.name == "60db"
+
+    def test_get_streaming_provider(self):
+        config = {"api_key": "test_key"}
+        provider = get_streaming_provider("60db", config)
+        assert isinstance(provider, SixtyProvider)
+        assert provider.name == "60db"
+
+    def test_initialization(self):
+        config = {"api_key": "test_key"}
+        provider = SixtyProvider(config)
+        assert provider.model == "60db-stt-v01"
+        assert provider.api_url == "https://api.60db.ai"
+
+    def test_missing_api_key(self):
+        import os
+
+        old_key = os.environ.pop("SIXTYDB_API_KEY", None)
+        try:
+            with pytest.raises(ValueError):
+                SixtyProvider({})
+        finally:
+            if old_key is not None:
+                os.environ["SIXTYDB_API_KEY"] = old_key

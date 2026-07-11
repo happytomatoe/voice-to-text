@@ -9,6 +9,7 @@ Cloud:
 - Voxtral
 - Groq
 - Deepgram
+- 60db
 
 Local:
 - Parakeet
@@ -55,6 +56,9 @@ secret-tool store --label="Deepgram API Key" application voice-to-text provider 
 
 # For Groq (if using groq provider)
 secret-tool store --label="Groq API Key" application voice-to-text provider groq
+
+# For 60db (if using 60db provider)
+secret-tool store --label="60db API Key" application voice-to-text provider 60db
 ```
 
 Check which provider you're using in `~/.config/voice-to-text/config.yaml`.

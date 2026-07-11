@@ -24,6 +24,9 @@ voxtral:
   realtime_model: "voxtral-mini-transcribe-realtime-2602"
   target_delay_ms: 400
 
+sixty:
+  api_key_env: "SIXTYDB_API_KEY"
+
 parakeet:
   model: "nvidia/parakeet-tdt-0.6b-v3"
   http_endpoint: "http://localhost:5092"
