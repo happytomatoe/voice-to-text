@@ -16,7 +16,7 @@
     </key>
     <key name="provider" type="s">
       <default>"voxtral"</default>
-      <summary>Transcription provider (groq, voxtral, parakeet, or elevenlabs)</summary>
+      <summary>Transcription provider for batch mode</summary>
     </key>
     <key name="language" type="s">
       <default>"en"</default>
@@ -45,7 +45,7 @@
     <key name="streaming-provider" type="s">
       <default>"voxtral"</default>
       <summary>Streaming provider for hybrid and streaming modes</summary>
-      <description>Provider used for real-time streaming during recording in hybrid or streaming mode (deepgram or voxtral)</description>
+      <description>Provider used for real-time streaming during recording in hybrid or streaming mode </description>
     </key>
     <key name="batch-provider" type="s">
       <default>"voxtral"</default>

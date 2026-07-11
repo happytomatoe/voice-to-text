@@ -7,6 +7,7 @@ from .deepgram import DeepgramProvider
 from .elevenlabs import ElevenLabsProvider
 from .groq import GroqProvider
 from .parakeet import ParakeetProvider
+from .sixty import SixtyProvider
 from .voxtral import VoxtralProvider
 
 _BATCH_PROVIDERS = {
@@ -14,12 +15,14 @@ _BATCH_PROVIDERS = {
     "deepgram": DeepgramProvider,
     "voxtral": VoxtralProvider,
     "parakeet": ParakeetProvider,
+    "60db": SixtyProvider,
     "elevenlabs": ElevenLabsProvider,
 }
 
 _STREAMING_PROVIDERS = {
     "deepgram": DeepgramProvider,
     "voxtral": VoxtralProvider,
+    "60db": SixtyProvider,
 }
 
 

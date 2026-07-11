@@ -9,6 +9,7 @@ Cloud:
 - Voxtral
 - Groq
 - Deepgram
+- 60db
 - ElevenLabs
 
 Local:
@@ -51,6 +52,7 @@ You can provide API keys in three ways:
 export VOXTRAL_API_KEY="your-api-key-here"
 export DEEPGRAM_API_KEY="your-api-key-here"
 export GROQ_API_KEY="your-api-key-here"
+export SIXTYDB_API_KEY="your-api-key-here"
 export ELEVENLABS_API_KEY="your-api-key-here"
 ```
 
@@ -65,6 +67,7 @@ Requires `libsecret-tools` (Linux) or `keyring` Python package. The app reads fr
 secret-tool store --label="Deepgram API Key"   service voice-to-text username deepgram
 secret-tool store --label="Voxtral API Key"    service voice-to-text username voxtral
 secret-tool store --label="Groq API Key"       service voice-to-text username groq
+secret-tool store --label="60db API Key"       service voice-to-text username 60db
 secret-tool store --label="ElevenLabs API Key" service voice-to-text username elevenlabs
 ```
 
@@ -74,6 +77,7 @@ Or using the Python `keyring` library:
 python3 -c "import keyring, getpass; keyring.set_password('voice-to-text', 'deepgram', getpass.getpass('Deepgram key: '))"
 python3 -c "import keyring, getpass; keyring.set_password('voice-to-text', 'voxtral', getpass.getpass('Voxtral key: '))"
 python3 -c "import keyring, getpass; keyring.set_password('voice-to-text', 'groq', getpass.getpass('Groq key: '))"
+python3 -c "import keyring, getpass; keyring.set_password('voice-to-text', '60db', getpass.getpass('60db key: '))"
 python3 -c "import keyring, getpass; keyring.set_password('voice-to-text', 'elevenlabs', getpass.getpass('ElevenLabs key: '))"
 
 ```

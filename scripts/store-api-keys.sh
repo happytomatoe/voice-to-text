@@ -27,7 +27,8 @@ provider=$($GUM choose \
     --header "Which provider's API key do you want to store?" \
     "Deepgram" \
     "Voxtral" \
-    "Groq")
+    "Groq" \
+    "60db")
 
 if [ -z "$provider" ]; then
     echo "No provider selected. Aborted."
@@ -39,6 +40,7 @@ case "$provider" in
     Deepgram) username="deepgram" ;;
     Voxtral)  username="voxtral" ;;
     Groq)     username="groq" ;;
+    60db)     username="60db" ;;
     *)        echo "Invalid provider. Aborted."; exit 1 ;;
 esac
 
