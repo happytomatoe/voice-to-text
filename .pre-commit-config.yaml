@@ -40,3 +40,9 @@ repos:
         types: [python]
         files: ^(tests/|src/)
         pass_filenames: false
+      - id: no-co-authored-by
+        name: no Co-Authored-By trailer
+        entry: bash scripts/no-co-authored-by.sh
+        language: system
+        stages: [commit-msg]
+        pass_filenames: true
