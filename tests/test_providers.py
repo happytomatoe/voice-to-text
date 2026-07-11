@@ -1,8 +1,11 @@
 """Tests for transcription providers."""
 
+import os
+
 import pytest
 
 from voice_to_text.providers import get_batch_provider
+from voice_to_text.providers.elevenlabs import ElevenLabsProvider
 from voice_to_text.providers.groq import GroqProvider
 
 
@@ -25,9 +28,6 @@ class TestGroqProvider:
         assert provider.model == "whisper-large-v3-turbo"
 
     def test_missing_api_key(self):
-        # Unset the environment variable for this test
-        import os
-
         old_key = os.environ.pop("GROQ_API_KEY", None)
         try:
             with pytest.raises(ValueError):
@@ -35,3 +35,21 @@ class TestGroqProvider:
         finally:
             if old_key is not None:
                 os.environ["GROQ_API_KEY"] = old_key
+
+
+class TestElevenLabsProvider:
+    def test_initialization(self):
+        config = {"api_key": "test_key"}
+        provider = ElevenLabsProvider(config)
+        assert provider.model == "scribe_v2"
+        assert provider.api_url == "https://api.elevenlabs.io"
+        assert provider.tag_audio_events is False
+
+    def test_missing_api_key(self):
+        old_key = os.environ.pop("ELEVENLABS_API_KEY", None)
+        try:
+            with pytest.raises(ValueError):
+                ElevenLabsProvider({})
+        finally:
+            if old_key is not None:
+                os.environ["ELEVENLABS_API_KEY"] = old_key

@@ -52,7 +52,7 @@ service-start:
     if pgrep -f voice-to-text-dbus >/dev/null 2>&1; then
         echo "Service already running"
     else
-        "$HOME/.local/bin/voice-to-text-dbus-wrapper" &
+        "$HOME/.local/bin/voice-to-text-dbus" &
         sleep 1
         if pgrep -f voice-to-text-dbus >/dev/null 2>&1; then
             echo "Service started"
@@ -108,6 +108,16 @@ service-reinstall: reinstall
 gnome-ext-dev: reinstall gnome-ext-install
     #!/usr/bin/env bash
     set -euo pipefail
+    # Load provider API keys from the system keyring in the parent session
+    # (where the Secret Service is reachable) so the nested D-Bus service
+    # inherits them. The wrapper does this for the real service; gnome-ext-dev
+    # launches voice-to-text-dbus directly and must load keys here instead.
+    if command -v secret-tool &>/dev/null; then
+        export VOXTRAL_API_KEY=$(secret-tool lookup service voice-to-text username voxtral 2>/dev/null)
+        export DEEPGRAM_API_KEY=$(secret-tool lookup service voice-to-text username deepgram 2>/dev/null)
+        export GROQ_API_KEY=$(secret-tool lookup service voice-to-text username groq 2>/dev/null)
+        export ELEVENLABS_API_KEY=$(secret-tool lookup service voice-to-text username elevenlabs 2>/dev/null)
+    fi
     if [ -n "${TOOLBOX_PATH:-}" ] || [ "${container:-}" = "oci" ]; then
         echo "Error: Cannot start a development GNOME Shell from within a toolbox container. Run this command on the host system." >&2
         exit 1

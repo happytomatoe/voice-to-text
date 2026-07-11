@@ -16,7 +16,7 @@
     </key>
     <key name="provider" type="s">
       <default>"voxtral"</default>
-      <summary>Transcription provider (groq or voxtral)</summary>
+      <summary>Transcription provider (groq, voxtral, parakeet, or elevenlabs)</summary>
     </key>
     <key name="language" type="s">
       <default>"en"</default>
@@ -50,7 +50,7 @@
     <key name="batch-provider" type="s">
       <default>"voxtral"</default>
       <summary>Batch provider for hybrid mode</summary>
-      <description>Provider used for final batch transcription in hybrid mode</description>
+      <description>Provider used for final batch transcription in hybrid mode (deepgram, groq, voxtral, parakeet, or elevenlabs)</description>
     </key>
     <key name="bluetooth-headset-change-to-handsfree-to-record" type="b">
       <default>true</default>
