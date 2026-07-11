@@ -71,6 +71,36 @@ class StreamingProvider(ABC):
         pass
 
 
+# Keyring lookups block on a D-Bus round-trip to the secret service. When
+# that service is unreachable (e.g. inside the isolated dbus-run-session used
+# by `just gnome-ext-dev`), the call can hang for tens of seconds and, if
+# invoked on the asyncio event loop, freeze recording startup. Bound it.
+_KEYRING_TIMEOUT = 3.0
+
+
+def _keyring_get_password(service: str, provider: str, timeout: float = _KEYRING_TIMEOUT) -> str | None:
+    """Return the keyring password, or raise on timeout / error.
+
+    Runs the blocking ``keyring.get_password`` in a worker thread and fails
+    fast (default 3s) so an unreachable secret service cannot hang startup.
+    The worker thread is intentionally not joined on timeout, so the lingering
+    keyring call cannot re-block the caller.
+    """
+    import concurrent.futures
+
+    ex = concurrent.futures.ThreadPoolExecutor(max_workers=1)
+    try:
+        future = ex.submit(keyring_lib.get_password, service, provider)
+        try:
+            return future.result(timeout=timeout)
+        except concurrent.futures.TimeoutError as e:
+            raise RuntimeError(
+                f"keyring lookup timed out after {timeout}s (is the secret service reachable on this session bus?)"
+            ) from e
+    finally:
+        ex.shutdown(wait=False)
+
+
 def resolve_api_key(
     config: dict[str, Any],
     default_env: str,
@@ -91,13 +121,17 @@ def resolve_api_key(
     # 1. Keyring
     if api_key_source == "keyring" and provider_name:
         try:
-            key = keyring_lib.get_password("voice-to-text", provider_name)
+            key = _keyring_get_password("voice-to-text", provider_name)
             if key:
                 logger.debug("Resolved API key for %s from keyring", provider_name)
                 return key
             logger.debug("No keyring entry for %s, falling back", provider_name)
         except Exception as e:
-            logger.warning("Keyring lookup failed for %s: %s, falling back", provider_name, e)
+            logger.warning(
+                "Keyring lookup failed for %s: %s — falling back to environment variable / config",
+                provider_name,
+                e,
+            )
 
     # 2. Environment variable
     env_var = config.get("api_key_env", default_env)
