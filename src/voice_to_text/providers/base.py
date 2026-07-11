@@ -22,6 +22,9 @@ class BatchProvider(ABC):
     @abstractmethod
     async def transcribe_file(self, audio_path: str, language: str = "en") -> str:
         """Transcribe audio file (batch processing)."""
+    @abstractmethod
+    async def close(self) -> None:
+        """Close provider resources (e.g. HTTP clients)."""
         pass
 
     @property
@@ -55,6 +58,9 @@ class StreamingProvider(ABC):
     @abstractmethod
     async def finalize_stream(self) -> str:
         """End stream and return final transcript."""
+    @abstractmethod
+    async def close(self) -> None:
+        """Close provider resources (e.g. HTTP clients)."""
         pass
 
     @property

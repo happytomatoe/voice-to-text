@@ -240,3 +240,23 @@ class VoxtralProvider(BatchProvider, StreamingProvider):
     @property
     def name(self) -> str:
         return "voxtral"
+
+    async def close(self) -> None:
+        """Clean up the event loop thread and streaming resources."""
+        self._closed = True
+        if self._audio_queue is not None and self._loop is not None:
+            self._loop.call_soon_threadsafe(self._audio_queue.put_nowait, None)
+        
+        if self._loop is not None:
+            try:
+                # Use run_in_executor to stop the loop in its own thread
+                await asyncio.get_event_loop().run_in_executor(
+                    None, lambda: self._loop.stop()
+                )
+            except Exception:
+                pass
+        
+        if self._thread is not None:
+            self._thread.join(timeout=1.0)
+            self._thread = None
+        self._loop = None

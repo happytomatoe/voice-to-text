@@ -42,7 +42,7 @@ If you want to use Parakeet check out [this script](./parakeet-v2.sh)
 
 ### API Keys
 
-You can provide API keys in two ways:
+You can provide API keys in three ways:
 
 #### 1. Environment Variables (Default)
 

@@ -11,6 +11,14 @@ if ! command -v gum &>/dev/null; then
     exit 1
 fi
 
+if ! command -v secret-tool &>/dev/null; then
+    echo "Error: 'secret-tool' is required (usually in libsecret-tools package)."
+    echo "  sudo apt install libsecret-tools   # Debian/Ubuntu"
+    echo "  sudo dnf install libsecret        # Fedora"
+    echo "  sudo pacman -S libsecret          # Arch"
+    exit 1
+fi
+
 GUM=$(command -v gum)
 
 $GUM style --border normal --padding "0 2" --margin "0 0 1" "voice-to-text — API Key Storage"

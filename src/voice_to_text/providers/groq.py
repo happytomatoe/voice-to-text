@@ -47,3 +47,7 @@ class GroqProvider(BatchProvider):
     @property
     def name(self) -> str:
         return "groq"
+
+    async def close(self) -> None:
+        """Close the Groq client."""
+        await self.client.close()

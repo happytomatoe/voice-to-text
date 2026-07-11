@@ -138,3 +138,7 @@ class DeepgramProvider(BatchProvider, WebSocketStreamingProvider):
     @property
     def name(self) -> str:
         return "deepgram"
+
+    async def close(self) -> None:
+        """Close the persistent HTTP client."""
+        await self._client.aclose()

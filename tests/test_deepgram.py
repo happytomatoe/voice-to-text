@@ -134,7 +134,11 @@ class TestDeepgramProvider:
             "results": {"channels": [{"alternatives": [{"transcript": "default world"}]}]}
         }
 
-        with patch("httpx.AsyncClient.post", return_value=mock_response) as mock_post:
+        import os
+        with (
+            patch("httpx.AsyncClient.post", return_value=mock_response) as mock_post,
+            patch.dict(os.environ, {}, clear=True),
+        ):
             # Provide config without batch_options
             config = {"api_key": "test_key"}
             provider = DeepgramProvider(config)
@@ -156,7 +160,11 @@ class TestDeepgramProvider:
         mock_response.raise_for_status.return_value = None
         mock_response.json.return_value = {"results": {"channels": [{"alternatives": [{"transcript": "param world"}]}]}}
 
-        with patch("httpx.AsyncClient.post", return_value=mock_response) as mock_post:
+        import os
+        with (
+            patch("httpx.AsyncClient.post", return_value=mock_response) as mock_post,
+            patch.dict(os.environ, {}, clear=True),
+        ):
             config = {
                 "api_key": "test_key",
                 "batch_options": {
