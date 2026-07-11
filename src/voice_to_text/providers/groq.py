@@ -21,7 +21,7 @@ class GroqProvider(BatchProvider):
     """
 
     def __init__(self, config: dict[str, Any]):
-        self.api_key = resolve_api_key(config, "GROQ_API_KEY")
+        self.api_key = resolve_api_key(config, "GROQ_API_KEY", provider_name="groq")
         self.model = config.get("model", "whisper-large-v3-turbo")
         self.client = AsyncGroq(api_key=self.api_key)  # pyright: ignore[reportCallIssue]
 
@@ -47,3 +47,7 @@ class GroqProvider(BatchProvider):
     @property
     def name(self) -> str:
         return "groq"
+
+    async def close(self) -> None:
+        """Close the Groq client."""
+        await self.client.close()

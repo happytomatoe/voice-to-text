@@ -7,6 +7,8 @@ import os
 from abc import ABC, abstractmethod
 from typing import Any
 
+import keyring as keyring_lib
+
 logger = logging.getLogger(__name__)
 
 
@@ -20,6 +22,10 @@ class BatchProvider(ABC):
     @abstractmethod
     async def transcribe_file(self, audio_path: str, language: str = "en") -> str:
         """Transcribe audio file (batch processing)."""
+
+    @abstractmethod
+    async def close(self) -> None:
+        """Close provider resources (e.g. HTTP clients)."""
         pass
 
     @property
@@ -53,6 +59,10 @@ class StreamingProvider(ABC):
     @abstractmethod
     async def finalize_stream(self) -> str:
         """End stream and return final transcript."""
+
+    @abstractmethod
+    async def close(self) -> None:
+        """Close provider resources (e.g. HTTP clients)."""
         pass
 
     @property
@@ -61,27 +71,85 @@ class StreamingProvider(ABC):
         pass
 
 
+# Keyring lookups block on a D-Bus round-trip to the secret service. When
+# that service is unreachable (e.g. inside the isolated dbus-run-session used
+# by `just gnome-ext-dev`), the call can hang for tens of seconds and, if
+# invoked on the asyncio event loop, freeze recording startup. Bound it.
+_KEYRING_TIMEOUT = 3.0
+
+
+def _keyring_get_password(service: str, provider: str, timeout: float = _KEYRING_TIMEOUT) -> str | None:
+    """Return the keyring password, or raise on timeout / error.
+
+    Runs the blocking ``keyring.get_password`` in a worker thread and fails
+    fast (default 3s) so an unreachable secret service cannot hang startup.
+    The worker thread is intentionally not joined on timeout, so the lingering
+    keyring call cannot re-block the caller.
+    """
+    import concurrent.futures
+
+    ex = concurrent.futures.ThreadPoolExecutor(max_workers=1)
+    try:
+        future = ex.submit(keyring_lib.get_password, service, provider)
+        try:
+            return future.result(timeout=timeout)
+        except concurrent.futures.TimeoutError as e:
+            raise RuntimeError(
+                f"keyring lookup timed out after {timeout}s (is the secret service reachable on this session bus?)"
+            ) from e
+    finally:
+        ex.shutdown(wait=False)
+
+
 def resolve_api_key(
     config: dict[str, Any],
     default_env: str,
     extra_envs: tuple[str, ...] = (),
+    provider_name: str | None = None,
 ) -> str:
-    """Resolve API key from config or environment variables.
+    """Resolve API key from keyring, environment variable, or config.
+
+    Resolution order:
+    1. Keyring (if api_key_source == "keyring")
+    2. Environment variable (via api_key_env or default_env)
+    3. Config file api_key field (plain value only)
 
     Raises ValueError if not found.
     """
-    key = config.get("api_key")
-    if not key:
-        env_var = config.get("api_key_env", default_env)
-        key = os.getenv(env_var)
+    api_key_source = config.get("api_key_source", "env")
+
+    # 1. Keyring
+    if api_key_source == "keyring" and provider_name:
+        try:
+            key = _keyring_get_password("voice-to-text", provider_name)
+            if key:
+                logger.debug("Resolved API key for %s from keyring", provider_name)
+                return key
+            logger.debug("No keyring entry for %s, falling back", provider_name)
+        except Exception as e:
+            logger.warning(
+                "Keyring lookup failed for %s: %s — falling back to environment variable / config",
+                provider_name,
+                e,
+            )
+
+    # 2. Environment variable
+    env_var = config.get("api_key_env", default_env)
+    key = os.getenv(env_var)
     if not key:
         for env in extra_envs:
             key = os.getenv(env)
             if key:
                 break
+
+    # 3. Config file
+    if not key:
+        key = config.get("api_key")
+
     if not key:
         all_vars = (config.get("api_key_env", default_env),) + extra_envs
-        raise ValueError(f"None of {all_vars} are set")
+        raise ValueError(f"No API key found in keyring, environment ({all_vars}), or config")
+
     return key
 
 
@@ -104,8 +172,11 @@ class WebSocketStreamingProvider(StreamingProvider):
 
     async def _connect_ws(self, ws_url: str, headers: dict[str, str]) -> None:
         """Open a persistent WebSocket connection."""
+        import time as _time
+
         import websockets
 
+        _t0 = _time.monotonic()
         if self._ws is not None:
             try:
                 await self._ws.close()
@@ -115,6 +186,7 @@ class WebSocketStreamingProvider(StreamingProvider):
         self._ws = await websockets.connect(ws_url, additional_headers=ws_headers)
         self._partial_result = None
         self._finalized_text = ""
+        logger.info("[PROFIL] WS connect to %s: %.3fs", ws_url.split("?")[0], _time.monotonic() - _t0)
 
     async def send_audio(self, audio_chunk: bytes) -> None:
         if self._ws is None:

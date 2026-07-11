@@ -25,7 +25,7 @@ class ElevenLabsProvider(BatchProvider):
     """
 
     def __init__(self, config: dict[str, Any]):
-        self.api_key = resolve_api_key(config, "ELEVENLABS_API_KEY")
+        self.api_key = resolve_api_key(config, "ELEVENLABS_API_KEY", provider_name="elevenlabs")
         self.model = config.get("model", DEFAULT_MODEL)
         self.api_url = config.get("api_url", "https://api.elevenlabs.io")
         self.tag_audio_events = config.get("tag_audio_events", False)
@@ -71,6 +71,9 @@ class ElevenLabsProvider(BatchProvider):
             logger.exception("ElevenLabs transcription failed")
             raise RuntimeError(f"ElevenLabs transcription failed: {e}") from e
 
+    async def close(self) -> None:
+        """No persistent resources to close."""
+        pass
     @property
     def name(self) -> str:
         return "elevenlabs"
