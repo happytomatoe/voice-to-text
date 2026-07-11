@@ -1,5 +1,7 @@
 """Tests for Deepgram provider."""
 
+import os
+
 import pytest
 
 from voice_to_text.providers import get_batch_provider
@@ -30,7 +32,6 @@ class TestDeepgramProvider:
             mock_resolve.assert_called_once_with(config, "DEEPGRAM_API_KEY", provider_name="deepgram")
 
     def test_missing_api_key(self):
-        import os
 
         old_key = os.environ.pop("DEEPGRAM_API_KEY", None)
         try:
@@ -43,7 +44,6 @@ class TestDeepgramProvider:
     @pytest.mark.asyncio
     async def test_transcribe_file_request_format(self):
         """Test that transcribe_file sends properly formatted request for local files."""
-        import os
         import tempfile
         from unittest.mock import Mock, patch
 
@@ -90,7 +90,6 @@ class TestDeepgramProvider:
     @pytest.mark.asyncio
     async def test_transcribe_url_request_format(self):
         """Test that transcribe_file sends properly formatted request for URLs."""
-        import os
         from unittest.mock import Mock, patch
 
         mock_response = Mock()
@@ -134,8 +133,6 @@ class TestDeepgramProvider:
             "results": {"channels": [{"alternatives": [{"transcript": "default world"}]}]}
         }
 
-        import os
-
         with (
             patch("httpx.AsyncClient.post", return_value=mock_response) as mock_post,
             patch.dict(os.environ, {}, clear=True),
@@ -160,8 +157,6 @@ class TestDeepgramProvider:
         mock_response = Mock()
         mock_response.raise_for_status.return_value = None
         mock_response.json.return_value = {"results": {"channels": [{"alternatives": [{"transcript": "param world"}]}]}}
-
-        import os
 
         with (
             patch("httpx.AsyncClient.post", return_value=mock_response) as mock_post,

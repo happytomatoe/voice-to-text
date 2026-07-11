@@ -417,14 +417,14 @@ class RecordingEngine:
                     pass
                 self._typer = None
             # Close providers
-            if self._batch_provider:
-                try:
-                    await self._batch_provider.close()
-                except Exception:
-                    pass
             if self._transcriber:
                 try:
                     await self._transcriber.close()
+                except Exception:
+                    pass
+            elif self._batch_provider:
+                try:
+                    await self._batch_provider.close()
                 except Exception:
                     pass
             self.state = EngineState.IDLE

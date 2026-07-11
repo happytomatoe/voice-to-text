@@ -129,7 +129,6 @@ class DeepgramProvider(BatchProvider, WebSocketStreamingProvider):
             f"&smart_format=true"
             f"&punctuate=true"
             f"&numerals=true"
-            f"&paragraphs=true"
             f"&filler_words=true"
         )
         headers = {"Authorization": f"Token {self.api_key}"}
@@ -141,5 +140,10 @@ class DeepgramProvider(BatchProvider, WebSocketStreamingProvider):
         return "deepgram"
 
     async def close(self) -> None:
-        """Close the persistent HTTP client."""
+        """Close the persistent HTTP client and WebSocket."""
+        if self._ws is not None:
+            try:
+                await self._ws.close()
+            except Exception:
+                pass
         await self._client.aclose()

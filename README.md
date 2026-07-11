@@ -68,9 +68,9 @@ secret-tool store --label="Groq API Key"      service voice-to-text username gro
 Or using the Python `keyring` library:
 
 ```bash
-python3 -c "import keyring; keyring.set_password('voice-to-text', 'deepgram', input('Deepgram key: '))"
-python3 -c "import keyring; keyring.set_password('voice-to-text', 'voxtral', input('Voxtral key: '))"
-python3 -c "import keyring; keyring.set_password('voice-to-text', 'groq', input('Groq key: '))"
+python3 -c "import keyring, getpass; keyring.set_password('voice-to-text', 'deepgram', getpass.getpass('Deepgram key: '))"
+python3 -c "import keyring, getpass; keyring.set_password('voice-to-text', 'voxtral', getpass.getpass('Voxtral key: '))"
+python3 -c "import keyring, getpass; keyring.set_password('voice-to-text', 'groq', getpass.getpass('Groq key: '))"
 ```
 
 Then enable keyring in your config:
