@@ -10,6 +10,7 @@ Cloud:
 - Groq
 - Deepgram
 - 60db
+- ElevenLabs
 
 Local:
 - Parakeet
@@ -22,7 +23,7 @@ This repo contains gnome extension and python application
 
 - Python 3.13+
 - [uv](https://docs.astral.sh/uv/getting-started/installation/)
-- [Groq API key](https://console.groq.com/keys) OR [Voxtral API key](https://mistral.ai)
+- [Groq API key](https://console.groq.com/keys) OR [Voxtral API key](https://mistral.ai) OR [ElevenLabs API key](https://elevenlabs.io/app/settings/api-keys)
 - Linux with `xclip`/`xsel` (X11) if you'll use clipboard functionality
 
 ## Installation
@@ -52,6 +53,7 @@ export VOXTRAL_API_KEY="your-api-key-here"
 export DEEPGRAM_API_KEY="your-api-key-here"
 export GROQ_API_KEY="your-api-key-here"
 export SIXTYDB_API_KEY="your-api-key-here"
+export ELEVENLABS_API_KEY="your-api-key-here"
 ```
 
 #### 2. OS Keyring
@@ -62,10 +64,11 @@ Requires `libsecret-tools` (Linux) or `keyring` Python package. The app reads fr
 
 ```bash
 # Store API keys using secret-tool (Linux/GNOME Keyring)
-secret-tool store --label="Deepgram API Key" service voice-to-text username deepgram
-secret-tool store --label="Voxtral API Key"   service voice-to-text username voxtral
-secret-tool store --label="Groq API Key"      service voice-to-text username groq
-secret-tool store --label="60db API Key"     service voice-to-text username 60db
+secret-tool store --label="Deepgram API Key"   service voice-to-text username deepgram
+secret-tool store --label="Voxtral API Key"    service voice-to-text username voxtral
+secret-tool store --label="Groq API Key"       service voice-to-text username groq
+secret-tool store --label="60db API Key"       service voice-to-text username 60db
+secret-tool store --label="ElevenLabs API Key" service voice-to-text username elevenlabs
 ```
 
 Or using the Python `keyring` library:
@@ -75,6 +78,8 @@ python3 -c "import keyring, getpass; keyring.set_password('voice-to-text', 'deep
 python3 -c "import keyring, getpass; keyring.set_password('voice-to-text', 'voxtral', getpass.getpass('Voxtral key: '))"
 python3 -c "import keyring, getpass; keyring.set_password('voice-to-text', 'groq', getpass.getpass('Groq key: '))"
 python3 -c "import keyring, getpass; keyring.set_password('voice-to-text', '60db', getpass.getpass('60db key: '))"
+python3 -c "import keyring, getpass; keyring.set_password('voice-to-text', 'elevenlabs', getpass.getpass('ElevenLabs key: '))"
+
 ```
 
 Then enable keyring in your config:

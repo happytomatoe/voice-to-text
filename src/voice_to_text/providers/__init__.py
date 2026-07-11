@@ -4,6 +4,7 @@ from typing import Any
 
 from .base import BatchProvider, StreamingProvider
 from .deepgram import DeepgramProvider
+from .elevenlabs import ElevenLabsProvider
 from .groq import GroqProvider
 from .parakeet import ParakeetProvider
 from .sixty import SixtyProvider
@@ -15,6 +16,7 @@ _BATCH_PROVIDERS = {
     "voxtral": VoxtralProvider,
     "parakeet": ParakeetProvider,
     "60db": SixtyProvider,
+    "elevenlabs": ElevenLabsProvider,
 }
 
 _STREAMING_PROVIDERS = {

@@ -103,6 +103,7 @@ export default class VoiceToTextPrefs extends ExtensionPreferences {
         providerCombo.append('voxtral', 'Voxtral');
         providerCombo.append('parakeet', 'Parakeet');
         providerCombo.append('60db', '60db');
+        providerCombo.append('elevenlabs', 'ElevenLabs');
         providerCombo.set_active_id(settings.get_string('provider'));
         providerCombo.connect('changed', () => {
             settings.set_string('provider', providerCombo.get_active_id());
@@ -162,6 +163,7 @@ export default class VoiceToTextPrefs extends ExtensionPreferences {
         batchProviderCombo.append('voxtral', 'Voxtral');
         batchProviderCombo.append('parakeet', 'Parakeet');
         batchProviderCombo.append('60db', '60db');
+        batchProviderCombo.append('elevenlabs', 'ElevenLabs');
         batchProviderCombo.set_active_id(settings.get_string('batch-provider'));
         batchProviderCombo.connect('changed', () => {
             settings.set_string(

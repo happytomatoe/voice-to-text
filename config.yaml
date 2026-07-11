@@ -4,7 +4,7 @@
 # Provider selection
 transcription:
   mode: "batch"           # "batch", "hybrid", or "streaming"
-  provider: "voxtral"   # For batch mode: "deepgram", "groq", "voxtral", or "parakeet"
+  provider: "voxtral"   # batch: "deepgram", "groq", "voxtral", "parakeet", or "elevenlabs"
   language: "en"
   hybrid:
     streaming_provider: "voxtral"
@@ -45,6 +45,11 @@ parakeet:
   model: "nvidia/parakeet-tdt-0.6b-v3"
   http_endpoint: "http://localhost:5092"
   timeout_seconds: 30
+
+elevenlabs:
+  api_key_env: "ELEVENLABS_API_KEY"
+  model: "scribe_v2"          # scribe_v1, scribe_v2, scribe_v2_base, scribe_v3
+  tag_audio_events: false     # true includes (laughter) etc. tags in the transcript
 
 audio:
   sample_rate: 16000
