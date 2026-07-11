@@ -1,0 +1,76 @@
+"""ElevenLabs Scribe speech-to-text provider (batch only)."""
+
+import logging
+from pathlib import Path
+from typing import Any
+
+import httpx
+
+from .base import BatchProvider, resolve_api_key
+
+logger = logging.getLogger(__name__)
+
+DEFAULT_MODEL = "scribe_v2"
+
+
+class ElevenLabsProvider(BatchProvider):
+    """ElevenLabs Scribe batch transcription provider.
+
+    ElevenLabs offers speech-to-text via the Scribe models
+    (https://api.elevenlabs.io/v1/speech-to-text). It is REST/batch only; there is no
+    streaming transcription WebSocket, so this provider does not implement
+    StreamingProvider.
+
+    Uses ``httpx.AsyncClient`` (already a dependency) for async batch transcription.
+    """
+
+    def __init__(self, config: dict[str, Any]):
+        self.api_key = resolve_api_key(config, "ELEVENLABS_API_KEY")
+        self.model = config.get("model", DEFAULT_MODEL)
+        self.api_url = config.get("api_url", "https://api.elevenlabs.io")
+        self.tag_audio_events = config.get("tag_audio_events", False)
+
+    async def transcribe_file(self, audio_path: str, language: str = "en") -> str:
+        logger.info("Transcribing %s with ElevenLabs model %s", audio_path, self.model)
+        headers = {"xi-api-key": self.api_key}
+        data: dict[str, Any] = {
+            "model_id": self.model,
+            "timestamps_granularity": "none",
+            "tag_audio_events": str(self.tag_audio_events).lower(),
+        }
+        # ElevenLabs expects ISO-639-3 (3-letter) language codes, e.g. "eng".
+        # The app default is the 2-letter "en"; only pass language_code when it is
+        # already a 3-letter code, otherwise let ElevenLabs auto-detect.
+        if language and len(language) == 3:
+            data["language_code"] = language
+        try:
+            async with httpx.AsyncClient() as client:
+                with open(audio_path, "rb") as audio_file:
+                    response = await client.post(
+                        f"{self.api_url}/v1/speech-to-text",
+                        headers=headers,
+                        data=data,
+                        files={"file": (Path(audio_path).name, audio_file, "application/octet-stream")},
+                        timeout=120,
+                    )
+            response.raise_for_status()
+            result = response.json()
+            text = (result.get("text") or "").strip()
+            logger.info("Transcription result: %s", text[:100])
+            return text
+        except httpx.HTTPStatusError as e:
+            logger.exception("ElevenLabs transcription API call failed")
+            detail = ""
+            if e.response is not None:
+                try:
+                    detail = f": {e.response.json()}"
+                except ValueError:
+                    detail = f": {e.response.text}"
+            raise RuntimeError(f"ElevenLabs API request failed: {e}{detail}") from e
+        except Exception as e:
+            logger.exception("ElevenLabs transcription failed")
+            raise RuntimeError(f"ElevenLabs transcription failed: {e}")
+
+    @property
+    def name(self) -> str:
+        return "elevenlabs"

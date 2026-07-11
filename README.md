@@ -9,6 +9,7 @@ Cloud:
 - Voxtral
 - Groq
 - Deepgram
+- ElevenLabs
 
 Local:
 - Parakeet
@@ -21,7 +22,7 @@ This repo contains gnome extension and python application
 
 - Python 3.13+
 - [uv](https://docs.astral.sh/uv/getting-started/installation/)
-- [Groq API key](https://console.groq.com/keys) OR [Voxtral API key](https://mistral.ai)
+- [Groq API key](https://console.groq.com/keys) OR [Voxtral API key](https://mistral.ai) OR [ElevenLabs API key](https://elevenlabs.io/app/settings/api-keys)
 - Linux with `xclip`/`xsel` (X11) if you'll use clipboard functionality
 
 ## Installation
@@ -55,6 +56,9 @@ secret-tool store --label="Deepgram API Key" application voice-to-text provider 
 
 # For Groq (if using groq provider)
 secret-tool store --label="Groq API Key" application voice-to-text provider groq
+
+# For ElevenLabs (if using elevenlabs provider)
+secret-tool store --label="ElevenLabs API Key" application voice-to-text provider elevenlabs
 ```
 
 Check which provider you're using in `~/.config/voice-to-text/config.yaml`.

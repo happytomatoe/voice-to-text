@@ -10,9 +10,10 @@ fi
 export VOXTRAL_API_KEY=$(secret-tool lookup service mistral_api_key account "$USER" 2>/dev/null)
 export DEEPGRAM_API_KEY=$(secret-tool lookup application voice-to-text provider deepgram 2>/dev/null)
 export GROQ_API_KEY=$(secret-tool lookup application voice-to-text provider groq 2>/dev/null)
+export ELEVENLABS_API_KEY=$(secret-tool lookup application voice-to-text provider elevenlabs 2>/dev/null)
 
 # Warn if no API keys found
-if [ -z "$VOXTRAL_API_KEY" ] && [ -z "$DEEPGRAM_API_KEY" ] && [ -z "$GROQ_API_KEY" ]; then
+if [ -z "$VOXTRAL_API_KEY" ] && [ -z "$DEEPGRAM_API_KEY" ] && [ -z "$GROQ_API_KEY" ] && [ -z "$ELEVENLABS_API_KEY" ]; then
     echo "WARNING: No API keys found in keyring. Service will fail with 401 errors." >&2
     echo "Run: secret-tool store --label='Mistral API Key' service mistral_api_key account $USER" >&2
 fi
