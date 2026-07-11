@@ -12,14 +12,27 @@ transcription:
 
 # Provider-specific configurations
 deepgram:
-  api_key_env: "DEEPGRAM_API_KEY"
+  api_key_source: "keyring"
   model: "nova-3"
+  batch_options:
+    smart_format: true
+    punctuate: true
+    numerals: true
+    filler_words: false
+    mip_opt_out: true
+    detect_language: false
+    multichannel: false
+    paragraphs: false
+    profanity_filter: false
+    measurements: false
+    dictation: false
 
 groq:
-  api_key_env: "GROQ_API_KEY"
+  # api_key_source: "env" (default) or "keyring"
+  # Add key: secret-tool store --label="Groq API key" application voice-to-text provider groq
 
 voxtral:
-  api_key_env: "VOXTRAL_API_KEY"
+  api_key_source: "keyring"
   model: "voxtral-mini-latest"
   realtime_model: "voxtral-mini-transcribe-realtime-2602"
   target_delay_ms: 400
@@ -44,3 +57,10 @@ audio:
 logging:
   file: "/tmp/voice-to-text.log"
   level: "info"
+
+# Engine configuration
+engine:
+  stop_timeout: 120  # seconds to wait for transcription to complete after stop
+
+# Performance profiling (logs timing for each startup step)
+profiling: false

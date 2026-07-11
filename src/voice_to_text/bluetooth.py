@@ -22,7 +22,9 @@ from dataclasses import dataclass
 logger = logging.getLogger(__name__)
 
 HSP_HFP_PROFILES = ("headset-head-unit", "headset-head-unit-cvsd", "hands-free", "hands-free-ag")
-PROFILE_SWITCH_DELAY = 1.0
+PROFILE_SWITCH_POLL_INTERVAL = 0.05  # 50ms between checks
+PROFILE_SWITCH_MAX_WAIT = 2.0  # max seconds to wait for profile switch
+PROFILE_SWITCH_SETTLE_DELAY = 0.3  # allow mic to stabilize after profile switch
 
 CARDS_RE = re.compile(r"Name: (?P<name>bluez_card\.[0-9A-Fa-f:]+)")
 PROFILE_RE = re.compile(r"Active Profile:\s*(?P<profile>\S+)")
@@ -245,7 +247,18 @@ def activate_headset_mic(force: bool = False) -> bool:
         if not set_card_profile(headset.card_name, target):
             logger.warning("Failed to switch BT headset profile to %s", target)
             return False
-        time.sleep(PROFILE_SWITCH_DELAY)
+        # Poll until profile actually switches (instead of fixed 1s sleep)
+        deadline = time.monotonic() + PROFILE_SWITCH_MAX_WAIT
+        while time.monotonic() < deadline:
+            current = get_card_profile(headset.card_name)
+            if current in HSP_HFP_PROFILES:
+                logger.info("BT headset profile confirmed: %s", current)
+                break
+            time.sleep(PROFILE_SWITCH_POLL_INTERVAL)
+        else:
+            logger.warning("BT headset profile did not switch within %.1fs, proceeding anyway", PROFILE_SWITCH_MAX_WAIT)
+        # Allow microphone to stabilize after profile switch
+        time.sleep(PROFILE_SWITCH_SETTLE_DELAY)
 
     if needs_source_swap or needs_profile_switch:
         if not set_default_source(headset.source_name):

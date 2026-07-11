@@ -98,6 +98,7 @@ export default class VoiceToTextPrefs extends ExtensionPreferences {
         });
 
         const providerCombo = new Gtk.ComboBoxText();
+        providerCombo.append('deepgram', 'Deepgram');
         providerCombo.append('groq', 'Groq');
         providerCombo.append('voxtral', 'Voxtral');
         providerCombo.append('parakeet', 'Parakeet');

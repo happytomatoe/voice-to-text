@@ -21,6 +21,11 @@ reinstall:
     uv tool install -e . --force
     echo "voice-to-text-dbus reinstalled from source"
 
+# @category setup
+# Store an API key in the OS keyring (service=voice-to-text)
+store-secret:
+    ./scripts/store-api-keys.sh
+
 build-python:
     uv build --out-dir dist
 
@@ -30,8 +35,6 @@ service-install:
     uv tool install -e .
     mkdir -p ~/.local/share/dbus-1/services/ ~/.local/bin/
     cp service/com.happytomatoe.VoiceToText.service ~/.local/share/dbus-1/services/
-    cp service/voice-to-text-dbus-wrapper ~/.local/bin/
-    chmod +x ~/.local/bin/voice-to-text-dbus-wrapper
     @echo "Service installed. D-Bus activation handles startup automatically."
 
 # @category service
@@ -144,6 +147,11 @@ gnome-ext-dev: reinstall gnome-ext-install
     # GNOME extension can find and call it on real hardware.
     # Trap EXIT/INT/TERM to kill the background service when the shell exits,
     # otherwise the orphaned service keeps the microphone open.
+    # Pre-fetch secrets from host keyring before nested session
+    export MISTRAL_API_KEY=$(secret-tool lookup service mistral_api_key account "$(whoami)" 2>/dev/null || true)
+    export DEEPGRAM_API_KEY=$(secret-tool lookup application voice-to-text provider deepgram 2>/dev/null || true)
+    export GROQ_API_KEY=$(secret-tool lookup application voice-to-text provider groq 2>/dev/null || true)
+    export VOXTRAL_API_KEY="$MISTRAL_API_KEY"
     dbus-run-session -- sh -c "
       voice-to-text-dbus > /tmp/voice-to-text.log 2>&1 &
       DBUS_PID=\$!

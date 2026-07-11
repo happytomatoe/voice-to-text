@@ -144,15 +144,6 @@ echo "--- Installing D-Bus service files ---"
 mkdir -p "$DBUS_SERVICE_DIR"
 mkdir -p "$HOME/.local/bin"
 
-# Install wrapper script - check local or download from repo
-if [ -f "service/voice-to-text-dbus-wrapper" ]; then
-  cp service/voice-to-text-dbus-wrapper "$HOME/.local/bin/"
-else
-  echo "Downloading wrapper script from repository..."
-  curl -sL "https://raw.githubusercontent.com/$REPO/main/service/voice-to-text-dbus-wrapper" -o "$HOME/.local/bin/voice-to-text-dbus-wrapper"
-fi
-chmod +x "$HOME/.local/bin/voice-to-text-dbus-wrapper"
-
 # Copy D-Bus service file - check local or download from repo
 if [ -f "service/com.happytomatoe.VoiceToText.service" ]; then
   cp service/com.happytomatoe.VoiceToText.service "$DBUS_SERVICE_DIR/"
