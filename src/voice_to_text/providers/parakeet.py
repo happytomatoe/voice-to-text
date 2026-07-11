@@ -39,3 +39,7 @@ class ParakeetProvider(BatchProvider):
     @property
     def name(self) -> str:
         return "parakeet"
+
+    async def close(self) -> None:
+        """No persistent resources to close."""
+        pass

@@ -52,3 +52,14 @@ class HybridTranscriber:
         except Exception as e:
             logger.warning("Batch transcription failed, falling back to streaming transcript: %s", e)
             return self.partial_text
+
+    async def close(self) -> None:
+        """Close both streaming and batch providers."""
+        try:
+            await self.streaming.close()
+        except Exception:
+            pass
+        try:
+            await self.batch.close()
+        except Exception:
+            pass

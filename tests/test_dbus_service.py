@@ -12,9 +12,8 @@ import json
 import pytest
 from dbus_next import DBusError
 
-from voice_to_text.dbus_service import OBJECT_PATH, SERVICE_NAME, VoiceToTextInterface
+from voice_to_text.dbus_service import VoiceToTextInterface
 from voice_to_text.engine import EngineState
-
 
 # ── Mock engine ──────────────────────────────────────────────────────────
 

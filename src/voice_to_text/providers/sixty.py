@@ -19,7 +19,7 @@ class SixtyProvider(BatchProvider, StreamingProvider):
     """60db Speech-to-Text provider (batch REST + realtime WebSocket)."""
 
     def __init__(self, config: dict[str, Any]):
-        self.api_key = resolve_api_key(config, "SIXTYDB_API_KEY")
+        self.api_key = resolve_api_key(config, "SIXTYDB_API_KEY", provider_name="60db")
         self.api_url = config.get("api_url", "https://api.60db.ai").rstrip("/")
         self.ws_url = config.get("ws_url", "wss://api.60db.ai/ws/stt")
         self.model = config.get("model", "60db-stt-v01")
@@ -199,6 +199,18 @@ class SixtyProvider(BatchProvider, StreamingProvider):
         self._finalized_text = ""
         self._partial_result = None
         return result
+
+    async def close(self) -> None:
+        """Close provider resources (tear down the streaming WebSocket if open)."""
+        if self._ws is not None:
+            try:
+                await self._ws.close()
+            except Exception:
+                pass
+            self._ws = None
+        if self._recv_task is not None:
+            self._recv_task.cancel()
+            self._recv_task = None
 
     @property
     def name(self) -> str:

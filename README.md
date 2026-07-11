@@ -43,25 +43,65 @@ If you want to use Parakeet check out [this script](./parakeet-v2.sh)
 
 ### API Keys
 
-The voice-to-text service loads API keys from your system keyring at startup using `secret-tool`.
+You can provide API keys in three ways:
 
-**Store only the key for the provider you use:**
+#### 1. Environment Variables (Default)
 
 ```bash
-# For Voxtral/Mistral (default provider)
-secret-tool store --label="Mistral API Key" service mistral_api_key account $USER
-
-# For Deepgram (if using deepgram provider)
-secret-tool store --label="Deepgram API Key" application voice-to-text provider deepgram
-
-# For Groq (if using groq provider)
-secret-tool store --label="Groq API Key" application voice-to-text provider groq
-
-# For 60db (if using 60db provider)
-secret-tool store --label="60db API Key" application voice-to-text provider 60db
+export VOXTRAL_API_KEY="your-api-key-here"
+export DEEPGRAM_API_KEY="your-api-key-here"
+export GROQ_API_KEY="your-api-key-here"
+export SIXTYDB_API_KEY="your-api-key-here"
 ```
 
-Check which provider you're using in `~/.config/voice-to-text/config.yaml`.
+#### 2. OS Keyring
+
+Store keys securely in your OS keyring (GNOME Keyring, KDE Wallet, etc.):
+
+Requires `libsecret-tools` (Linux) or `keyring` Python package. The app reads from the keyring with `service=voice-to-text` and `username=<provider>`.
+
+```bash
+# Store API keys using secret-tool (Linux/GNOME Keyring)
+secret-tool store --label="Deepgram API Key" service voice-to-text username deepgram
+secret-tool store --label="Voxtral API Key"   service voice-to-text username voxtral
+secret-tool store --label="Groq API Key"      service voice-to-text username groq
+secret-tool store --label="60db API Key"     service voice-to-text username 60db
+```
+
+Or using the Python `keyring` library:
+
+```bash
+python3 -c "import keyring, getpass; keyring.set_password('voice-to-text', 'deepgram', getpass.getpass('Deepgram key: '))"
+python3 -c "import keyring, getpass; keyring.set_password('voice-to-text', 'voxtral', getpass.getpass('Voxtral key: '))"
+python3 -c "import keyring, getpass; keyring.set_password('voice-to-text', 'groq', getpass.getpass('Groq key: '))"
+python3 -c "import keyring, getpass; keyring.set_password('voice-to-text', '60db', getpass.getpass('60db key: '))"
+```
+
+Then enable keyring in your config:
+
+```yaml
+transcription:
+  api_key_source: "keyring"
+```
+
+Or per-provider:
+
+```yaml
+deepgram:
+  api_key_source: "keyring"
+```
+
+#### 3. Configuration File
+
+Put the keys in `~/.config/voice-to-text/config.yaml`:
+
+```yaml
+voxtral:
+  api_key: "your-api-key-here"
+
+deepgram:
+  api_key: "your-api-key-here"
+```
 
 #### Reload keys
 
