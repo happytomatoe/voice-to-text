@@ -131,7 +131,7 @@ class SixtyProvider(BatchProvider, StreamingProvider):
             self._connected.set()
             return
         msg_type = msg.get("type")
-        if msg_type == "session_started":
+        if msg_type in ("session_started", "connected"):
             self._session_started.set()
         elif msg_type == "transcription":
             self._on_transcription(msg)
