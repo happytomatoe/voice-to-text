@@ -21,8 +21,7 @@ class Profiler:
     """
 
     def __init__(self, config: dict[str, Any] | None = None):
-        config_mgr = ConfigManager()
-        self._config = config if config is not None else config_mgr.config
+        self._config = config if config is not None else ConfigManager().config
         self._profiling_level = self._config.get("profiling", "off")
         self._enabled = self._profiling_level != "off"
         self._detailed = self._profiling_level == "detailed"
@@ -37,6 +36,7 @@ class Profiler:
             return
         self._start_time = time.monotonic()
         self._last_time = self._start_time
+        self._phase_times.clear()
 
     def _log_phase(self, label: str) -> None:
         """Log a phase with delta and total elapsed."""
@@ -66,11 +66,12 @@ class Profiler:
             yield
             return
 
+        section_start = time.monotonic()
         try:
             yield
         finally:
             if self._detailed:
-                # Log the phase that just completed
+                self._last_time = section_start
                 self._log_phase(label)
 
     def phase(self, label: str) -> None:

@@ -6,6 +6,14 @@ run *args:
 
 test:
   uv run pytest -n auto
+
+# @category test
+test-e2e:
+  uv run pytest tests/e2e/ -v --tb=short -x
+
+# @category test  
+test-all: test test-e2e
+
 install:
     uv tool install -e .
 
@@ -157,10 +165,6 @@ gnome-ext-dev: reinstall gnome-ext-install
     # Start the D-Bus service inside the isolated session bus so the
     # GNOME extension can find and call it on real hardware.
     # Trap EXIT/INT/TERM to kill the background service when the shell exits,
-    # otherwise the orphaned service keeps the microphone open.
-    # Re-export DEEPGRAM/GROQ with correct attributes (matching store-api-keys.sh)
-    export DEEPGRAM_API_KEY=$(secret-tool lookup service voice-to-text username deepgram 2>/dev/null || true)
-    export GROQ_API_KEY=$(secret-tool lookup service voice-to-text username groq 2>/dev/null || true)
     dbus-run-session -- sh -c "
       voice-to-text-dbus > /tmp/voice-to-text.log 2>&1 &
       DBUS_PID=\$!
