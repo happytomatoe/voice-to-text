@@ -160,7 +160,7 @@ echo ""
 echo "--- Installing GNOME extension ---"
 
 echo "Fetching latest release..."
-if [ "$HAS_RELEASE" -eq 0 ]; then
+if [ -z "$LATEST_TAG" ]; then
   echo "Falling back to installing the extension from source..."
   rm -rf "$INSTALL_DIR"
   mkdir -p "$INSTALL_DIR/schemas"
