@@ -63,7 +63,7 @@ class TestSixtyProvider:
         old_key = os.environ.pop("SIXTYDB_API_KEY", None)
         try:
             with pytest.raises(ValueError):
-                SixtyProvider({})
+                SixtyProvider({"api_key_source": "env"})
         finally:
             if old_key is not None:
                 os.environ["SIXTYDB_API_KEY"] = old_key

@@ -18,7 +18,7 @@ class TestSixtyBatch:
         mock_response.json.return_value = {"data": {"text": "hello world"}}
 
         with patch("httpx.AsyncClient.post", return_value=mock_response) as mock_post:
-            provider = get_batch_provider("60db", {"api_key": "test_key"})
+            provider = get_batch_provider("60db", {"api_key": "test_key", "api_key_source": "env"})
 
             import os
             import tempfile
@@ -55,7 +55,7 @@ class TestSixtyBatch:
         mock_response.json.return_value = {"text": "unwrapped result"}
 
         with patch("httpx.AsyncClient.post", return_value=mock_response):
-            provider = get_batch_provider("60db", {"api_key": "test_key"})
+            provider = get_batch_provider("60db", {"api_key": "test_key", "api_key_source": "env"})
 
             import os
             import tempfile
@@ -91,30 +91,42 @@ class FakeSixtyWebSocket:
             self._audio_count += 1
             if self._audio_count == 1:
                 # Interim partial result.
-                self._incoming.put_nowait(json.dumps({
-                    "type": "transcription",
-                    "text": "hello world",
-                    "is_final": False,
-                    "is_partial": True,
-                }))
+                self._incoming.put_nowait(
+                    json.dumps(
+                        {
+                            "type": "transcription",
+                            "text": "hello world",
+                            "is_final": False,
+                            "is_partial": True,
+                        }
+                    )
+                )
             elif self._audio_count == 2:
                 # speech_final with empty text → must be skipped.
-                self._incoming.put_nowait(json.dumps({
-                    "type": "transcription",
-                    "text": "",
-                    "is_final": True,
-                    "speech_final": True,
-                    "is_partial": False,
-                }))
+                self._incoming.put_nowait(
+                    json.dumps(
+                        {
+                            "type": "transcription",
+                            "text": "",
+                            "is_final": True,
+                            "speech_final": True,
+                            "is_partial": False,
+                        }
+                    )
+                )
             elif self._audio_count == 3:
                 # Canonical final transcription.
-                self._incoming.put_nowait(json.dumps({
-                    "type": "transcription",
-                    "text": "hello world",
-                    "is_final": True,
-                    "speech_final": True,
-                    "is_partial": False,
-                }))
+                self._incoming.put_nowait(
+                    json.dumps(
+                        {
+                            "type": "transcription",
+                            "text": "hello world",
+                            "is_final": True,
+                            "speech_final": True,
+                            "is_partial": False,
+                        }
+                    )
+                )
         elif msg_type == "stop":
             self._incoming.put_nowait(json.dumps({"type": "session_stopped"}))
 
@@ -136,13 +148,11 @@ class TestSixtyStreaming:
             "voice_to_text.providers.sixty.websockets.connect",
             new=AsyncMock(return_value=fake),
         ):
-            provider = SixtyProvider({"api_key": "test_key"})
+            provider = SixtyProvider({"api_key": "test_key", "api_key_source": "env"})
             await provider.start_stream("en", 16000)
 
             # start message was sent after connection_established
-            assert any(
-                json.loads(m).get("type") == "start" for m in fake.sent_messages
-            )
+            assert any(json.loads(m).get("type") == "start" for m in fake.sent_messages)
 
             # Frame 1 → interim partial result.
             await provider.send_audio(b"PCMDATA1")
@@ -165,6 +175,4 @@ class TestSixtyStreaming:
             assert result == "hello world"
 
             # stop message was sent.
-            assert any(
-                json.loads(m).get("type") == "stop" for m in fake.sent_messages
-            )
+            assert any(json.loads(m).get("type") == "stop" for m in fake.sent_messages)

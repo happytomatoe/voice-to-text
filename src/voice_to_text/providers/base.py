@@ -107,33 +107,19 @@ def resolve_api_key(
     extra_envs: tuple[str, ...] = (),
     provider_name: str | None = None,
 ) -> str:
-    """Resolve API key from keyring, environment variable, or config.
+    """Resolve API key from environment variable, config, or keyring.
 
-    Resolution order:
-    1. Keyring (if api_key_source == "keyring")
-    2. Environment variable (via api_key_env or default_env)
-    3. Config file api_key field (plain value only)
+    Resolution order (env > config > keyring):
+    1. Environment variable (via api_key_env or default_env)
+    2. Config file api_key field (plain value only)
+    3. Keyring (if api_key_source == "keyring") — may incur ~3s timeout
+       on systems without a reachable Secret Service (CI, containers).
 
     Raises ValueError if not found.
     """
-    api_key_source = config.get("api_key_source", "env")
+    api_key_source = config.get("api_key_source", "keyring")
 
-    # 1. Keyring
-    if api_key_source == "keyring" and provider_name:
-        try:
-            key = _keyring_get_password("voice-to-text", provider_name)
-            if key:
-                logger.debug("Resolved API key for %s from keyring", provider_name)
-                return key
-            logger.debug("No keyring entry for %s, falling back", provider_name)
-        except Exception as e:
-            logger.warning(
-                "Keyring lookup failed for %s: %s — falling back to environment variable / config",
-                provider_name,
-                e,
-            )
-
-    # 2. Environment variable
+    # 1. Environment variable
     env_var = config.get("api_key_env", default_env)
     key = os.getenv(env_var)
     if not key:
@@ -142,13 +128,28 @@ def resolve_api_key(
             if key:
                 break
 
-    # 3. Config file
+    # 2. Config file
     if not key:
         key = config.get("api_key")
 
+    # 3. Keyring (fallback, may be slow without Secret Service)
+    if not key and api_key_source == "keyring" and provider_name:
+        try:
+            key = _keyring_get_password("voice-to-text", provider_name)
+            if key:
+                logger.debug("Resolved API key for %s from keyring", provider_name)
+            else:
+                logger.debug("No keyring entry for %s", provider_name)
+        except Exception as e:
+            logger.warning(
+                "Keyring lookup failed for %s: %s",
+                provider_name,
+                e,
+            )
+
     if not key:
         all_vars = (config.get("api_key_env", default_env),) + extra_envs
-        raise ValueError(f"No API key found in keyring, environment ({all_vars}), or config")
+        raise ValueError(f"No API key found in environment ({all_vars}), config, or keyring")
 
     return key
 
