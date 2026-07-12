@@ -116,7 +116,7 @@ def resolve_api_key(
 
     Raises ValueError if not found.
     """
-    api_key_source = config.get("api_key_source", "env")
+    api_key_source = config.get("api_key_source", "keyring")
 
     # 1. Keyring
     if api_key_source == "keyring" and provider_name:

@@ -117,17 +117,11 @@ gnome-ext-dev: reinstall gnome-ext-install
         export DEEPGRAM_API_KEY=$(secret-tool lookup service voice-to-text username deepgram 2>/dev/null)
         export GROQ_API_KEY=$(secret-tool lookup service voice-to-text username groq 2>/dev/null)
         export ELEVENLABS_API_KEY=$(secret-tool lookup service voice-to-text username elevenlabs 2>/dev/null)
+        export SIXTYDB_API_KEY=$(secret-tool lookup service voice-to-text username 60db 2>/dev/null)
     fi
     if [ -n "${TOOLBOX_PATH:-}" ] || [ "${container:-}" = "oci" ]; then
         echo "Error: Cannot start a development GNOME Shell from within a toolbox container. Run this command on the host system." >&2
         exit 1
-    fi
-    if command -v secret-tool &>/dev/null; then
-        export VOXTRAL_API_KEY=$(secret-tool lookup service mistral_api_key account "$USER" 2>/dev/null)
-        export DEEPGRAM_API_KEY=$(secret-tool lookup application voice-to-text provider deepgram 2>/dev/null)
-        export GROQ_API_KEY=$(secret-tool lookup application voice-to-text provider groq 2>/dev/null)
-        export ELEVENLABS_API_KEY=$(secret-tool lookup application voice-to-text provider elevenlabs 2>/dev/null)
-        export SIXTYDB_API_KEY=$(secret-tool lookup application voice-to-text provider 60db 2>/dev/null)
     fi
     echo "" > /tmp/gnome-shell-nested.log
     echo "" > /tmp/voice-to-text.log
@@ -164,11 +158,9 @@ gnome-ext-dev: reinstall gnome-ext-install
     # GNOME extension can find and call it on real hardware.
     # Trap EXIT/INT/TERM to kill the background service when the shell exits,
     # otherwise the orphaned service keeps the microphone open.
-    # Pre-fetch secrets from host keyring before nested session
-    export MISTRAL_API_KEY=$(secret-tool lookup service mistral_api_key account "$(whoami)" 2>/dev/null || true)
-    export DEEPGRAM_API_KEY=$(secret-tool lookup application voice-to-text provider deepgram 2>/dev/null || true)
-    export GROQ_API_KEY=$(secret-tool lookup application voice-to-text provider groq 2>/dev/null || true)
-    export VOXTRAL_API_KEY="$MISTRAL_API_KEY"
+    # Re-export DEEPGRAM/GROQ with correct attributes (matching store-api-keys.sh)
+    export DEEPGRAM_API_KEY=$(secret-tool lookup service voice-to-text username deepgram 2>/dev/null || true)
+    export GROQ_API_KEY=$(secret-tool lookup service voice-to-text username groq 2>/dev/null || true)
     dbus-run-session -- sh -c "
       voice-to-text-dbus > /tmp/voice-to-text.log 2>&1 &
       DBUS_PID=\$!
