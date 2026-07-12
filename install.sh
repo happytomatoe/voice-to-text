@@ -1,4 +1,10 @@
 #!/usr/bin/env bash
+# Parse arguments
+for arg in "$@"; do
+  if [ "$arg" = "--debug" ]; then
+    set -x
+  fi
+done
 set -euo pipefail
 REPO="happytomatoe/voice-to-text"
 EXT_UUID="voice-to-text@happytomatoe.com"
