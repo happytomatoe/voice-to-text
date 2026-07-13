@@ -181,6 +181,10 @@ class RecordingEngine:
         self._task: asyncio.Task | None = None
         self._cancel_event = asyncio.Event()
         self._typer: ContinuousTyper | None = None
+        # Initialize stop_timeout with default (will be overridden in start())
+        config_mgr = ConfigManager()
+        engine_cfg = config_mgr.config.get("engine", {})
+        self._stop_timeout = engine_cfg.get("stop_timeout", 120)
 
         # Callbacks set by the D-Bus service to emit signals
         self.on_audio_level: Callable[[float], None] | None = None
@@ -192,10 +196,8 @@ class RecordingEngine:
         if self.state != EngineState.IDLE:
             raise RuntimeError(f"Cannot start: engine is {self.state.value}")
         self._cancel_event.clear()
-        # Store stop_timeout from D-Bus config (fallback to YAML config default)
-        config_mgr = ConfigManager()
-        engine_cfg = config_mgr.config.get("engine", {})
-        self._stop_timeout = config.get("stop_timeout", engine_cfg.get("stop_timeout", 120))
+        # Override stop_timeout from D-Bus config if provided
+        self._stop_timeout = config.get("stop_timeout", self._stop_timeout)
         self._task = asyncio.create_task(self._run(config))
 
     async def stop(self) -> None:
