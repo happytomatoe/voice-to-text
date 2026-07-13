@@ -1,4 +1,3 @@
-import GLib from 'gi://GLib';
 import Gio from 'gi://Gio';
 import {Extension} from 'resource:///org/gnome/shell/extensions/extension.js';
 import {VoiceIndicator} from './indicator.js';
@@ -214,7 +213,7 @@ export default class VoiceToTextExtension extends Extension {
             for (const id of this._signalIds) {
                 try {
                     this._proxy.disconnectSignal(id);
-                } catch (e) {
+                } catch {
                     // ignore
                 }
             }
@@ -301,6 +300,7 @@ export default class VoiceToTextExtension extends Extension {
     _ensureInhibitor() {
         if (this._inhibitCookie !== 0) return;
         if (!this._settings.get_boolean('inhibit-sleep')) return;
+        if (!this._recording) return;
 
         this._sessionManager
             .InhibitRemote(
@@ -311,6 +311,13 @@ export default class VoiceToTextExtension extends Extension {
             )
             .then(
                 ([cookie]) => {
+                    // Race guard: only commit cookie if still recording and enabled
+                    if (!this._recording || this._inhibitCookie !== 0) {
+                        // Recording stopped or inhibitor already acquired;
+                        // release the new cookie immediately
+                        this._sessionManager.UninhibitRemote(cookie);
+                        return;
+                    }
                     this._inhibitCookie = cookie;
                     console.log(
                         'VoiceToText: sleep inhibitor acquired, cookie=' +
