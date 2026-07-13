@@ -51,3 +51,14 @@ Transcription providers: cloud (Voxtral, Groq, Deepgram) and local (Parakeet). A
 - Python imports stay at module level (see above).
 - Match existing style; ruff/pyright must pass before committing.
 - Commit messages follow Conventional Commits (the repo rejects `Co-Authored-By` trailers in pre-commit).
+
+## JavaScript/TypeScript Error Handling (gnome-ext/)
+
+- **Never leave catch blocks empty.** At minimum, log the error: `catch (e) { console.error(e); }`
+- **If you must intentionally ignore an error**, add a comment explaining WHY it's safe:
+  ```js
+  try { await api.call(); } catch { /* ignore: best-effort notification */ }
+  ```
+- **Use `catch { }` (no parameter)** when intentionally ignoring — signals intent and avoids unused-variable lint errors.
+- **Don't just swallow errors** — this makes debugging impossible and hides production failures.
+- **Use `finally` for cleanup** (disconnect signals, close connections, release locks).
