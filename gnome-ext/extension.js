@@ -37,6 +37,7 @@ const SessionManagerIface =
       <arg type="s" direction="in"/>\
       <arg type="u" direction="in"/>\
       <arg type="s" direction="in"/>\
+      <arg type="u" direction="in"/>\
       <arg type="u" direction="out"/>\
     </method>\
     <method name="Uninhibit">\
