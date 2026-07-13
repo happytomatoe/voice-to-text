@@ -30,6 +30,6 @@ export function registerHotkey(name, settings, callback) {
     }
 }
 
-export function unregisterHotkey() {
-    Main.wm.removeKeybinding('hotkey');
+export function unregisterHotkey(name) {
+    Main.wm.removeKeybinding(name);
 }

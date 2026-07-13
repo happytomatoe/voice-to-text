@@ -181,6 +181,10 @@ class RecordingEngine:
         self._task: asyncio.Task | None = None
         self._cancel_event = asyncio.Event()
         self._typer: ContinuousTyper | None = None
+        # Initialize stop_timeout with default (will be overridden in start())
+        config_mgr = ConfigManager()
+        engine_cfg = config_mgr.config.get("engine", {})
+        self._stop_timeout = engine_cfg.get("stop_timeout", 120)
 
         # Callbacks set by the D-Bus service to emit signals
         self.on_audio_level: Callable[[float], None] | None = None
@@ -192,23 +196,30 @@ class RecordingEngine:
         if self.state != EngineState.IDLE:
             raise RuntimeError(f"Cannot start: engine is {self.state.value}")
         self._cancel_event.clear()
+        # Validate and resolve stop_timeout from D-Bus config
+        config_mgr = ConfigManager()
+        engine_cfg = config_mgr.config.get("engine", {})
+        default_timeout = engine_cfg.get("stop_timeout", 120)
+        raw = config.get("stop_timeout")
+        try:
+            val = int(raw) if raw is not None else None
+        except (TypeError, ValueError):
+            val = None
+        # Only accept positive integers; otherwise fall back to configured default
+        self._stop_timeout = val if (val is not None and val > 0) else default_timeout
         self._task = asyncio.create_task(self._run(config))
 
     async def stop(self) -> None:
         """Stop recording gracefully."""
-        # Read configurable timeout from config
-        config_mgr = ConfigManager()
-        engine_cfg = config_mgr.config.get("engine", {})
-        stop_timeout = engine_cfg.get("stop_timeout", 120)
-        logger.info("Stopping recording (timeout=%ds)", stop_timeout)
+        logger.info("Stopping recording (timeout=%ds)", self._stop_timeout)
 
         self._cancel_event.set()
         task = self._task
         if task and not task.done():
             try:
-                await asyncio.wait_for(task, timeout=stop_timeout)
+                await asyncio.wait_for(task, timeout=self._stop_timeout)
             except (TimeoutError, asyncio.CancelledError):
-                logger.warning("Recording task did not finish in time (timeout=%ds)", stop_timeout)
+                logger.warning("Recording task did not finish in time (timeout=%ds)", self._stop_timeout)
                 task.cancel()
                 # If the task's finally block already nulled self._task,
                 # that's fine — our local reference still lets us wait
@@ -298,9 +309,7 @@ class RecordingEngine:
                     streaming_provider = await asyncio.to_thread(
                         get_streaming_provider, streaming_name, streaming_config
                     )
-                    batch_provider = await asyncio.to_thread(
-                        get_batch_provider, batch_name, batch_config
-                    )
+                    batch_provider = await asyncio.to_thread(get_batch_provider, batch_name, batch_config)
                 else:
                     # streaming mode — use streaming provider as both
                     streaming_config = config_mgr.get_provider_config(streaming_name)
@@ -314,9 +323,7 @@ class RecordingEngine:
                 provider_config = config_mgr.get_provider_config(provider)
                 # Construct the provider in a worker thread: its __init__ does a
                 # (timeout-bounded) keyring lookup that must not block the loop.
-                batch_provider = await asyncio.to_thread(
-                    get_batch_provider, provider, provider_config
-                )
+                batch_provider = await asyncio.to_thread(get_batch_provider, provider, provider_config)
 
             self._transcriber = transcriber
             self._batch_provider = batch_provider

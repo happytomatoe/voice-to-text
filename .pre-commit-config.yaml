@@ -21,7 +21,7 @@ repos:
         always_run: true
       - id: eslint
         name: eslint
-        entry: bash -lc 'npx eslint --stdin --stdin-filename={staged_filename}'
+        entry: bash -lc 'npm ci 2>/dev/null || npm install 2>/dev/null; npx eslint --stdin --stdin-filename={staged_filename}'
         language: system
         types: [javascript]
         files: ^gnome-ext/.*\.js$

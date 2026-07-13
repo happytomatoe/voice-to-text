@@ -1,7 +1,6 @@
 import Adw from 'gi://Adw';
 import Gtk from 'gi://Gtk';
 import Gio from 'gi://Gio';
-import GLib from 'gi://GLib';
 import Gdk from 'gi://Gdk';
 import {
     ExtensionPreferences,
@@ -244,7 +243,9 @@ export default class VoiceToTextPrefs extends ExtensionPreferences {
         // Bluetooth mic toggle
         const bluetoothMicRow = new Adw.SwitchRow({
             title: _('Bluetooth Headset Mic'),
-            subtitle: _('Automatically switch Bluetooth headset to HSP/HFP mode and set as default mic during recording'),
+            subtitle: _(
+                'Automatically switch Bluetooth headset to HSP/HFP mode and set as default mic during recording'
+            ),
         });
         settings.bind(
             'bluetooth-headset-change-to-handsfree-to-record',
@@ -380,7 +381,7 @@ export default class VoiceToTextPrefs extends ExtensionPreferences {
         escapeController.connect('key-pressed', (controller, keyval) => {
             if (keyval === Gdk.KEY_Escape) {
                 dialog.close();
-                return GLib.SOURCE_REMOVE;
+                return true;
             }
             return false;
         });

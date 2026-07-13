@@ -1,4 +1,3 @@
-import GLib from 'gi://GLib';
 import Gio from 'gi://Gio';
 import {Extension} from 'resource:///org/gnome/shell/extensions/extension.js';
 import {VoiceIndicator} from './indicator.js';
@@ -38,6 +37,7 @@ const SessionManagerIface =
       <arg type="s" direction="in"/>\
       <arg type="u" direction="in"/>\
       <arg type="s" direction="in"/>\
+      <arg type="u" direction="in"/>\
       <arg type="u" direction="out"/>\
     </method>\
     <method name="Uninhibit">\
@@ -148,36 +148,45 @@ export default class VoiceToTextExtension extends Extension {
             // Connect signals
             this._signalIds = [];
 
-            const stateId = this._proxy.connectSignal('StateChanged', (proxy, name, [state]) => {
-                console.log('VoiceToText: state changed to', state);
-                if (state === 'recording') {
-                    this._indicator.setRecordingActive();
-                } else if (state === 'processing') {
-                    this._indicator.setProcessing();
-                } else if (state === 'idle') {
-                    this._indicator.setRecording(false);
-                    this._recording = false;
-                    this._releaseInhibitor();
+            const stateId = this._proxy.connectSignal(
+                'StateChanged',
+                (proxy, name, [state]) => {
+                    console.log('VoiceToText: state changed to', state);
+                    if (state === 'recording') {
+                        this._indicator.setRecordingActive();
+                    } else if (state === 'processing') {
+                        this._indicator.setProcessing();
+                    } else if (state === 'idle') {
+                        this._indicator.setRecording(false);
+                        this._recording = false;
+                        this._releaseInhibitor();
+                    }
                 }
-            });
+            );
             this._signalIds.push(stateId);
 
-            const levelId = this._proxy.connectSignal('AudioLevel', (proxy, name, [level]) => {
-                this._indicator.updateLevel(level);
-            });
+            const levelId = this._proxy.connectSignal(
+                'AudioLevel',
+                (proxy, name, [level]) => {
+                    this._indicator.updateLevel(level);
+                }
+            );
             this._signalIds.push(levelId);
 
-            const errorId = this._proxy.connectSignal('Error', (proxy, name, [msg]) => {
-                console.log('VoiceToText: error:', msg);
-                this._showNotification('Transcription failed: ' + msg);
-            });
+            const errorId = this._proxy.connectSignal(
+                'Error',
+                (proxy, name, [msg]) => {
+                    console.log('VoiceToText: error:', msg);
+                    this._showNotification(`Transcription failed: ${msg}`);
+                }
+            );
             this._signalIds.push(errorId);
 
             console.log('VoiceToText: D-Bus proxy connected');
 
             // Sync state on (re)enable — engine may already be recording
             this._proxy.GetStatusAsync().then(
-                (state) => {
+                state => {
                     console.log('VoiceToText: initial state:', state);
                     if (state === 'recording' || state === 'processing') {
                         this._recording = true;
@@ -192,10 +201,11 @@ export default class VoiceToTextExtension extends Extension {
                 () => {} // ignore errors during init
             );
         } catch (e) {
-            console.error('VoiceToText: failed to connect to D-Bus service:', e.message);
-            this._showNotification(
-                'Voice-to-Text D-Bus service not running. '
+            console.error(
+                'VoiceToText: failed to connect to D-Bus service:',
+                e.message
             );
+            this._showNotification('Voice-to-Text D-Bus service not running. ');
         }
     }
 
@@ -204,8 +214,8 @@ export default class VoiceToTextExtension extends Extension {
             for (const id of this._signalIds) {
                 try {
                     this._proxy.disconnectSignal(id);
-                } catch (e) {
-                    // ignore
+                } catch {
+                    // ignore: signal may already be disconnected or proxy destroyed
                 }
             }
             this._signalIds = [];
@@ -231,16 +241,27 @@ export default class VoiceToTextExtension extends Extension {
             mode: this._settings.get_string('mode'),
             streaming_provider: this._settings.get_string('streaming-provider'),
             batch_provider: this._settings.get_string('batch-provider'),
-            decrease_speaker_volume: this._settings.get_int('decrease-speaker-volume'),
+            decrease_speaker_volume: this._settings.get_int(
+                'decrease-speaker-volume'
+            ),
             output_method: this._settings.get_string('output-method'),
-            bluetooth_headset_change_to_handsfree_to_record: this._settings.get_boolean('bluetooth-headset-change-to-handsfree-to-record'),
+            bluetooth_headset_change_to_handsfree_to_record:
+                this._settings.get_boolean(
+                    'bluetooth-headset-change-to-handsfree-to-record'
+                ),
+            stop_timeout: this._settings.get_int('stop-timeout-seconds'),
         };
 
         this._proxy.StartRecordingAsync(JSON.stringify(config)).then(
             () => console.log('VoiceToText: StartRecording called via D-Bus'),
             e => {
-                console.error('VoiceToText: D-Bus StartRecording failed:', e.message);
-                this._showNotification('Failed to start recording: ' + e.message);
+                console.error(
+                    'VoiceToText: D-Bus StartRecording failed:',
+                    e.message
+                );
+                this._showNotification(
+                    `Failed to start recording: ${e.message}`
+                );
                 this._recording = false;
                 this._releaseInhibitor();
                 this._indicator.setRecording(false);
@@ -265,53 +286,72 @@ export default class VoiceToTextExtension extends Extension {
 
         this._indicator.setProcessing();
 
-        try {
-            this._proxy.StopRecordingSync();
-            console.log('VoiceToText: StopRecording called via D-Bus');
-        } catch (e) {
-            console.error('VoiceToText: D-Bus StopRecording failed:', e.message);
-            this._setIdle();
-        }
+        this._proxy.StopRecordingAsync().then(
+            () => console.log('VoiceToText: StopRecording called via D-Bus'),
+            e => {
+                console.error(
+                    'VoiceToText: D-Bus StopRecording failed:',
+                    e.message
+                );
+                this._setIdle();
+            }
+        );
     }
 
     _ensureInhibitor() {
         if (this._inhibitCookie !== 0) return;
         if (!this._settings.get_boolean('inhibit-sleep')) return;
+        if (!this._recording) return;
 
-        try {
-            const cookie = this._sessionManager.InhibitSync(
+        this._sessionManager
+            .InhibitAsync(
                 'voice-to-text',
                 0,
                 'Voice recording in progress',
-                4 // INHIBIT_SUSPEND
+                12 // INHIBIT_SUSPEND | INHIBIT_IDLE (per InhibitedActions=12)
+            )
+            .then(
+                cookie => {
+                    // Race guard: only commit cookie if still recording and enabled
+                    if (!this._recording || this._inhibitCookie !== 0) {
+                        // Recording stopped or inhibitor already acquired;
+                        // release the new cookie immediately
+                        this._sessionManager.UninhibitAsync(cookie);
+                        return;
+                    }
+                    this._inhibitCookie = cookie;
+                    console.log(
+                        `VoiceToText: sleep inhibitor acquired, cookie=${
+                            this._inhibitCookie
+                        }`
+                    );
+                },
+                e => {
+                    console.error(
+                        'VoiceToText: failed to acquire sleep inhibitor:',
+                        e.message
+                    );
+                }
             );
-            this._inhibitCookie = cookie;
-            console.log(
-                'VoiceToText: sleep inhibitor acquired, cookie=' +
-                    this._inhibitCookie
-            );
-        } catch (e) {
-            console.error(
-                'VoiceToText: failed to acquire sleep inhibitor:',
-                e.message
-            );
-        }
     }
 
     _releaseInhibitor() {
         if (this._inhibitCookie === 0) return;
-        try {
-            this._sessionManager.UninhibitSync(this._inhibitCookie);
-            console.log(
-                'VoiceToText: sleep inhibitor released, cookie=' +
-                    this._inhibitCookie
-            );
-        } catch (e) {
-            console.error(
-                'VoiceToText: failed to release sleep inhibitor:',
-                e.message
-            );
-        }
+        this._sessionManager.UninhibitAsync(this._inhibitCookie).then(
+            () => {
+                console.log(
+                    `VoiceToText: sleep inhibitor released, cookie=${
+                        this._inhibitCookie
+                    }`
+                );
+            },
+            e => {
+                console.error(
+                    'VoiceToText: failed to release sleep inhibitor:',
+                    e.message
+                );
+            }
+        );
         this._inhibitCookie = 0;
     }
 
@@ -328,7 +368,7 @@ export default class VoiceToTextExtension extends Extension {
             launcher.spawnv(['gnome-extensions', 'prefs', this.uuid]);
         } catch (e) {
             console.error('VoiceToText: failed to open preferences:', e);
-            this._showNotification('Failed to open preferences: ' + e.message);
+            this._showNotification(`Failed to open preferences: ${e.message}`);
         }
     }
 
