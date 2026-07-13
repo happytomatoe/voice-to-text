@@ -157,57 +157,61 @@ export const VoiceIndicator = GObject.registerClass(
         _drawMeter() {
             if (this._destroyed) return;
             const cr = this._meter.get_context();
-            const level = Math.min(1, Math.max(0, this._smoothedLevel));
-            const w = this._meter.width;
-            const h = this._meter.height;
-            const fillW = level * w;
+            try {
+                const level = Math.min(1, Math.max(0, this._smoothedLevel));
+                const w = this._meter.width;
+                const h = this._meter.height;
+                const fillW = level * w;
 
-            cr.setLineWidth(1);
-            cr.setLineJoin(1);
+                cr.setLineWidth(1);
+                cr.setLineJoin(1);
 
-            // Background
-            const radius = 2;
-            cr.moveTo(radius, 0);
-            cr.lineTo(w - radius, 0);
-            cr.arc(w - radius, radius, radius, -Math.PI / 2, 0);
-            cr.lineTo(w, h - radius);
-            cr.arc(w - radius, h - radius, radius, 0, Math.PI / 2);
-            cr.lineTo(radius, h);
-            cr.arc(radius, h - radius, radius, Math.PI / 2, Math.PI);
-            cr.lineTo(0, radius);
-            cr.arc(radius, radius, radius, Math.PI, Math.PI * 1.5);
-            cr.closePath();
-
-            cr.setSourceRGBA(0.5, 0.5, 0.5, 0.3);
-            cr.fill();
-
-            // Fill
-            if (fillW > 0) {
+                // Background
+                const radius = 2;
                 cr.moveTo(radius, 0);
-                cr.lineTo(fillW > w - radius ? w - radius : fillW, 0);
-                if (fillW > w - radius) {
-                    cr.arc(w - radius, radius, radius, -Math.PI / 2, 0);
-                    cr.lineTo(w, h - radius);
-                    cr.arc(w - radius, h - radius, radius, 0, Math.PI / 2);
-                } else {
-                    cr.lineTo(fillW, h);
-                }
+                cr.lineTo(w - radius, 0);
+                cr.arc(w - radius, radius, radius, -Math.PI / 2, 0);
+                cr.lineTo(w, h - radius);
+                cr.arc(w - radius, h - radius, radius, 0, Math.PI / 2);
                 cr.lineTo(radius, h);
                 cr.arc(radius, h - radius, radius, Math.PI / 2, Math.PI);
                 cr.lineTo(0, radius);
                 cr.arc(radius, radius, radius, Math.PI, Math.PI * 1.5);
                 cr.closePath();
 
-                if (level < 0.13) {
-                    cr.setSourceRGBA(0.4, 0.4, 0.4, 0.7);
-                } else if (level < 0.5) {
-                    cr.setSourceRGBA(0.2, 0.85, 0.2, 0.9);
-                } else if (level < 0.7) {
-                    cr.setSourceRGBA(0.95, 0.8, 0.1, 0.9);
-                } else {
-                    cr.setSourceRGBA(0.95, 0.2, 0.2, 0.9);
-                }
+                cr.setSourceRGBA(0.5, 0.5, 0.5, 0.3);
                 cr.fill();
+
+                // Fill
+                if (fillW > 0) {
+                    cr.moveTo(radius, 0);
+                    cr.lineTo(fillW > w - radius ? w - radius : fillW, 0);
+                    if (fillW > w - radius) {
+                        cr.arc(w - radius, radius, radius, -Math.PI / 2, 0);
+                        cr.lineTo(w, h - radius);
+                        cr.arc(w - radius, h - radius, radius, 0, Math.PI / 2);
+                    } else {
+                        cr.lineTo(fillW, h);
+                    }
+                    cr.lineTo(radius, h);
+                    cr.arc(radius, h - radius, radius, Math.PI / 2, Math.PI);
+                    cr.lineTo(0, radius);
+                    cr.arc(radius, radius, radius, Math.PI, Math.PI * 1.5);
+                    cr.closePath();
+
+                    if (level < 0.13) {
+                        cr.setSourceRGBA(0.4, 0.4, 0.4, 0.7);
+                    } else if (level < 0.5) {
+                        cr.setSourceRGBA(0.2, 0.85, 0.2, 0.9);
+                    } else if (level < 0.7) {
+                        cr.setSourceRGBA(0.95, 0.8, 0.1, 0.9);
+                    } else {
+                        cr.setSourceRGBA(0.95, 0.2, 0.2, 0.9);
+                    }
+                    cr.fill();
+                }
+            } finally {
+                cr.$dispose();
             }
         }
 
