@@ -196,8 +196,17 @@ class RecordingEngine:
         if self.state != EngineState.IDLE:
             raise RuntimeError(f"Cannot start: engine is {self.state.value}")
         self._cancel_event.clear()
-        # Override stop_timeout from D-Bus config if provided
-        self._stop_timeout = config.get("stop_timeout", self._stop_timeout)
+        # Validate and resolve stop_timeout from D-Bus config
+        config_mgr = ConfigManager()
+        engine_cfg = config_mgr.config.get("engine", {})
+        default_timeout = engine_cfg.get("stop_timeout", 120)
+        raw = config.get("stop_timeout")
+        try:
+            val = int(raw) if raw is not None else None
+        except (TypeError, ValueError):
+            val = None
+        # Only accept positive integers; otherwise fall back to configured default
+        self._stop_timeout = val if (val is not None and val > 0) else default_timeout
         self._task = asyncio.create_task(self._run(config))
 
     async def stop(self) -> None:
@@ -300,9 +309,7 @@ class RecordingEngine:
                     streaming_provider = await asyncio.to_thread(
                         get_streaming_provider, streaming_name, streaming_config
                     )
-                    batch_provider = await asyncio.to_thread(
-                        get_batch_provider, batch_name, batch_config
-                    )
+                    batch_provider = await asyncio.to_thread(get_batch_provider, batch_name, batch_config)
                 else:
                     # streaming mode — use streaming provider as both
                     streaming_config = config_mgr.get_provider_config(streaming_name)
@@ -316,9 +323,7 @@ class RecordingEngine:
                 provider_config = config_mgr.get_provider_config(provider)
                 # Construct the provider in a worker thread: its __init__ does a
                 # (timeout-bounded) keyring lookup that must not block the loop.
-                batch_provider = await asyncio.to_thread(
-                    get_batch_provider, provider, provider_config
-                )
+                batch_provider = await asyncio.to_thread(get_batch_provider, provider, provider_config)
 
             self._transcriber = transcriber
             self._batch_provider = batch_provider

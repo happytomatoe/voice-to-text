@@ -304,19 +304,19 @@ export default class VoiceToTextExtension extends Extension {
         if (!this._recording) return;
 
         this._sessionManager
-            .InhibitRemote(
+            .InhibitAsync(
                 'voice-to-text',
                 0,
                 'Voice recording in progress',
                 12 // INHIBIT_SUSPEND | INHIBIT_IDLE (per InhibitedActions=12)
             )
             .then(
-                ([cookie]) => {
+                cookie => {
                     // Race guard: only commit cookie if still recording and enabled
                     if (!this._recording || this._inhibitCookie !== 0) {
                         // Recording stopped or inhibitor already acquired;
                         // release the new cookie immediately
-                        this._sessionManager.UninhibitRemote(cookie);
+                        this._sessionManager.UninhibitAsync(cookie);
                         return;
                     }
                     this._inhibitCookie = cookie;
@@ -337,7 +337,7 @@ export default class VoiceToTextExtension extends Extension {
 
     _releaseInhibitor() {
         if (this._inhibitCookie === 0) return;
-        this._sessionManager.UninhibitRemote(this._inhibitCookie).then(
+        this._sessionManager.UninhibitAsync(this._inhibitCookie).then(
             () => {
                 console.log(
                     `VoiceToText: sleep inhibitor released, cookie=${
