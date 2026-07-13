@@ -176,7 +176,7 @@ export default class VoiceToTextExtension extends Extension {
                 'Error',
                 (proxy, name, [msg]) => {
                     console.log('VoiceToText: error:', msg);
-                    this._showNotification('Transcription failed: ' + msg);
+                    this._showNotification(`Transcription failed: ${msg}`);
                 }
             );
             this._signalIds.push(errorId);
@@ -259,7 +259,7 @@ export default class VoiceToTextExtension extends Extension {
                     e.message
                 );
                 this._showNotification(
-                    'Failed to start recording: ' + e.message
+                    `Failed to start recording: ${e.message}`
                 );
                 this._recording = false;
                 this._releaseInhibitor();
@@ -320,8 +320,9 @@ export default class VoiceToTextExtension extends Extension {
                     }
                     this._inhibitCookie = cookie;
                     console.log(
-                        'VoiceToText: sleep inhibitor acquired, cookie=' +
+                        `VoiceToText: sleep inhibitor acquired, cookie=${
                             this._inhibitCookie
+                        }`
                     );
                 },
                 e => {
@@ -338,8 +339,9 @@ export default class VoiceToTextExtension extends Extension {
         this._sessionManager.UninhibitRemote(this._inhibitCookie).then(
             () => {
                 console.log(
-                    'VoiceToText: sleep inhibitor released, cookie=' +
+                    `VoiceToText: sleep inhibitor released, cookie=${
                         this._inhibitCookie
+                    }`
                 );
             },
             e => {
@@ -365,7 +367,7 @@ export default class VoiceToTextExtension extends Extension {
             launcher.spawnv(['gnome-extensions', 'prefs', this.uuid]);
         } catch (e) {
             console.error('VoiceToText: failed to open preferences:', e);
-            this._showNotification('Failed to open preferences: ' + e.message);
+            this._showNotification(`Failed to open preferences: ${e.message}`);
         }
     }
 
