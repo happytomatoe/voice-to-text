@@ -81,7 +81,7 @@ class TestElevenLabsProvider:
         old_key = os.environ.pop("ELEVENLABS_API_KEY", None)
         try:
             with pytest.raises(ValueError):
-                ElevenLabsProvider({})
+                ElevenLabsProvider({"api_key_source": "env"})
         finally:
             if old_key is not None:
                 os.environ["ELEVENLABS_API_KEY"] = old_key
