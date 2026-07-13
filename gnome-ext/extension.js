@@ -302,31 +302,33 @@ export default class VoiceToTextExtension extends Extension {
         if (this._inhibitCookie !== 0) return;
         if (!this._settings.get_boolean('inhibit-sleep')) return;
 
-        this._sessionManager.InhibitAsync(
-            'voice-to-text',
-            0,
-            'Voice recording in progress',
-            12, // INHIBIT_SUSPEND | INHIBIT_IDLE (per InhibitedActions=12)
-            cookie => {
-                this._inhibitCookie = cookie;
-                console.log(
-                    'VoiceToText: sleep inhibitor acquired, cookie=' +
-                        this._inhibitCookie
-                );
-            },
-            e => {
-                console.error(
-                    'VoiceToText: failed to acquire sleep inhibitor:',
-                    e.message
-                );
-            }
-        );
+        this._sessionManager
+            .InhibitRemote(
+                'voice-to-text',
+                0,
+                'Voice recording in progress',
+                12 // INHIBIT_SUSPEND | INHIBIT_IDLE (per InhibitedActions=12)
+            )
+            .then(
+                ([cookie]) => {
+                    this._inhibitCookie = cookie;
+                    console.log(
+                        'VoiceToText: sleep inhibitor acquired, cookie=' +
+                            this._inhibitCookie
+                    );
+                },
+                e => {
+                    console.error(
+                        'VoiceToText: failed to acquire sleep inhibitor:',
+                        e.message
+                    );
+                }
+            );
     }
 
     _releaseInhibitor() {
         if (this._inhibitCookie === 0) return;
-        this._sessionManager.UninhibitAsync(
-            this._inhibitCookie,
+        this._sessionManager.UninhibitRemote(this._inhibitCookie).then(
             () => {
                 console.log(
                     'VoiceToText: sleep inhibitor released, cookie=' +
