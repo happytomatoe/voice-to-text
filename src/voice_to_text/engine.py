@@ -192,23 +192,23 @@ class RecordingEngine:
         if self.state != EngineState.IDLE:
             raise RuntimeError(f"Cannot start: engine is {self.state.value}")
         self._cancel_event.clear()
+        # Store stop_timeout from D-Bus config (fallback to YAML config default)
+        config_mgr = ConfigManager()
+        engine_cfg = config_mgr.config.get("engine", {})
+        self._stop_timeout = config.get("stop_timeout", engine_cfg.get("stop_timeout", 120))
         self._task = asyncio.create_task(self._run(config))
 
     async def stop(self) -> None:
         """Stop recording gracefully."""
-        # Read configurable timeout from config
-        config_mgr = ConfigManager()
-        engine_cfg = config_mgr.config.get("engine", {})
-        stop_timeout = engine_cfg.get("stop_timeout", 120)
-        logger.info("Stopping recording (timeout=%ds)", stop_timeout)
+        logger.info("Stopping recording (timeout=%ds)", self._stop_timeout)
 
         self._cancel_event.set()
         task = self._task
         if task and not task.done():
             try:
-                await asyncio.wait_for(task, timeout=stop_timeout)
+                await asyncio.wait_for(task, timeout=self._stop_timeout)
             except (TimeoutError, asyncio.CancelledError):
-                logger.warning("Recording task did not finish in time (timeout=%ds)", stop_timeout)
+                logger.warning("Recording task did not finish in time (timeout=%ds)", self._stop_timeout)
                 task.cancel()
                 # If the task's finally block already nulled self._task,
                 # that's fine — our local reference still lets us wait
