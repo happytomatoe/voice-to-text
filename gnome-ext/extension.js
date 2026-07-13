@@ -214,7 +214,7 @@ export default class VoiceToTextExtension extends Extension {
                 try {
                     this._proxy.disconnectSignal(id);
                 } catch {
-                    // ignore
+                    // ignore: signal may already be disconnected or proxy destroyed
                 }
             }
             this._signalIds = [];
