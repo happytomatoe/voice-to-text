@@ -1,4 +1,7 @@
-"""Parakeet HTTP transcription provider."""
+"""Parakeet HTTP transcription provider (local, no cloud).
+
+Project docs: docs/providers/parakeet.md
+"""
 
 import logging
 import os

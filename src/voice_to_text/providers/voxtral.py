@@ -1,4 +1,8 @@
-"""Voxtral transcription provider (batch and streaming)."""
+"""Voxtral transcription provider (batch and streaming).
+
+API reference: https://docs.mistral.ai/api/endpoint/audio/transcriptions
+Project docs:  docs/providers/voxtral.md
+"""
 
 import asyncio
 import concurrent.futures

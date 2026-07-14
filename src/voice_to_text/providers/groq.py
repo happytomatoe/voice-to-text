@@ -1,4 +1,8 @@
-"""Groq Whisper transcription provider (batch only)."""
+"""Groq Whisper transcription provider (batch only).
+
+API reference: https://console.groq.com/docs/speech-to-text
+Project docs:  docs/providers/groq.md
+"""
 
 import logging
 from pathlib import Path

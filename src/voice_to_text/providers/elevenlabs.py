@@ -1,4 +1,8 @@
-"""ElevenLabs Scribe speech-to-text provider (batch only)."""
+"""ElevenLabs Scribe speech-to-text provider (batch only).
+
+API reference: https://elevenlabs.io/docs/api-reference/speech-to-text/convert
+Project docs:  docs/providers/elevenlabs.md
+"""
 
 import logging
 from pathlib import Path
@@ -74,6 +78,7 @@ class ElevenLabsProvider(BatchProvider):
     async def close(self) -> None:
         """No persistent resources to close."""
         pass
+
     @property
     def name(self) -> str:
         return "elevenlabs"

@@ -3,6 +3,7 @@
 API reference: https://developers.deepgram.com/reference
 - Pre-recorded: https://developers.deepgram.com/reference/pre-recorded
 - Streaming:    https://developers.deepgram.com/reference/streaming
+- Project docs: docs/providers/deepgram.md
 
 Available query parameters (set via deepgram.batch_options in config.yaml):
 - model:           Model to use (default: nova-3)

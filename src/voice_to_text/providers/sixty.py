@@ -1,4 +1,8 @@
-"""60db (sixtydb) transcription provider (batch and streaming)."""
+"""60db (sixtydb) transcription provider (batch and streaming).
+
+API reference: https://docs.60db.ai/api-reference/introduction
+Project docs:  docs/providers/60db.md
+"""
 
 import asyncio
 import base64
@@ -153,12 +157,14 @@ class SixtyProvider(BatchProvider, StreamingProvider):
     async def send_audio(self, audio_chunk: bytes) -> None:
         if self._ws is None or not self._session_started.is_set():
             return  # drop frames before session is ready
-        frame = json.dumps({
-            "type": "audio",
-            "audio": base64.b64encode(audio_chunk).decode("ascii"),
-            "encoding": "linear",
-            "sample_rate": self._sample_rate,
-        })
+        frame = json.dumps(
+            {
+                "type": "audio",
+                "audio": base64.b64encode(audio_chunk).decode("ascii"),
+                "encoding": "linear",
+                "sample_rate": self._sample_rate,
+            }
+        )
         try:
             await self._ws.send(frame)
         except Exception as e:
