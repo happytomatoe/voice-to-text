@@ -245,10 +245,6 @@ export default class VoiceToTextExtension extends Extension {
                 'decrease-speaker-volume'
             ),
             output_method: this._settings.get_string('output-method'),
-            bluetooth_headset_change_to_handsfree_to_record:
-                this._settings.get_boolean(
-                    'bluetooth-headset-change-to-handsfree-to-record'
-                ),
             stop_timeout: this._settings.get_int('stop-timeout-seconds'),
         };
 
