@@ -63,14 +63,18 @@ class SixtyProvider(BatchProvider, StreamingProvider):
                 logger.info("60db transcription result: %s", text[:100])
                 return text
         except httpx.HTTPStatusError as e:
-            logger.exception("60db transcription API call failed")
-            detail = ""
+            status = e.response.status_code if e.response is not None else "?"
+            logger.error("60db API error: HTTP %s", status)
             if e.response is not None:
                 try:
-                    detail = f": {e.response.json()}"
+                    body = e.response.json()
+                    logger.error("60db response body: %s", body)
                 except ValueError:
-                    detail = f": {e.response.text}"
-            raise RuntimeError(f"60db API request failed: {e}{detail}") from e
+                    logger.error("60db response text: %s", e.response.text[:500])
+                if status == 401:
+                    fp = self.api_key[:6] + "..." + self.api_key[-4:] if len(self.api_key) > 10 else self.api_key
+                    logger.error("401 Unauthorized - key fingerprint=%s (len=%d)", fp, len(self.api_key))
+            raise RuntimeError(f"60db API request failed (HTTP {status}): {e}") from e
         except Exception as e:
             logger.exception("60db transcription failed")
             raise RuntimeError(f"60db transcription failed: {e}")
