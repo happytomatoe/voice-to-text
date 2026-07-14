@@ -74,14 +74,21 @@ class VoxtralProvider(BatchProvider, StreamingProvider):
                 logger.info("Transcription result: %s", text[:100])
                 return text
         except httpx.HTTPStatusError as e:
-            logger.exception("Voxtral transcription API call failed")
-            detail = ""
+            status = e.response.status_code if e.response is not None else "?"
+            logger.error("Voxtral API error: HTTP %s", status)
             if e.response is not None:
                 try:
-                    detail = f": {e.response.json()}"
+                    body = e.response.json()
+                    logger.error("Voxtral response body: %s", body)
                 except ValueError:
-                    detail = f": {e.response.text}"
-            raise RuntimeError(f"Voxtral API request failed: {e}{detail}") from e
+                    logger.error("Voxtral response text: %s", e.response.text[:500])
+                if status == 401:
+                    logger.error(
+                        "401 Unauthorized - key fingerprint=%s (len=%d)",
+                        self.api_key[:6] + "..." + self.api_key[-4:] if len(self.api_key) > 10 else self.api_key,
+                        len(self.api_key),
+                    )
+            raise RuntimeError(f"Voxtral API request failed (HTTP {status}): {e}") from e
         except Exception as e:
             logger.exception("Voxtral transcription failed")
             raise RuntimeError(f"Voxtral transcription failed: {e}")

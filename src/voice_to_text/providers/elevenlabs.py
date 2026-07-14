@@ -63,14 +63,15 @@ class ElevenLabsProvider(BatchProvider):
             logger.info("Transcription result: %s", text[:100])
             return text
         except httpx.HTTPStatusError as e:
-            logger.exception("ElevenLabs transcription API call failed")
-            detail = ""
+            status = e.response.status_code if e.response is not None else "?"
+            body = ""
             if e.response is not None:
                 try:
-                    detail = f": {e.response.json()}"
+                    body = str(e.response.json())
                 except ValueError:
-                    detail = f": {e.response.text}"
-            raise RuntimeError(f"ElevenLabs API request failed: {e}{detail}") from e
+                    body = e.response.text[:500]
+            logger.error("ElevenLabs API error %s: %s", status, body)
+            raise RuntimeError(f"ElevenLabs API error {status}: {body}") from e
         except Exception as e:
             logger.exception("ElevenLabs transcription failed")
             raise RuntimeError(f"ElevenLabs transcription failed: {e}") from e

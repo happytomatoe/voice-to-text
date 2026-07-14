@@ -118,6 +118,7 @@ def resolve_api_key(
     Raises ValueError if not found.
     """
     api_key_source = config.get("api_key_source", "keyring")
+    source_used = "none"
 
     # 1. Environment variable
     env_var = config.get("api_key_env", default_env)
@@ -127,16 +128,21 @@ def resolve_api_key(
             key = os.getenv(env)
             if key:
                 break
+    if key:
+        source_used = f"env:{env_var or extra_envs}"
 
     # 2. Config file
     if not key:
         key = config.get("api_key")
+        if key:
+            source_used = "config:api_key"
 
     # 3. Keyring (fallback, may be slow without Secret Service)
     if not key and api_key_source == "keyring" and provider_name:
         try:
             key = _keyring_get_password("voice-to-text", provider_name)
             if key:
+                source_used = f"keyring:{provider_name}"
                 logger.debug("Resolved API key for %s from keyring", provider_name)
             else:
                 logger.debug("No keyring entry for %s", provider_name)
@@ -150,6 +156,13 @@ def resolve_api_key(
     if not key:
         all_vars = (config.get("api_key_env", default_env),) + extra_envs
         raise ValueError(f"No API key found in environment ({all_vars}), config, or keyring")
+
+    # Log key fingerprint for debugging (first 6 + last 4 chars)
+    if len(key) > 10:
+        fingerprint = f"{key[:6]}...{key[-4:]}"
+    else:
+        fingerprint = f"{key[:3]}...{key[-2:]}"
+    logger.info("API key resolved: provider=%s source=%s fingerprint=%s", provider_name, source_used, fingerprint)
 
     return key
 

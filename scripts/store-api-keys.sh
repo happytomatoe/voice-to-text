@@ -44,7 +44,7 @@ Deepgram)
   ;;
 Voxtral)
   username="voxtral"
-  url="https://console.mistral.ai/"
+  url="https://console.mistral.ai/?profile_dialog=api-keys"
   ;;
 Groq)
   username="groq"
