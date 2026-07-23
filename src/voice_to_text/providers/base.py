@@ -8,8 +8,6 @@ import subprocess
 from abc import ABC, abstractmethod
 from typing import Any
 
-import keyring as keyring_lib
-
 logger = logging.getLogger(__name__)
 
 
@@ -72,36 +70,6 @@ class StreamingProvider(ABC):
         pass
 
 
-# Keyring lookups block on a D-Bus round-trip to the secret service. When
-# that service is unreachable (e.g. inside the isolated dbus-run-session used
-# by `just gnome-ext-dev`), the call can hang for tens of seconds and, if
-# invoked on the asyncio event loop, freeze recording startup. Bound it.
-_KEYRING_TIMEOUT = 3.0
-
-
-def _keyring_get_password(service: str, provider: str, timeout: float = _KEYRING_TIMEOUT) -> str | None:
-    """Return the keyring password, or raise on timeout / error.
-
-    Runs the blocking ``keyring.get_password`` in a worker thread and fails
-    fast (default 3s) so an unreachable secret service cannot hang startup.
-    The worker thread is intentionally not joined on timeout, so the lingering
-    keyring call cannot re-block the caller.
-    """
-    import concurrent.futures
-
-    ex = concurrent.futures.ThreadPoolExecutor(max_workers=1)
-    try:
-        future = ex.submit(keyring_lib.get_password, service, provider)
-        try:
-            return future.result(timeout=timeout)
-        except concurrent.futures.TimeoutError as e:
-            raise RuntimeError(
-                f"keyring lookup timed out after {timeout}s (is the secret service reachable on this session bus?)"
-            ) from e
-    finally:
-        ex.shutdown(wait=False)
-
-
 def _execute_command_for_key(command: str) -> str:
     """Execute shell command, return stdout as API key."""
     logger.info("Executing API key command: %s", command)
@@ -144,20 +112,15 @@ def resolve_api_key(
     extra_envs: tuple[str, ...] = (),
     provider_name: str | None = None,
 ) -> str:
-    """Resolve API key from environment variable, config, or keyring.
+    """Resolve API key from environment variable or config.
 
-    Resolution order (env > config > keyring):
+    Resolution order (env > config):
     1. Environment variable (via api_key_env or default_env)
     2. Config file api_key field (supports !command substitution)
-    3. Keyring (if api_key_source == "keyring") — may incur ~3s timeout
-       on systems without a reachable Secret Service (CI, containers).
 
     Raises ValueError if not found.
     """
     source_used = "none"
-    api_key_source = config.get("api_key_source", "keyring")
-
-    # 1. Environment variable
     env_var = config.get("api_key_env", default_env)
     key = os.getenv(env_var)
     if not key:
@@ -167,33 +130,15 @@ def resolve_api_key(
                 break
     if key:
         source_used = f"env:{env_var or extra_envs}"
-
     # 2. Config file
     if not key:
         key = config.get("api_key")
         if key:
             source_used = "config:api_key"
 
-    # 3. Keyring (fallback, may be slow without Secret Service)
-    if not key and api_key_source == "keyring" and provider_name:
-        try:
-            key = _keyring_get_password("voice-to-text", provider_name)
-            if key:
-                source_used = f"keyring:{provider_name}"
-                logger.debug("Resolved API key for %s from keyring", provider_name)
-            else:
-                logger.debug("No keyring entry for %s", provider_name)
-        except Exception as e:
-            logger.warning(
-                "Keyring lookup failed for %s: %s",
-                provider_name,
-                e,
-            )
-
     if not key:
         all_vars = (config.get("api_key_env", default_env),) + extra_envs
-        raise ValueError(f"No API key found in environment ({all_vars}), config, or keyring")
-
+        raise ValueError(f"No API key found in environment ({all_vars}) or config")
     # Log key fingerprint for debugging (first 6 + last 4 chars)
     if len(key) > 10:
         fingerprint = f"{key[:6]}...{key[-4:]}"

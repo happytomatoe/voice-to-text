@@ -97,19 +97,38 @@ class AsyncAudioRecorder:
         # Store event loop reference for thread-safe callback
         self._loop = asyncio.get_running_loop()
 
-        self._stream = sd.InputStream(
-            samplerate=self.sample_rate,
-            channels=1,
-            blocksize=BLOCK_SIZE,
-            dtype="int16",
-            callback=self._audio_callback,
-            device=self.device,
-        )
-        self._stream.start()
+        # When no device is explicitly chosen, prefer "pipewire" so recording
+        # routes through PipeWire. This (a) makes GNOME Shell's microphone /
+        # privacy recording indicator appear, and (b) selects the correct input
+        # on PipeWire systems. Fall back to PortAudio's default only if the
+        # pipewire ALSA plugin is unavailable (e.g. non-PipeWire setups).
+        # An explicitly selected device is used as-is (no silent fallback).
+        candidates = ["pipewire", None] if self.device is None else [self.device]
+        last_err: Exception | None = None
+        opened_device: object = self.device
+        for cand in candidates:
+            try:
+                self._stream = sd.InputStream(
+                    samplerate=self.sample_rate,
+                    channels=1,
+                    blocksize=BLOCK_SIZE,
+                    dtype="int16",
+                    callback=self._audio_callback,
+                    device=cand,
+                )
+                self._stream.start()
+                opened_device = cand
+                break
+            except Exception as e:  # noqa: BLE001 - try next candidate
+                last_err = e
+                self._stream = None
+        else:
+            raise last_err or RuntimeError("Failed to open audio input device")
+
         logger.info(
             "AsyncAudioRecorder started (rate=%d, device=%s)",
             self.sample_rate,
-            self.device,
+            opened_device,
         )
 
     def _audio_callback(self, indata: np.ndarray, frames: int, time_info, status):
@@ -292,8 +311,7 @@ class RecordingEngine:
                     streaming_config = config_mgr.get_provider_config(streaming_name)
                     batch_config = config_mgr.get_provider_config(batch_name)
                     # Construct providers in a worker thread: their __init__
-                    # performs a (now timeout-bounded) keyring lookup that must
-                    # not block the asyncio event loop.
+                    # may run blocking I/O (e.g. API key resolution).
                     streaming_provider = await asyncio.to_thread(
                         get_streaming_provider, streaming_name, streaming_config
                     )
@@ -309,8 +327,8 @@ class RecordingEngine:
             else:
                 config_mgr = ConfigManager()
                 provider_config = config_mgr.get_provider_config(provider)
-                # Construct the provider in a worker thread: its __init__ does a
-                # (timeout-bounded) keyring lookup that must not block the loop.
+                # Construct the provider in a worker thread: its __init__ may
+                # run blocking I/O (e.g. API key resolution).
                 batch_provider = await asyncio.to_thread(get_batch_provider, provider, provider_config)
 
             self._transcriber = transcriber
@@ -323,8 +341,10 @@ class RecordingEngine:
             fd, audio_path = tempfile.mkstemp(suffix=".wav")
             os.close(fd)
 
+            raw_device = config.get("device")
+            device = None if not raw_device or raw_device == "__system_default__" else raw_device
             recorder = AsyncAudioRecorder(
-                device=config.get("device"),
+                device=device,
                 sample_rate=SAMPLE_RATE,
             )
             self._recorder = recorder
