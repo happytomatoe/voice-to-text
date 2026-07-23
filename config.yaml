@@ -30,9 +30,14 @@ deepgram:
 groq:
   # api_key_source: "env" (default) or "keyring"
   # Add key: secret-tool store --label="Groq API key" application voice-to-text provider groq
-
+  # API key options:
+  # - literal: "sk-..."
+  # - command: "!op read 'op://Vault/Groq/key'"
+  # - env var: set GROQ_API_KEY
+  # - keyring: secret-tool store --label="Groq API key" application voice-to-text provider groq
 voxtral:
-  api_key_source: "keyring"
+  # api_key_source: "keyring"  # Ignored when using !command
+  api_key: "!bash /var/home/l/git/mistral/check-and-rotate-key.sh"  # Validates key, rotates on 401
   model: "voxtral-mini-latest"
   realtime_model: "voxtral-mini-transcribe-realtime-2602"
   target_delay_ms: 400

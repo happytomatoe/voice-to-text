@@ -5,6 +5,7 @@ import os
 import pytest
 
 from voice_to_text.providers import get_batch_provider, get_streaming_provider
+from voice_to_text.providers.base import resolve_api_key
 from voice_to_text.providers.elevenlabs import ElevenLabsProvider
 from voice_to_text.providers.groq import GroqProvider
 from voice_to_text.providers.sixty import SixtyProvider
@@ -85,3 +86,39 @@ class TestElevenLabsProvider:
         finally:
             if old_key is not None:
                 os.environ["ELEVENLABS_API_KEY"] = old_key
+
+
+class TestResolveApiKeyCommandSubstitution:
+    def test_command_substitution_success(self):
+        config = {"api_key": "!echo test-key-123"}
+        key = resolve_api_key(config, "DUMMY_ENV", provider_name="test")
+        assert key == "test-key-123"
+
+    def test_command_substitution_failure(self):
+        config = {"api_key": "!false"}
+        with pytest.raises(ValueError, match="API key command failed"):
+            resolve_api_key(config, "DUMMY_ENV", provider_name="test")
+
+    def test_command_substitution_empty_output(self):
+        config = {"api_key": "!echo -n"}
+        with pytest.raises(ValueError, match="empty output"):
+            resolve_api_key(config, "DUMMY_ENV", provider_name="test")
+
+    def test_command_substitution_timeout(self):
+        config = {"api_key": "!sleep 20"}
+        with pytest.raises(ValueError, match="timed out"):
+            resolve_api_key(config, "DUMMY_ENV", provider_name="test")
+
+    def test_env_var_priority_over_command(self):
+        config = {"api_key": "!echo from-command", "api_key_env": "TEST_API_KEY"}
+        os.environ["TEST_API_KEY"] = "from-env"
+        try:
+            key = resolve_api_key(config, "TEST_API_KEY", provider_name="test")
+            assert key == "from-env"
+        finally:
+            del os.environ["TEST_API_KEY"]
+
+    def test_command_shell_supports_pipes(self):
+        config = {"api_key": "!echo 'hello world' | tr ' ' '-'"}
+        key = resolve_api_key(config, "DUMMY_ENV", provider_name="test")
+        assert key == "hello-world"

@@ -4,6 +4,7 @@ import asyncio
 import json
 import logging
 import os
+import subprocess
 from abc import ABC, abstractmethod
 from typing import Any
 
@@ -101,6 +102,42 @@ def _keyring_get_password(service: str, provider: str, timeout: float = _KEYRING
         ex.shutdown(wait=False)
 
 
+def _execute_command_for_key(command: str) -> str:
+    """Execute shell command, return stdout as API key."""
+    logger.info("Executing API key command: %s", command)
+    try:
+        proc = subprocess.Popen(
+            command,
+            shell=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+        try:
+            stdout, stderr = proc.communicate(timeout=10)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            proc.communicate()
+            raise ValueError(f"API key command timed out after 10s: {command}")
+
+        if proc.returncode != 0:
+            raise ValueError(f"API key command failed (exit {proc.returncode}): {stderr.strip()}")
+
+        api_key = stdout.rstrip("\n")
+        if not api_key:
+            raise ValueError(f"API key command returned empty output: {command}")
+
+        logger.debug("Command executed successfully")
+        return api_key
+
+    except FileNotFoundError:
+        raise ValueError(f"API key command not found: {command}")
+    except ValueError:
+        raise
+    except Exception as e:
+        raise ValueError(f"API key command error: {e}") from e
+
+
 def resolve_api_key(
     config: dict[str, Any],
     default_env: str,
@@ -111,14 +148,14 @@ def resolve_api_key(
 
     Resolution order (env > config > keyring):
     1. Environment variable (via api_key_env or default_env)
-    2. Config file api_key field (plain value only)
+    2. Config file api_key field (supports !command substitution)
     3. Keyring (if api_key_source == "keyring") — may incur ~3s timeout
        on systems without a reachable Secret Service (CI, containers).
 
     Raises ValueError if not found.
     """
-    api_key_source = config.get("api_key_source", "keyring")
     source_used = "none"
+    api_key_source = config.get("api_key_source", "keyring")
 
     # 1. Environment variable
     env_var = config.get("api_key_env", default_env)
@@ -163,6 +200,11 @@ def resolve_api_key(
     else:
         fingerprint = f"{key[:3]}...{key[-2:]}"
     logger.info("API key resolved: provider=%s source=%s fingerprint=%s", provider_name, source_used, fingerprint)
+
+    # 4. Command substitution (!command)
+    if key and key.startswith("!"):
+        command = key[1:]  # strip leading !
+        return _execute_command_for_key(command)
 
     return key
 
