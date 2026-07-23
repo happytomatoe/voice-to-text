@@ -1,6 +1,7 @@
 import Adw from 'gi://Adw';
 import Gtk from 'gi://Gtk';
 import Gio from 'gi://Gio';
+import GLib from 'gi://GLib';
 import Gdk from 'gi://Gdk';
 import {
     ExtensionPreferences,
@@ -56,6 +57,75 @@ export default class VoiceToTextPrefs extends ExtensionPreferences {
         });
 
         group.add(hotkeyRow);
+
+        // Microphone input device setting
+        const deviceRow = new Adw.ActionRow({
+            title: _('Microphone'),
+            subtitle: _('Audio input device used for recording'),
+        });
+
+        const deviceCombo = new Gtk.ComboBoxText();
+        deviceCombo.append('__system_default__', _('System default'));
+        deviceRow.add_suffix(deviceCombo);
+        group.add(deviceRow);
+
+        // Populate the device list from the D-Bus service (ListInputDevices).
+        const DeviceListIface = `
+<node>
+  <interface name="com.happytomatoe.VoiceToText">
+    <method name="ListInputDevices">
+      <arg type="a(ss)" name="devices" direction="out"/>
+    </method>
+  </interface>
+</node>`;
+        const DeviceListProxy = Gio.DBusProxy.makeProxyWrapper(DeviceListIface);
+        let deviceProxy = null;
+        try {
+            deviceProxy = new DeviceListProxy(
+                Gio.DBus.session,
+                'com.happytomatoe.VoiceToText',
+                '/com/happytomatoe/VoiceToText'
+            );
+        } catch (e) {
+            console.error('VoiceToText: failed to create device list proxy:', e.message);
+        }
+
+        const currentDevice = settings.get_string('input-device') || '__system_default__';
+        deviceCombo.set_active_id(currentDevice);
+
+        const populateDevices = () => {
+            if (!deviceProxy) {
+                deviceRow.subtitle = _('Voice-to-Text service not available');
+                return;
+            }
+            deviceProxy.ListInputDevicesAsync().then(
+                (devices) => {
+                    deviceCombo.remove_all();
+                    deviceCombo.append('__system_default__', _('System default'));
+                    for (const [id, label] of devices) {
+                        if (id === '__system_default__') continue;
+                        deviceCombo.append(id, label);
+                    }
+                    const active = settings.get_string('input-device') || '__system_default__';
+                    if (deviceCombo.get_active_id() !== active) {
+                        deviceCombo.set_active_id(active);
+                    }
+                    deviceRow.subtitle = _('Audio input device used for recording');
+                },
+                (err) => {
+                    deviceRow.subtitle = _('Start the Voice-to-Text service to list microphones');
+                    console.error('VoiceToText: ListInputDevices failed:', err?.message || err);
+                }
+            );
+        };
+        populateDevices();
+
+        deviceCombo.connect('changed', () => {
+            const id = deviceCombo.get_active_id();
+            if (id) {
+                settings.set_string('input-device', id);
+            }
+        });
 
         // Show recording notification toggle
         const showNotificationRow = new Adw.SwitchRow({
@@ -255,6 +325,38 @@ export default class VoiceToTextPrefs extends ExtensionPreferences {
         });
         languageRow.add_suffix(languageEntry);
         group.add(languageRow);
+
+        // Configuration group
+        const configGroup = new Adw.PreferencesGroup({
+            title: _('Configuration'),
+            description: _('Advanced settings stored in config.yaml'),
+        });
+        page.add(configGroup);
+
+        const editConfigRow = new Adw.ActionRow({
+            title: _('Edit Configuration File'),
+            subtitle: _('Open config.yaml in your default editor ($EDITOR)'),
+        });
+        configGroup.add(editConfigRow);
+
+        const editConfigButton = new Gtk.Button({
+            label: _('Open Editor'),
+            halign: Gtk.Align.END,
+        });
+        editConfigRow.add_suffix(editConfigButton);
+
+        editConfigButton.connect('clicked', () => {
+            const configPath = `${GLib.get_home_dir()}/.config/voice-to-text/config.yaml`;
+            const editor = GLib.getenv('EDITOR') || 'nano';
+            try {
+                const launcher = new Gio.SubprocessLauncher({
+                    flags: Gio.SubprocessFlags.NONE,
+                });
+                launcher.spawnv([editor, configPath]);
+            } catch (e) {
+                console.error('VoiceToText: failed to open editor:', e.message);
+            }
+        });
     }
 
     _getHotkeyDisplay(hotkeyValue) {

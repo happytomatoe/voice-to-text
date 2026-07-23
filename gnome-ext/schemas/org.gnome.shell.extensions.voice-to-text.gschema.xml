@@ -5,6 +5,11 @@
       <default><![CDATA[['<Super>w']]]></default>
       <summary>Recording hotkey</summary>
     </key>
+    <key name="input-device" type="s">
+      <default>"__system_default__"</default>
+      <summary>Audio input device for recording</summary>
+      <description>Sounddevice device id (name) used for microphone capture. "__system_default__" lets PortAudio choose. Usually "pipewire" on PipeWire systems.</description>
+    </key>
     <key name="show-recording-notification" type="b">
       <default>false</default>
       <summary>Show notification when recording starts</summary>
