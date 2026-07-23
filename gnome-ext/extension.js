@@ -241,6 +241,7 @@ export default class VoiceToTextExtension extends Extension {
             mode: this._settings.get_string('mode'),
             streaming_provider: this._settings.get_string('streaming-provider'),
             batch_provider: this._settings.get_string('batch-provider'),
+            device: this._settings.get_string('input-device'),
             decrease_speaker_volume: this._settings.get_int(
                 'decrease-speaker-volume'
             ),

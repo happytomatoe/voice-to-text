@@ -60,6 +60,24 @@ Rules:
 - All new entries go under `## [Unreleased]`. Read the full section first and append to existing subsections; never duplicate them.
 - Released version sections (e.g. `## [0.12.2]`) are immutable; never modify them.
 
+## Semantic Release
+
+This project uses [python-semantic-release](https://python-semantic-release.readthedocs.io/) for automated versioning.
+
+**How it works:**
+- Every merge to `main` with conventional commits triggers automatic:
+  - Version bump (based on commit types)
+  - CHANGELOG.md update
+  - Git tag creation (`vX.Y.Z`)
+  - GitHub Release creation
+
+**Version bump rules:**
+- `feat:` → minor bump (0.x.0)
+- `fix:`, `perf:` → patch bump (0.0.x)
+- `feat!:` or `BREAKING CHANGE:` → major bump (x.0.0)
+- `chore:`, `docs:`, `style:`, `refactor:`, `test:` → no bump
+
+**Configuration:** `pyproject.toml` → `[tool.semantic_release]`
 ## JavaScript/TypeScript Error Handling (gnome-ext/)
 
 - **Never leave catch blocks empty.** At minimum, log the error: `catch (e) { console.error(e); }`

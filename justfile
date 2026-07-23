@@ -99,7 +99,12 @@ service-status:
 # @category service
 # Tail service logs
 service-logs:
-    journalctl --user -f | grep voice
+	journalctl --user -f | grep voice
+
+# @category service
+# Tail D-Bus service logs (includes D-Bus activation logs and Python service logs)
+dbus-logs:
+	journalctl --user -f -u voice-to-text-dbus
 
 # @category service
 # Restart the service by stopping it (D-Bus activation restarts on next extension use)

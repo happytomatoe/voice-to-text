@@ -15,6 +15,7 @@ import asyncio
 import json
 import logging
 
+import sounddevice as sd
 from dbus_next.aio import MessageBus
 from dbus_next.errors import DBusError
 from dbus_next.service import ServiceInterface, method, signal
@@ -31,6 +32,35 @@ OBJECT_PATH = "/com/happytomatoe/VoiceToText"
 # ── Signal values (stashed by callbacks, read by signal getters) ──────
 # dbus-next signals: the @signal() method's return value is emitted.
 # We stash the current value on the interface and the signal method reads it.
+
+
+def list_input_devices() -> list[tuple[str, str]]:
+    """Return available input devices as (id, label) pairs.
+
+    Only devices that support 16 kHz mono capture (what the recorder uses)
+    are listed, to avoid "invalid sample rate" failures at record time. The
+    first entry uses the id "__system_default__" which tells the engine to
+    let PortAudio choose the input device.
+    """
+    devices: list[tuple[str, str]] = [("__system_default__", "System default")]
+    seen: set[str] = set()
+    try:
+        all_devices = sd.query_devices()
+    except Exception:
+        return devices
+    for i, d in enumerate(all_devices):
+        if d.get("max_input_channels", 0) <= 0:
+            continue
+        name = d["name"]
+        if name in seen:
+            continue
+        try:
+            sd.check_input_settings(device=i, samplerate=16000, channels=1)
+        except Exception:
+            continue
+        seen.add(name)
+        devices.append((name, name))
+    return devices
 
 
 class VoiceToTextInterface(ServiceInterface):
@@ -87,7 +117,8 @@ class VoiceToTextInterface(ServiceInterface):
           mode (str): "batch", "hybrid", or "streaming"
           streaming_provider (str): for hybrid/streaming modes
           batch_provider (str): for hybrid mode
-          device (int|None): audio device index
+          device (str|None): sounddevice device name (e.g. "pipewire"),
+            or "__system_default__"/None to let PortAudio choose
           decrease_speaker_volume (int): 0-100
           output_method (str): "type", "clipboard", or "none"
         """
@@ -122,6 +153,17 @@ class VoiceToTextInterface(ServiceInterface):
     def GetStatus(self) -> "s":  # noqa: N802, F821  # pyright: ignore[reportUndefinedVariable]
         """Return current state: idle/recording/processing."""
         return self._state
+
+    @method()
+    def ListInputDevices(self) -> "a(ss)":  # noqa: N802, F821  # pyright: ignore[reportUndefinedVariable]
+        """Return available input devices as (id, label) pairs.
+
+        Delegates to :func:`list_input_devices`; the first entry is the
+        "__system_default__" id, which routes capture through PipeWire when
+        no device is explicitly chosen (so GNOME's mic/privacy indicator
+        appears).
+        """
+        return list_input_devices()
 
     # ── Signals ──────────────────────────────────────────────────────────
 
