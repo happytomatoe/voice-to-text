@@ -342,7 +342,7 @@ class RecordingEngine:
             os.close(fd)
 
             raw_device = config.get("device")
-            device = None if not raw_device or raw_device == "__system_default__" else raw_device
+            device = None if raw_device in (None, "", "__system_default__") else raw_device
             recorder = AsyncAudioRecorder(
                 device=device,
                 sample_rate=SAMPLE_RATE,

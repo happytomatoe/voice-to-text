@@ -73,17 +73,26 @@ deepgram:
 If an API key starts with `!`, the rest is executed as a shell command and stdout is used as the key. This works with any secret manager (1Password, pass, secret-tool, custom scripts):
 
 ```yaml
+# Example: 1Password
 voxtral:
-  api_key: "!op read 'op://Vault/Voxtral/key'"  # 1Password
-  api_key: "!pass show voxtral/api-key"         # pass
-  api_key: "!secret-tool lookup service voice-to-text username voxtral"  # GNOME Keyring
+  api_key: "!op read 'op://Vault/Voxtral/key'"
 ```
 
-The command runs fresh each time the key is needed (no caching). If the command fails, a desktop notification shows the error.
+```yaml
+# Example: pass
+voxtral:
+  api_key: "!pass show voxtral/api-key"
+```
+
+```yaml
+# Example: GNOME Keyring
+voxtral:
+  api_key: "!secret-tool lookup service voice-to-text username voxtral"
+```
+
+The command runs fresh each time the key is needed (no caching). Raises `ValueError` on timeout, non-zero exit, or empty output.
 
 **Script requirements:** Output ONLY the key to stdout; all logs/errors to stderr.
-
-#### Reload keys
 
 #### Reload keys
 

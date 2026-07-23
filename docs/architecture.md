@@ -39,7 +39,7 @@ and `Error`.
 | Recording engine | `src/voice_to_text/engine.py` | State machine (`idle`/`recording`/`processing`); orchestrates the pipeline. |
 | Audio capture | `src/voice_to_text/audio.py` | `AsyncAudioRecorder` (sounddevice + queue) and speaker volume control. |
 | Bluetooth | `src/voice_to_text/bluetooth.py` | Switches headset to hands-free mic before recording. |
-| Providers | `src/voice_to_text/providers/*.py` | Cloud (Voxtral, Groq, Deepgram) and local (Parakeet) transcription. |
+| Providers | `src/voice_to_text/providers/*.py` | Cloud (Voxtral, Groq, Deepgram, 60db, ElevenLabs) and local (Parakeet) transcription. |
 | Hybrid | `src/voice_to_text/hybrid.py` | Mixes a streaming provider (live partials) with a batch provider (final pass). |
 | Output | `src/voice_to_text/typer.py` | Incremental typing via `dotoolc`; clipboard fallback. |
 | Config | `src/voice_to_text/config.py`, `config.yaml` | Loads/resolves provider config and secrets. |
@@ -64,12 +64,20 @@ Selected by `transcription.mode` in `config.yaml` (also overridable per call):
   is used as the API key. This enables integration with secret managers like
   1Password, pass, or custom scripts.
   ```yaml
+  # Example: run a script that returns the API key
   voxtral:
-    # Run a script that returns the API key
     api_key: "!bash /path/to/get-key.sh"
-    # Or use secret-tool directly
+  ```
+
+  ```yaml
+  # Example: use secret-tool directly
+  voxtral:
     api_key: "!secret-tool lookup service mistral type api_key"
-    # Or 1Password CLI
+  ```
+
+  ```yaml
+  # Example: 1Password CLI
+  voxtral:
     api_key: "!op read 'op://Vault/Mistral/key'"
   ```
   - The command runs fresh each time (no caching)
@@ -122,6 +130,7 @@ Selected by `transcription.mode` in `config.yaml` (also overridable per call):
 - **Clipboard empty** — needs `wl-copy` (Wayland) or `xclip`/`xsel` (X11).
 - **Provider/API errors** — bad or missing keys (check `api_key` in config),
   wrong model name, or network/quota issues. These surface via the
+  provider's `ValueError` exception, logged as `Error: API key` by the caller.
 - **Stuck in `processing`** — transcription can take up to `engine.stop_timeout`
   (default 120 s) before the engine force-cancels.
 

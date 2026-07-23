@@ -100,23 +100,21 @@ class TestResolveApiKeyCommandSubstitution:
             resolve_api_key(config, "DUMMY_ENV", provider_name="test")
 
     def test_command_substitution_empty_output(self):
-        config = {"api_key": "!echo -n"}
+        config = {"api_key": "!printf ''"}
         with pytest.raises(ValueError, match="empty output"):
             resolve_api_key(config, "DUMMY_ENV", provider_name="test")
 
     def test_command_substitution_timeout(self):
-        config = {"api_key": "!sleep 20"}
-        with pytest.raises(ValueError, match="timed out"):
-            resolve_api_key(config, "DUMMY_ENV", provider_name="test")
+        from voice_to_text.providers.base import _execute_command_for_key
 
-    def test_env_var_priority_over_command(self):
+        with pytest.raises(ValueError, match="timed out"):
+            _execute_command_for_key("sleep 20", timeout=1)
+
+    def test_env_var_priority_over_command(self, monkeypatch):
         config = {"api_key": "!echo from-command", "api_key_env": "TEST_API_KEY"}
-        os.environ["TEST_API_KEY"] = "from-env"
-        try:
-            key = resolve_api_key(config, "TEST_API_KEY", provider_name="test")
-            assert key == "from-env"
-        finally:
-            del os.environ["TEST_API_KEY"]
+        monkeypatch.setenv("TEST_API_KEY", "from-env")
+        key = resolve_api_key(config, "TEST_API_KEY", provider_name="test")
+        assert key == "from-env"
 
     def test_command_shell_supports_pipes(self):
         config = {"api_key": "!echo 'hello world' | tr ' ' '-'"}

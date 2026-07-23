@@ -109,13 +109,24 @@ Keys are resolved at runtime by `resolve_api_key` (step 1). Options:
 2. **Config file**: add `api_key: "your-key"` to the provider block
 3. **Command substitution** (recommended for secret managers):
    ```yaml
+   # 1Password
    myprovider:
-     api_key: "!op read 'op://Vault/MyProvider/key'"  # 1Password
-     api_key: "!pass show myprovider/api-key"         # pass
+     api_key: "!op read 'op://Vault/MyProvider/key'"
+   ```
+
+   ```yaml
+   # pass
+   myprovider:
+     api_key: "!pass show myprovider/api-key"
+   ```
+
+   ```yaml
+   # GNOME Keyring
+   myprovider:
      api_key: "!secret-tool lookup service voice-to-text username myprovider"
    ```
    The command runs fresh each time; output goes to stdout, errors to stderr.
-   A desktop notification shows if the command fails.
+   Raises `ValueError` on timeout, non-zero exit, or empty output.
 
 > Resolution order: environment variable → config file → command substitution.
 > Command substitution supports shell pipes and quotes (`shell=True`).

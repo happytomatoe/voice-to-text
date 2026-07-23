@@ -9,14 +9,24 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 ### Added
 - **Command substitution (`!command`) for API keys** — If an `api_key` value starts with `!`, the rest is executed as a shell command and stdout is used as the key. This enables integration with secret managers like 1Password, pass, or custom scripts.
   ```yaml
+  # 1Password
   voxtral:
-    api_key: "!op read 'op://Vault/Voxtral/key'"  # 1Password
-    api_key: "!pass show voxtral/api-key"          # pass
+    api_key: "!op read 'op://Vault/Voxtral/key'"
+  ```
+
+  ```yaml
+  # pass
+  voxtral:
+    api_key: "!pass show voxtral/api-key"
+  ```
+
+  ```yaml
+  # GNOME Keyring
+  voxtral:
     api_key: "!secret-tool lookup service mistral type api_key"
   ```
   - Supports shell pipes and quotes (`shell=True`)
   - 10-second timeout
-  - Desktop notification on failure
   - Resolves after env vars and config file literals
 
 ### Changed

@@ -70,9 +70,9 @@ class StreamingProvider(ABC):
         pass
 
 
-def _execute_command_for_key(command: str) -> str:
+def _execute_command_for_key(command: str, *, timeout: float = 10) -> str:
     """Execute shell command, return stdout as API key."""
-    logger.info("Executing API key command: %s", command)
+    logger.info("Executing API key command")
     try:
         proc = subprocess.Popen(
             command,
@@ -80,20 +80,21 @@ def _execute_command_for_key(command: str) -> str:
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
+            start_new_session=True,
         )
         try:
-            stdout, stderr = proc.communicate(timeout=10)
+            stdout, stderr = proc.communicate(timeout=timeout)
         except subprocess.TimeoutExpired:
-            proc.kill()
+            os.killpg(proc.pid, 9)
             proc.communicate()
-            raise ValueError(f"API key command timed out after 10s: {command}")
+            raise ValueError(f"API key command timed out after {timeout:.0f}s")
 
         if proc.returncode != 0:
             raise ValueError(f"API key command failed (exit {proc.returncode}): {stderr.strip()}")
 
-        api_key = stdout.rstrip("\n")
+        api_key = stdout.strip()
         if not api_key:
-            raise ValueError(f"API key command returned empty output: {command}")
+            raise ValueError("API key command returned empty output")
 
         logger.debug("Command executed successfully")
         return api_key
@@ -138,7 +139,7 @@ def resolve_api_key(
 
     if not key:
         all_vars = (config.get("api_key_env", default_env),) + extra_envs
-        raise ValueError(f"No API key found in environment ({all_vars}) or config")
+        raise ValueError(f"No API key found in environment ({all_vars}), config, or keyring")
     # Log key fingerprint for debugging (first 6 + last 4 chars)
     if len(key) > 10:
         fingerprint = f"{key[:6]}...{key[-4:]}"

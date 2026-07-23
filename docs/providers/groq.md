@@ -5,8 +5,8 @@ Groq provides OpenAI-compatible Whisper transcription. **Batch / REST only** —
 ## API Endpoint
 
 - Base URL: `https://api.groq.com/openai/v1`
-- Batch: `POST {base}/v1/audio/transcriptions`
-- Limits: max 25 MB; formats `mp3, mp4, mpeg, mpga, m4a, wav, webm`. `vtt` / `srt` are **not** supported.
+- Batch: `POST {base}/audio/transcriptions`
+- Limits: max 25 MB (direct upload); up to 100 MB (URL-based, paid tier). Formats `mp3, mp4, mpeg, mpga, m4a, wav, webm`. `vtt` / `srt` are **not** supported.
 
 ## Authentication
 

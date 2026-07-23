@@ -11,7 +11,7 @@ Mistral **Voxtral** is a speech-to-text API with batch (OpenAI-compatible REST) 
 ## Authentication
 
 - Header: `Authorization: Bearer <API_KEY>`
-- Get a key: https://mistral.ai/
+- Get a key: https://console.mistral.ai/
 
 ## Modules / Libraries Used (what we can use)
 
