@@ -32,7 +32,7 @@ groq:
   # - command: "!op read 'op://Vault/Groq/key'"
   # - env var: set GROQ_API_KEY
 voxtral:
-  api_key: "!op get secret"  # Validates key, rotates on 401
+  api_key: "!op read 'op://Vault/Voxtral/key'"  # Validates key, rotates on 401
   model: "voxtral-mini-latest"
   realtime_model: "voxtral-mini-transcribe-realtime-2602"
   target_delay_ms: 400
