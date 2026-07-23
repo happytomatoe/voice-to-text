@@ -41,7 +41,7 @@ DEFAULT_MODEL = "..."
 
 class MyProvider(BatchProvider):
     def __init__(self, config: dict[str, Any]):
-        # provider_name is used for logging and key fingerprinting
+        # provider_name is REQUIRED so the keyring backend can resolve the key
         self.api_key = resolve_api_key(
             config, "MYPROVIDER_API_KEY", provider_name="myprovider"
         )
@@ -62,12 +62,14 @@ class MyProvider(BatchProvider):
         return "myprovider"
 ```
 
-### Contract details
+### Contract details (keyring refactor, #51)
 
 - **`close()` is abstract and required.** Even batch providers must implement
   it. Use `pass` when there is no persistent connection (e.g. you create the
   HTTP client per call inside `transcribe_file`).
-- **`provider_name` parameter** is used for logging and key fingerprinting.
+- **Always pass `provider_name` to `resolve_api_key`.** It maps to the keyring
+  entry `service=voice-to-text username=<provider>`. Without it,
+  `api_key_source: "keyring"` cannot find the key.
 - **All imports must be at module level** (project rule in `AGENTS.md`).
 
 ## 2. Register in the factory
@@ -101,25 +103,27 @@ myprovider:
 
 Update the `transcription.provider` comment to list the new option.
 
-### API keys
+### API keys / keyring
 
-Keys are resolved at runtime by `resolve_api_key` (step 1). Options:
+Keys are resolved at runtime by `resolve_api_key` (step 1). Store them in the
+OS keyring:
 
-1. **Environment variable** (default): set `MYPROVIDER_API_KEY`
-2. **Config file**: add `api_key: "your-key"` to the provider block
-3. **Command substitution** (recommended for secret managers):
-   ```yaml
-   myprovider:
-     api_key: "!op read 'op://Vault/MyProvider/key'"  # 1Password
-     api_key: "!pass show myprovider/api-key"         # pass
-     api_key: "!secret-tool lookup service voice-to-text username myprovider"
-   ```
-   The command runs fresh each time; output goes to stdout, errors to stderr.
-   A desktop notification shows if the command fails.
+```bash
+secret-tool store --label="MyProvider API Key" service voice-to-text username myprovider
+# or
+python3 -c "import keyring, getpass; keyring.set_password('voice-to-text', 'myprovider', getpass.getpass('Key: '))"
+```
 
-> Resolution order: environment variable → config file → command substitution.
-> Command substitution supports shell pipes and quotes (`shell=True`).
-> 10-second timeout; raises `ValueError` on failure.
+Enable the keyring backend globally or per-provider:
+
+```yaml
+transcription:
+  api_key_source: "keyring"   # or set `api_key_source` under the provider block
+```
+
+> The legacy `service/voice-to-text-dbus-wrapper` that exported keys via
+> `secret-tool lookup` was removed in #51; key loading now happens in Python
+> inside `resolve_api_key`.
 
 ## 4. Surface in the GNOME extension
 
