@@ -52,6 +52,14 @@ Transcription providers: cloud (Voxtral, Groq, Deepgram) and local (Parakeet). A
 - Match existing style; ruff/pyright must pass before committing.
 - Commit messages follow Conventional Commits (the repo rejects `Co-Authored-By` trailers in pre-commit).
 
+## Changelog
+
+Sections under `## [Unreleased]`: `### Breaking Changes` (API changes requiring migration), `### Added`, `### Changed`, `### Fixed`, `### Removed`.
+
+Rules:
+- All new entries go under `## [Unreleased]`. Read the full section first and append to existing subsections; never duplicate them.
+- Released version sections (e.g. `## [0.12.2]`) are immutable; never modify them.
+
 ## JavaScript/TypeScript Error Handling (gnome-ext/)
 
 - **Never leave catch blocks empty.** At minimum, log the error: `catch (e) { console.error(e); }`
