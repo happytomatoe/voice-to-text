@@ -71,14 +71,6 @@ class DeepgramProvider(BatchProvider, WebSocketStreamingProvider):
                 "language": language,
             }
             params.update(self.batch_options)
-
-            # Log the parameters including the numerals flag
-            logger.info("Transcription params (including numerals): %s", params)
-            if params.get("numerals", False):
-                logger.info("numerals parameter enabled – numbers will be converted to digits")
-            else:
-                logger.warning("numerals parameter not enabled – numbers will appear as words")
-
             if audio_path.startswith(("http://", "https://")):
                 headers = {"Authorization": f"Token {self.api_key}"}
                 content = None
