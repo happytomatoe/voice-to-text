@@ -139,7 +139,7 @@ def resolve_api_key(
 
     if not key:
         all_vars = (config.get("api_key_env", default_env),) + extra_envs
-        raise ValueError(f"No API key found in environment ({all_vars}), config, or keyring")
+        raise ValueError(f"No API key found in environment ({all_vars}) or config")
     # Log key fingerprint for debugging (first 6 + last 4 chars)
     if len(key) > 10:
         fingerprint = f"{key[:6]}...{key[-4:]}"
