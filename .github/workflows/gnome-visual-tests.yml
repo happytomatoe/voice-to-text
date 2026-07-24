@@ -1,0 +1,80 @@
+name: GNOME Extension Visual Tests
+
+on:
+  pull_request:
+    paths:
+      - 'gnome-ext/**'
+      - 'tests/gnome-tests/**'
+      - 'src/voice_to_text/**'
+  push:
+    branches:
+      - main
+    paths:
+      - 'gnome-ext/**'
+      - 'tests/gnome-tests/**'
+      - 'src/voice_to_text/**'
+
+jobs:
+  visual-tests:
+    name: Visual Regression Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y podman imagemagick
+
+      - name: Build test container
+        run: |
+          podman build -t voice-to-text-gnome-test \
+            -f tests/gnome-tests/Containerfile .
+
+      - name: Run visual tests
+        run: |
+          chmod +x tests/gnome-tests/*.sh
+          tests/gnome-tests/run-test.sh
+
+      - name: Upload test artifacts
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: visual-test-results
+          path: tests/gnome-output/
+          retention-days: 7
+
+      - name: Comment on PR with diff images
+        if: failure() && github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            
+            const outputDir = 'tests/gnome-output';
+            let diffFiles = [];
+            try {
+              diffFiles = fs.readdirSync(outputDir)
+                .filter(f => f.endsWith('-diff.png'));
+            } catch {
+              return; // no output dir means tests didn't run
+            }
+            
+            if (diffFiles.length === 0) return;
+            
+            let body = '## Visual Regression Test Results\n\n';
+            body += '❌ Some visual tests failed. Diff images:\n\n';
+            
+            for (const file of diffFiles) {
+              body += `- \`${file}\`\n`;
+            }
+            
+            body += '\nDownload the full artifacts to inspect the differences.\n';
+            body += 'To update references, run `just gnome-references` locally and commit.\n';
+            
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: body
+            });

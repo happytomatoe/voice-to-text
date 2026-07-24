@@ -210,3 +210,56 @@ gnome-ext-pack:
     glib-compile-schemas "dist/$UUID/schemas/"
     cd dist && zip -r "$UUID.shell-extension.zip" "$UUID"
     echo "Extension packed to dist/$UUID.shell-extension.zip"
+
+
+# @category gnome-ext
+# Build the test container locally
+gnome-test-build:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    echo "Building test container..."
+    podman build -t voice-to-text-gnome-test -f tests/gnome-tests/Containerfile .
+    echo "Container built: voice-to-text-gnome-test"
+
+# @category gnome-ext
+# Generate reference images for visual regression tests
+gnome-references: gnome-test-build
+    #!/usr/bin/env bash
+    set -euo pipefail
+    echo "Generating reference images..."
+    tests/gnome-tests/generate-references.sh
+    echo "References generated. Review and commit tests/gnome-references/"
+
+# @category gnome-ext
+# Run visual regression tests locally
+gnome-test: gnome-test-build
+    #!/usr/bin/env bash
+    set -euo pipefail
+    echo "Running visual regression tests..."
+    tests/gnome-tests/run-test.sh
+
+# @category gnome-ext
+# Update reference images with current state (after intentional changes)
+gnome-references-update: gnome-test-build
+    #!/usr/bin/env bash
+    set -euo pipefail
+    echo "Updating reference images..."
+    tests/gnome-tests/generate-references.sh
+    echo "References updated. Review and commit."
+
+# @category gnome-ext
+# Capture snapshot screenshots of all extension UI states
+gnome-snapshot: gnome-test-build
+    #!/usr/bin/env bash
+    set -euo pipefail
+    echo "Running snapshot tests..."
+    tests/gnome-tests/snapshot.sh
+
+# @category gnome-ext
+# Update snapshot references with current state
+gnome-snapshot-update: gnome-test-build
+    #!/usr/bin/env bash
+    set -euo pipefail
+    echo "Capturing snapshot references..."
+    tests/gnome-tests/snapshot.sh --update
+    echo "Snapshots saved. Review and commit tests/gnome-references/snapshot-*.png"
