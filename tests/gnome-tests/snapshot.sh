@@ -62,16 +62,21 @@ capture_crop() {
     "convert xwd:- -crop ${crop} +repage ${output_file}"
 }
 
+# Wait for container to start and user bus to be ready
 # Wait for container to start
 echo "Waiting for D-Bus..."
 sleep 5
 
+# Wait for user bus to be ready
+echo "Waiting for user bus..."
+do_in_pod wait-user-bus.sh || sleep 5
+
 # Set up GSK_RENDERER for consistent rendering
 do_in_pod 'echo "export GSK_RENDERER=cairo" >> .bash_profile'
 
-# Disable welcome tour
-echo "Disabling welcome tour..."
-do_in_pod gsettings set org.gnome.shell welcome-dialog-last-shown-version "999" || true
+# Welcome tour is disabled via dconf in Containerfile
+# No need to set welcome-dialog-last-shown-version at runtime
+
 do_in_pod gsettings set org.gnome.mutter center-new-windows true
 
 # Start GNOME Shell
